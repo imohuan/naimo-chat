@@ -11,6 +11,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const readline = require("readline");
 
 // 颜色输出工具
 const colors = {
@@ -123,6 +124,52 @@ function execCommand(command, cwd, description) {
     process.on("error", (error) => {
       colorLog("red", "ERROR", `${description}出错: ${error.message}`);
       reject(error);
+    });
+  });
+}
+
+// 检查前端资源是否存在
+function checkFrontendResources() {
+  const hasFrontendDist =
+    fs.existsSync(frontendDistDir) &&
+    fs.readdirSync(frontendDistDir).length > 0;
+  const hasBackendPublic =
+    fs.existsSync(backendPublicDir) &&
+    fs.readdirSync(backendPublicDir).length > 0;
+
+  return hasFrontendDist || hasBackendPublic;
+}
+
+// 显示交互式菜单并获取用户选择
+function showMenu() {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    console.log("");
+    colorLog("yellow", "INFO", "检测到前端资源已存在");
+    console.log("─".repeat(60));
+    console.log(`${colors.cyan}请选择操作：${colors.reset}`);
+    console.log(`${colors.green}  1.${colors.reset} 重新编译前端（推荐）`);
+    console.log(`${colors.green}  2.${colors.reset} 跳过前端编译，使用现有资源`);
+    console.log(`${colors.yellow}  3.${colors.reset} 取消打包`);
+    console.log("─".repeat(60));
+
+    rl.question(`${colors.cyan}请输入选项 (1/2/3): ${colors.reset}`, (answer) => {
+      rl.close();
+      const choice = answer.trim();
+      if (choice === "1") {
+        resolve("build");
+      } else if (choice === "2") {
+        resolve("skip");
+      } else if (choice === "3") {
+        resolve("cancel");
+      } else {
+        colorLog("red", "ERROR", "无效选项，默认选择重新编译");
+        resolve("build");
+      }
     });
   });
 }
@@ -260,7 +307,32 @@ async function main() {
   try {
     colorLog("bright", "BUILD", "🚀 开始完整打包流程...\n");
 
-    await buildFrontend();
+    // 检查前端资源是否存在，如果存在则显示菜单
+    let shouldBuildFrontend = true;
+    if (checkFrontendResources()) {
+      const choice = await showMenu();
+      if (choice === "cancel") {
+        colorLog("yellow", "CANCEL", "用户取消打包");
+        process.exit(0);
+      } else if (choice === "skip") {
+        shouldBuildFrontend = false;
+        colorLog("yellow", "SKIP", "跳过前端编译，使用现有资源");
+        console.log("");
+      }
+    }
+
+    // 根据用户选择决定是否编译前端
+    if (shouldBuildFrontend) {
+      await buildFrontend();
+    } else {
+      // 如果跳过前端编译，需要确保 frontendDistDir 存在
+      // 如果 frontendDistDir 不存在但 backendPublicDir 存在，则从 backendPublicDir 复制回去
+      if (!fs.existsSync(frontendDistDir) && fs.existsSync(backendPublicDir)) {
+        colorLog("yellow", "INFO", "从 backend/public 恢复前端资源...");
+        await copyDirectory(backendPublicDir, frontendDistDir);
+      }
+    }
+
     await copyToBackendPublic();
     await buildBackend();
     await copyExeToRoot();
