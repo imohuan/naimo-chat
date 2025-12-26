@@ -34,6 +34,7 @@ const props = defineProps({
 const emit = defineEmits<{
   "update:modelValue": [value: string];
   ready: [editor: Monaco.editor.IStandaloneCodeEditor, monaco: MonacoInstance];
+  "font-size-change": [size: number];
 }>();
 
 const editorContainer = ref<HTMLDivElement>();
@@ -172,6 +173,8 @@ function handleWheel(event: WheelEvent) {
     const delta = event.deltaY > 0 ? -1 : 1;
     const newFontSize = Math.max(8, Math.min(30, currentFontSize + delta));
     editor.updateOptions({ fontSize: newFontSize });
+    // 通知父组件字体大小变化
+    emit("font-size-change", newFontSize);
   }
 }
 

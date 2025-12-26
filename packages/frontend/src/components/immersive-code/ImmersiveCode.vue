@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 import {
   Undo2,
   Redo2,
@@ -9,8 +9,10 @@ import {
   Terminal,
 } from "lucide-vue-next";
 import { useCodeHistory } from "./composables/useCodeHistory";
+import { useCodeDiff } from "./composables/useCodeDiff";
 import PreviewFrame from "./components/PreviewFrame.vue";
 import ConsolePanel, { type LogEntry } from "./components/ConsolePanel.vue";
+import ImmersiveDiffEditor from "./components/ImmersiveDiffEditor.vue"; // Import Component
 import CodeEditor from "../code/CodeEditor.vue";
 import {
   Select,
@@ -43,6 +45,7 @@ const {
   versions,
   currentVersionIndex,
   currentCode,
+  currentDiffTarget, // Added
   canUndo,
   canRedo,
   record,
@@ -52,27 +55,161 @@ const {
   switchVersion,
 } = useCodeHistory(props.initialCode || DEFAULT_CODE);
 
+const { applyDiff } = useCodeDiff();
+
+// View State
+const uiMode = ref<"code" | "preview">("code"); // Renamed to avoid conflict with computed 'mode'
+const showConsole = ref(false);
+const logs = ref<LogEntry[]>([]);
+const previewKey = ref(0);
+const editorValue = ref(currentCode.value);
+const fontSize = ref(14); // 字体大小状态
+
+// Editor Refs
+const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
+const diffEditorRef = ref<InstanceType<typeof ImmersiveDiffEditor> | null>(null);
+
+// Computed Mode based on History
+const mode = computed<"code" | "preview" | "diff">(() => {
+  // If we have a diff target, we are in diff mode
+  if (currentDiffTarget.value) {
+    return "diff";
+  }
+  // Otherwise, use the UI mode selected by the user
+  return uiMode.value;
+});
+
+// 监听模式变化，同步字体大小
+watch(
+  () => mode.value,
+  async (newMode, oldMode) => {
+    // 从 code 模式进入 diff 模式
+    if (oldMode === "code" && newMode === "diff") {
+      // 等待 DiffEditor 挂载
+      await nextTick();
+      // 从 CodeEditor 获取当前字体大小
+      const editor = codeEditorRef.value?.getEditor();
+      if (editor) {
+        const monaco = codeEditorRef.value?.getMonaco();
+        if (monaco) {
+          const currentFontSize = editor.getOption(
+            monaco.editor.EditorOption.fontSize
+          );
+          fontSize.value = currentFontSize;
+          // 等待一下确保 DiffEditor 已完全初始化
+          setTimeout(() => {
+            if (diffEditorRef.value) {
+              diffEditorRef.value.setFontSize(currentFontSize);
+            }
+          }, 100);
+        }
+      }
+    }
+    // 从 diff 模式退出到 code 模式
+    else if (oldMode === "diff" && newMode === "code") {
+      // 从 DiffEditor 获取当前字体大小
+      if (diffEditorRef.value) {
+        const currentFontSize = diffEditorRef.value.getFontSize();
+        fontSize.value = currentFontSize;
+        // 等待 CodeEditor 重新挂载
+        await nextTick();
+        // 同步到 CodeEditor
+        const editor = codeEditorRef.value?.getEditor();
+        if (editor) {
+          editor.updateOptions({ fontSize: currentFontSize });
+        }
+      }
+    }
+  }
+);
+
+// Diff State
+// For Diff Editor, the "Modified" side is the target of the diff (the proposal)
+// The "Original" side is the current code (what we are editing/keeping into)
+// Diff State
+// The "Modified" side is computed by applying the stored DIFF (patch) to the current code.
+// This makes the history the single source of truth for the Diff state.
+const diffResultCode = computed(() => {
+  if (!currentDiffTarget.value) return "";
+
+  // If we have a stored diff target, try to apply it to the current code
+  const result = applyDiff(currentCode.value, currentDiffTarget.value);
+  if (result.success) {
+    return result.content;
+  }
+
+  // Fallback: If application fails (e.g. underlying code changed), return current code?
+  // Or maybe return the FAILURE message to show something is wrong?
+  // For now, let's return current code so it shows "No Changes" effectively.
+  console.warn(
+    "⚠️ [ImmersiveCode] Failed to apply stored diff to current code:",
+    result.message
+  );
+  return currentCode.value; // Show same code on both sides if fail
+});
+
+const diffSuccess = ref(false);
+
 // Expose methods for parent control
 defineExpose({
   addMajorVersion: (code?: string, label?: string) =>
     addMajorVersion(code || currentCode.value, label),
   getCurrentCode: () => currentCode.value,
-});
+  /**
+   * Enter Diff/Contrast Mode
+   * @param diffContent The RAW diff content (SEARCH/REPLACE blocks)
+   * @param originalContent Optional: Update the "original" (base) code before comparing.
+   */
+  diff: (diffContent: string, originalContent?: string) => {
+    console.group("🔄 [ImmersiveCode] Triggering Diff Mode (Raw)");
 
-// View State
-const mode = ref<"code" | "preview">("preview");
-const showConsole = ref(true);
-const logs = ref<LogEntry[]>([]);
-const previewKey = ref(0);
-const editorValue = ref(currentCode.value);
+    // 1. Optionally update base code first
+    const baseCode =
+      originalContent !== undefined ? originalContent : currentCode.value;
+
+    // 2. Validate the Diff?
+    // We *could* validate it here, but generally we want to just store it.
+    // However, checking if it applies cleanly is good feedback.
+    const dryRun = applyDiff(baseCode, diffContent);
+    if (!dryRun.success) {
+      console.warn("⚠️ [ImmersiveCode] Diff (Dry Run) Failed:", dryRun.message);
+      // We can still choose to record it, but maybe warn?
+    }
+
+    // 3. Record new state:
+    // Code: baseCode (The state we are coming FROM / keeping)
+    // DiffTarget: diffContent (The raw patch)
+    console.log("Recording Raw Diff:", {
+      baseLen: baseCode.length,
+      diffLen: diffContent.length,
+    });
+    record(baseCode, diffContent);
+
+    diffSuccess.value = true;
+    console.groupEnd();
+    return { success: true, message: "Opening Diff View with Raw Patch." };
+  },
+});
 
 // Sync Editor -> History (Debounced)
 const debouncedRecord = useDebounceFn((val: string) => {
-  record(val);
+  // Only record if we are in 'code' mode
+  if (mode.value === "code") {
+    record(val);
+  }
+}, 800);
+
+// Debounced record for Diff Mode (Typing in Diff Editor)
+const debouncedDiffRecord = useDebounceFn((val: string) => {
+  if (mode.value === "diff") {
+    record(val, currentDiffTarget.value);
+  }
 }, 800);
 
 watch(editorValue, (val) => {
-  debouncedRecord(val);
+  if (mode.value === "code") {
+    debouncedRecord(val);
+  }
 });
 
 // Sync History -> Editor
@@ -102,6 +239,51 @@ function refreshPreview() {
   clearConsole();
 }
 
+// 处理 DiffEditor 字体大小变化
+function handleFontSizeChange(size: number) {
+  fontSize.value = size;
+}
+
+// Diff Handlers
+// Diff Handlers
+// Diff Handlers
+function handleDiffUpdate(newOriginal: string) {
+  // Update the current code (Source of Truth) as user explicitly navigates "Keep"
+  editorValue.value = newOriginal;
+
+  // CRITICAL FIX: If the code changes (via edit or accept), the old "Raw Diff" (Patch)
+  // is likely no longer valid (line numbers/context mismatch).
+  // Therefore, we MUST clear the diffTarget (pass undefined) to avoid a broken state
+  // where we have [New Code + Old Invalid Patch].
+  // This effectively means "Any edit exits Diff Mode".
+  console.log(
+    "📝 [ImmersiveCode] Code updated in Diff Mode. Clearing Diff Target."
+  );
+  record(newOriginal, undefined);
+}
+
+/**
+ * Handle "Save" or "Close" from Diff Editor.
+ * This should EXIT diff mode by recording a state with content but NO diffTarget.
+ * @param finalContent Optional content to save. If null, uses current.
+ */
+function exitDiffMode(finalContent?: string) {
+  console.group("👋 [ImmersiveCode] Exiting Diff Mode");
+  const codeToSave =
+    finalContent !== undefined ? finalContent : currentCode.value;
+
+  console.log("Saving Final Content:", codeToSave.substring(0, 30) + "...");
+
+  // Explicitly record a state with NO diffTarget to exit Diff Mode in history
+  // This allows "Undo" to return to the Diff state later
+  record(codeToSave, undefined);
+
+  // Also switch UI mode just in case (though computed mode handles it)
+  uiMode.value = "code";
+  refreshPreview();
+  console.groupEnd();
+}
+
 // Select Version
 const versionValue = computed({
   get: () => String(currentVersionIndex.value),
@@ -123,9 +305,7 @@ function formatTime(ts: number) {
       class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-100 z-20"
     >
       <div class="flex items-center space-x-4">
-        <div
-          class="flex items-center space-x-2 text-slate-700 font-semibold select-none"
-        >
+        <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
           <Code2 class="w-5 h-5 text-purple-600" />
           <span>Fixed Script</span>
         </div>
@@ -201,7 +381,7 @@ function formatTime(ts: number) {
         <!-- Mode Switcher -->
         <div class="flex items-center bg-slate-100 rounded-lg p-1">
           <button
-            @click="mode = 'code'"
+            @click="uiMode = 'code'"
             :class="[
               'flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition',
               mode === 'code'
@@ -212,7 +392,7 @@ function formatTime(ts: number) {
             <span>代码</span>
           </button>
           <button
-            @click="mode = 'preview'"
+            @click="uiMode = 'preview'"
             :class="[
               'flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition',
               mode === 'preview'
@@ -238,21 +418,40 @@ function formatTime(ts: number) {
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden relative">
       <!-- Code Editor Area -->
-      <div v-show="mode === 'code'" class="flex-1 overflow-hidden relative z-0">
-        <CodeEditor v-model="editorValue" language="html" theme="vs" />
+      <div v-if="mode === 'code'" class="flex-1 overflow-hidden relative z-0">
+        <CodeEditor
+          ref="codeEditorRef"
+          v-model="editorValue"
+          language="html"
+          theme="vs"
+          :options="{ fontSize }"
+          @font-size-change="handleFontSizeChange"
+        />
+      </div>
+
+      <!-- Diff Editor Area -->
+      <div v-if="mode === 'diff'" class="flex-1 overflow-hidden relative z-0">
+        <ImmersiveDiffEditor
+          ref="diffEditorRef"
+          :original="currentCode"
+          :modified="diffResultCode"
+          language="html"
+          theme="vs"
+          :font-size="fontSize"
+          @update:original="handleDiffUpdate"
+          @save="exitDiffMode"
+          @close="exitDiffMode"
+          @font-size-change="handleFontSizeChange"
+        />
       </div>
 
       <!-- Preview Area -->
       <div
-        v-show="mode === 'preview'"
+        v-if="mode === 'preview'"
         class="flex-1 overflow-hidden bg-slate-50 relative z-0"
       >
         <div class="w-full h-full bg-white overflow-hidden relative ring-4">
-          <PreviewFrame
-            :key="previewKey"
-            :code="currentCode"
-            @console-log="handleLog"
-          />
+          <PreviewFrame :key="previewKey" :code="currentCode" @console-log="handleLog" />
         </div>
       </div>
 
