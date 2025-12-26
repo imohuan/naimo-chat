@@ -40,6 +40,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   error: [message: string];
   "element-selected": [selector: string, data?: any];
+  "ctrl-i-pressed": [data: { code: string; startLine: number; endLine: number }];
 }>();
 
 const {
@@ -671,6 +672,8 @@ onBeforeUnmount(() => {
           <Share2 class="w-3.5 h-3.5" />
           <span>分享</span>
         </button>
+
+        <slot name="right-actions" />
       </div>
     </div>
 
@@ -686,6 +689,7 @@ onBeforeUnmount(() => {
           :readonly="props.readonly"
           :options="{ fontSize }"
           @font-size-change="handleFontSizeChange"
+          @ctrl-i-pressed="(data: { code: string; startLine: number; endLine: number }) => emit('ctrl-i-pressed', data)"
         />
       </div>
 

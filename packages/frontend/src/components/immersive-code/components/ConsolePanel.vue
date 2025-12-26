@@ -153,7 +153,7 @@ watch(
               <span
                 v-for="(arg, ai) in log.args"
                 :key="ai"
-                class="text-sm whitespace-pre-wrap"
+                class="text-sm whitespace-pre-wrap select-text"
                 >{{ formatArg(arg) }}</span
               >
             </div>

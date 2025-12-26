@@ -61,7 +61,7 @@ import {
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { MicRound, CheckCircleRound, PersonRound, SmartToyRound } from "@vicons/material";
-import { CheckIcon, CopyIcon, RefreshCcwIcon, ThumbsDownIcon, ThumbsUpIcon, ChevronDown, Globe, ImageIcon, Infinity as InfinityIcon } from "lucide-vue-next";
+import { CheckIcon, CopyIcon, RefreshCcwIcon, ThumbsDownIcon, ThumbsUpIcon, ChevronDown, Globe, ImageIcon, Infinity as InfinityIcon, X } from "lucide-vue-next";
 import { computed, ref, watch, defineComponent, h } from "vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
@@ -114,6 +114,7 @@ const useWebSearch = ref(false);
 const useMicrophone = ref(false);
 const selectedMode = ref<string>("chat");
 const status = ref<ChatStatus>("ready");
+const showCanvas = ref(true);
 const liked = ref<Record<string, boolean>>({});
 const disliked = ref<Record<string, boolean>>({});
 const copied = ref<Record<string, boolean>>({});
@@ -697,6 +698,14 @@ function handleElementSelected(selector: string, data?: any) {
   }
 }
 
+function handleCtrlIPressed(data: { code: string; startLine: number; endLine: number }) {
+  console.log("=== Ctrl+I 按下 ===");
+  console.log("开始行 (Start Line):", data.startLine);
+  console.log("结束行 (End Line):", data.endLine);
+  console.log("代码内容长度:", data.code.length, "字符");
+  console.log("===================");
+}
+
 function handleTagClick(data: { id: string; label: string; icon?: string; data?: Record<string, any> }) {
   console.log("=== 标签点击信息 ===");
   console.log("标签 ID:", data.id);
@@ -927,7 +936,7 @@ const FileUploadButton = defineComponent({
                     >
                       <RefreshCcwIcon class="size-4" />
                     </MessageAction>
-                    <MessageAction
+                    <!-- <MessageAction
                       label="Like"
                       tooltip="点赞"
                       @click="toggleLike(message.key)"
@@ -946,7 +955,7 @@ const FileUploadButton = defineComponent({
                         class="size-4"
                         :fill="disliked[message.key] ? 'currentColor' : 'none'"
                       />
-                    </MessageAction>
+                    </MessageAction> -->
                     <MessageAction
                       label="Copy"
                       tooltip="复制内容"
@@ -1132,11 +1141,15 @@ const FileUploadButton = defineComponent({
                 </PromptInput>
               </div>
             </div>
+            z
           </div>
         </div>
 
         <!-- 右侧 ImmersiveCode 区域 -->
-        <div class="shrink-0 w-2/3 h-full flex flex-col overflow-hidden p-2">
+        <div
+          v-if="showCanvas"
+          class="shrink-0 w-2/3 h-full flex flex-col overflow-hidden p-2"
+        >
           <div class="h-full w-full">
             <ImmersiveCode
               ref="immersiveCodeRef"
@@ -1144,8 +1157,19 @@ const FileUploadButton = defineComponent({
               :readonly="false"
               @error="handleImmersiveError"
               @element-selected="handleElementSelected"
+              @ctrl-i-pressed="handleCtrlIPressed"
               class="immersive-code-full-height"
-            />
+            >
+              <template #right-actions>
+                <button
+                  @click="showCanvas = false"
+                  class="p-1.5 text-slate-400 hover:text-slate-600 transition rounded"
+                  title="关闭画布"
+                >
+                  <X class="w-4 h-4" />
+                </button>
+              </template>
+            </ImmersiveCode>
           </div>
         </div>
       </div>

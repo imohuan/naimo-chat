@@ -35,6 +35,7 @@ const emit = defineEmits<{
   "update:modelValue": [value: string];
   ready: [editor: Monaco.editor.IStandaloneCodeEditor, monaco: MonacoInstance];
   "font-size-change": [size: number];
+  "ctrl-i-pressed": [data: { code: string; startLine: number; endLine: number }];
 }>();
 
 const editorContainer = ref<HTMLDivElement>();
@@ -134,6 +135,22 @@ async function initEditor() {
     currentWordWrapState = currentWordWrapState === 'off' ? 'on' : "off"
     // 执行切换自动换行的操作
     editor!.updateOptions({ wordWrap: currentWordWrapState });
+  }, 'editorTextFocus');
+
+  // 添加 Ctrl+I 快捷键处理
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, function () {
+    if (editor) {
+      const code = editor.getValue();
+      const selection = editor.getSelection();
+      // 如果没有选中内容，使用光标所在的行
+      const startLine = selection ? selection.startLineNumber : editor.getPosition()?.lineNumber || 1;
+      const endLine = selection ? selection.endLineNumber : startLine;
+      emit("ctrl-i-pressed", {
+        code,
+        startLine,
+        endLine,
+      });
+    }
   }, 'editorTextFocus');
 
   console.log("✅ 编辑器实例创建成功");

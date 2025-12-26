@@ -1,6 +1,16 @@
-import { Schema, Node as ProseMirrorNode, type DOMOutputSpec } from "prosemirror-model";
-import { EditorState, Plugin, PluginKey, Transaction, TextSelection } from "prosemirror-state";
-import { Decoration, DecorationSet } from "prosemirror-view";
+import {
+  Schema,
+  Node as ProseMirrorNode,
+  type DOMOutputSpec,
+} from "prosemirror-model";
+import {
+  EditorState,
+  Plugin,
+  PluginKey,
+  Transaction,
+  TextSelection,
+} from "prosemirror-state";
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { history, undo, redo } from "prosemirror-history";
@@ -46,7 +56,7 @@ export function createSchema(): Schema {
           icon: { default: "" },
           data: { default: null },
         },
-        selectable: true,
+        selectable: false,
         atom: true, // 标签作为原子节点，不能被部分选中
         toDOM(node): DOMOutputSpec {
           return [
@@ -59,11 +69,7 @@ export function createSchema(): Schema {
             [
               "span",
               { class: "prompt-tag-icon-wrapper" },
-              [
-                "span",
-                { class: "prompt-tag-icon" },
-                node.attrs.icon || "🏷️",
-              ],
+              ["span", { class: "prompt-tag-icon" }, node.attrs.icon || "🏷️"],
               [
                 "span",
                 {
@@ -159,7 +165,8 @@ function createPlaceholderPlugin(placeholder: string): Plugin {
             const span = document.createElement("span");
             span.className = "prosemirror-placeholder";
             span.textContent = placeholder;
-            span.style.cssText = "pointer-events: none; color: hsl(var(--muted-foreground)); position: absolute;";
+            span.style.cssText =
+              "pointer-events: none; color: hsl(var(--muted-foreground)); position: absolute;";
             return span;
           });
           return DecorationSet.create(doc, [placeholderDecoration]);
@@ -223,6 +230,9 @@ export function createEditorState(
     plugins.push(createPlaceholderPlugin(options.placeholder));
   }
 
+  // 添加选中样式插件
+  plugins.push(createSelectionPlugin());
+
   return EditorState.create({
     doc,
     plugins,
@@ -259,7 +269,8 @@ function createTagDeletePlugin(
             const $pos = state.doc.resolve(pos);
             const node = $pos.nodeAfter || $pos.nodeBefore;
             if (node && node.type.name === "tag" && node.attrs.id === tagId) {
-              const deletePos = $pos.pos - ($pos.nodeBefore ? $pos.nodeBefore.nodeSize : 0);
+              const deletePos =
+                $pos.pos - ($pos.nodeBefore ? $pos.nodeBefore.nodeSize : 0);
               const tr = state.tr.delete(deletePos, deletePos + node.nodeSize);
               dispatch(tr);
 
@@ -277,120 +288,290 @@ function createTagDeletePlugin(
 }
 
 /**
- * 创建标签拖拽插件
+ * 创建选中样式插件
+ * 当标签在选区内时添加样式类
  */
-export function createTagDragPlugin(): Plugin {
-  let dragTag: { node: ProseMirrorNode; startPos: number } | null = null;
-
+function createSelectionPlugin(): Plugin {
   return new Plugin({
-    key: new PluginKey("tagDrag"),
+    key: new PluginKey("selectionHighlight"),
     props: {
-      handleDOMEvents: {
-        mousedown(view, event) {
-          const target = event.target as HTMLElement;
-          const tagElement = target.closest(".prompt-tag") as HTMLElement;
-          if (!tagElement || target.classList.contains("prompt-tag-delete")) {
-            return false;
+      decorations(state) {
+        const { selection } = state;
+        if (selection.empty) return DecorationSet.empty;
+
+        const decorations: Decoration[] = [];
+        state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+          if (node.type.name === "tag") {
+            decorations.push(
+              Decoration.node(pos, pos + node.nodeSize, {
+                class: "tag-selected",
+              })
+            );
           }
+        });
 
-          const { state } = view;
-          const pos = view.posAtDOM(tagElement, 0);
-          if (pos === null || pos === undefined) return false;
-
-          const $pos = state.doc.resolve(pos);
-          const node = $pos.nodeAfter || $pos.nodeBefore;
-          if (node && node.type.name === "tag") {
-            dragTag = {
-              node,
-              startPos: $pos.pos - ($pos.nodeBefore ? $pos.nodeBefore.nodeSize : 0),
-            };
-            tagElement.draggable = true;
-            return false;
-          }
-          return false;
-        },
-        dragstart(_view, event) {
-          if (!dragTag) return false;
-
-          const target = event.target as HTMLElement;
-          const tagElement = target.closest(".prompt-tag") as HTMLElement;
-          if (tagElement) {
-            event.dataTransfer!.effectAllowed = "move";
-            event.dataTransfer!.setData("text/plain", "");
-            // 设置拖拽预览
-            const clone = tagElement.cloneNode(true) as HTMLElement;
-            clone.style.opacity = "0.5";
-            document.body.appendChild(clone);
-            event.dataTransfer!.setDragImage(clone, 0, 0);
-            setTimeout(() => document.body.removeChild(clone), 0);
-          }
-          return false;
-        },
-        dragover(view, event) {
-          if (!dragTag) return false;
-          event.preventDefault();
-          event.dataTransfer!.dropEffect = "move";
-
-          const coords = view.posAtCoords({
-            left: event.clientX,
-            top: event.clientY,
-          });
-          if (!coords) return false;
-
-          const { state } = view;
-          const $pos = state.doc.resolve(coords.pos);
-          const pos = $pos.pos;
-
-          // 不允许拖到自己位置
-          if (pos === dragTag.startPos || pos === dragTag.startPos + 1) {
-            return false;
-          }
-
-          return false;
-        },
-        drop(view, event) {
-          if (!dragTag) return false;
-          event.preventDefault();
-
-          const { state, dispatch } = view;
-          const coords = view.posAtCoords({
-            left: event.clientX,
-            top: event.clientY,
-          });
-          if (!coords) {
-            dragTag = null;
-            return false;
-          }
-
-          const $pos = state.doc.resolve(coords.pos);
-          let insertPos = $pos.pos;
-
-          // 确保插入位置正确
-          if ($pos.nodeBefore && $pos.nodeBefore.type.name === "tag") {
-            insertPos = $pos.pos;
-          }
-
-          // 计算实际插入位置（考虑删除原节点后位置的变化）
-          let deletePos = dragTag.startPos;
-          if (insertPos > deletePos) {
-            insertPos -= dragTag.node.nodeSize;
-          }
-
-          const tr = state.tr
-            .delete(deletePos, deletePos + dragTag.node.nodeSize)
-            .insert(insertPos, dragTag.node);
-
-          dispatch(tr);
-          dragTag = null;
-          return true;
-        },
-        dragend() {
-          dragTag = null;
-          return false;
-        },
+        return DecorationSet.create(state.doc, decorations);
       },
     },
   });
+}
+
+// 共享的拖拽状态，用于在 PluginView 和 handleDrop 之间通信
+let sharedDragTag: { node: ProseMirrorNode; startPos: number } | null = null;
+let sharedCursorPos: number | null = null;
+let isDraggingTag = false;
+
+export function createTagDragPlugin(): Plugin {
+  return new Plugin({
+    key: new PluginKey("tagDrag"),
+    view(editorView) {
+      return new TagDragView(editorView);
+    },
+    props: {
+      // 使用 handleDOMEvents 拦截 dragstart，阻止 ProseMirror 的默认拖拽行为
+      handleDOMEvents: {
+        dragstart(_view, event) {
+          if (!isDraggingTag || !sharedDragTag) {
+            return false; // 不是我们的标签拖拽，让 PM 处理
+          }
+
+          const target = event.target as HTMLElement;
+          const tagElement = target.closest(".prompt-tag") as HTMLElement;
+          if (!tagElement) {
+            return false;
+          }
+
+          // 设置拖拽数据
+          event.dataTransfer!.effectAllowed = "move";
+          event.dataTransfer!.setData(
+            "application/x-prosemirror-tag",
+            sharedDragTag.node.attrs.id
+          );
+
+          // 设置拖拽预览
+          const clone = tagElement.cloneNode(true) as HTMLElement;
+          clone.style.opacity = "0.5";
+          clone.style.position = "absolute";
+          clone.style.left = "-9999px";
+          document.body.appendChild(clone);
+          event.dataTransfer!.setDragImage(clone, 0, 0);
+          setTimeout(() => document.body.removeChild(clone), 0);
+
+          // 返回 true 阻止 ProseMirror 的默认拖拽处理
+          return true;
+        },
+      },
+      // 使用 handleDrop 来完全控制拖放行为
+      handleDrop(view, event, _slice, _moved) {
+        // 检查是否是我们的标签拖拽
+        if (
+          !event.dataTransfer?.types.includes("application/x-prosemirror-tag")
+        ) {
+          return false;
+        }
+
+        if (!sharedDragTag) {
+          isDraggingTag = false;
+          return false;
+        }
+
+        event.preventDefault();
+
+        const targetPos = sharedCursorPos;
+
+        if (targetPos === null) {
+          sharedDragTag = null;
+          sharedCursorPos = null;
+          isDraggingTag = false;
+          return true;
+        }
+
+        // 保存节点信息（因为后面要清除 sharedDragTag）
+        const nodeToMove = sharedDragTag.node;
+        const deletePos = sharedDragTag.startPos;
+        const nodeSize = nodeToMove.nodeSize;
+
+        // 清除状态
+        sharedDragTag = null;
+        sharedCursorPos = null;
+        isDraggingTag = false;
+
+        // 计算位置调整
+        let insertPos = targetPos;
+        if (insertPos > deletePos) {
+          insertPos -= nodeSize;
+        }
+
+        // 执行移动：先删除后插入
+        const tr = view.state.tr
+          .delete(deletePos, deletePos + nodeSize)
+          .insert(insertPos, nodeToMove);
+
+        view.dispatch(tr);
+        return true;
+      },
+    },
+  });
+}
+
+/**
+ * 标签拖拽视图类 - 管理拖拽光标的DOM元素
+ */
+class TagDragView {
+  editorView: EditorView;
+  element: HTMLElement | null = null;
+  handlers: { name: string; handler: (event: Event) => void }[];
+
+  constructor(editorView: EditorView) {
+    this.editorView = editorView;
+    this.handlers = ["mousedown", "dragover", "dragend", "dragleave"].map(
+      (name) => {
+        const handler = (e: Event) => {
+          (this as any)[name](e);
+        };
+        editorView.dom.addEventListener(name, handler);
+        return { name, handler };
+      }
+    );
+  }
+
+  destroy() {
+    this.handlers.forEach(({ name, handler }) =>
+      this.editorView.dom.removeEventListener(name, handler)
+    );
+    if (this.element && this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
+    }
+  }
+
+  setCursor(pos: number | null) {
+    if (pos === sharedCursorPos) return;
+    sharedCursorPos = pos;
+    if (pos === null) {
+      if (this.element && this.element.parentNode) {
+        this.element.parentNode.removeChild(this.element);
+      }
+      this.element = null;
+    } else {
+      this.updateOverlay();
+    }
+  }
+
+  updateOverlay() {
+    if (sharedCursorPos === null) return;
+
+    const coords = this.editorView.coordsAtPos(sharedCursorPos);
+    const editorDOM = this.editorView.dom;
+    const editorRect = editorDOM.getBoundingClientRect();
+
+    // 计算缩放比例
+    const scaleX = editorRect.width / editorDOM.offsetWidth;
+    const scaleY = editorRect.height / editorDOM.offsetHeight;
+
+    // 获取 offsetParent
+    let parent = this.editorView.dom.offsetParent as HTMLElement;
+
+    if (!this.element) {
+      this.element = document.createElement("div");
+      this.element.className = "prosemirror-drop-target";
+      this.element.style.cssText =
+        "position: absolute; z-index: 50; pointer-events: none; background-color: black;";
+
+      if (parent) {
+        parent.appendChild(this.element);
+      } else {
+        document.body.appendChild(this.element);
+      }
+    }
+
+    // 计算相对于 offsetParent 的位置
+    let parentLeft: number, parentTop: number;
+    if (
+      !parent ||
+      (parent === document.body &&
+        getComputedStyle(parent).position === "static")
+    ) {
+      parentLeft = -window.pageXOffset;
+      parentTop = -window.pageYOffset;
+    } else {
+      const parentRect = parent.getBoundingClientRect();
+      const parentScaleX = parentRect.width / parent.offsetWidth;
+      const parentScaleY = parentRect.height / parent.offsetHeight;
+      parentLeft = parentRect.left - parent.scrollLeft * parentScaleX;
+      parentTop = parentRect.top - parent.scrollTop * parentScaleY;
+    }
+
+    const width = 2;
+    const halfWidth = width / 2;
+
+    this.element.style.left =
+      (coords.left - halfWidth - parentLeft) / scaleX + "px";
+    this.element.style.top = (coords.top - parentTop) / scaleY + "px";
+    this.element.style.width = width / scaleX + "px";
+    this.element.style.height = (coords.bottom - coords.top) / scaleY + "px";
+  }
+
+  mousedown(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    const tagElement = target.closest(".prompt-tag") as HTMLElement;
+    if (!tagElement || target.classList.contains("prompt-tag-delete")) {
+      return;
+    }
+
+    const { state } = this.editorView;
+    const pos = this.editorView.posAtDOM(tagElement, 0);
+    if (pos === null || pos === undefined) return;
+
+    const $pos = state.doc.resolve(pos);
+    const node = $pos.nodeAfter || $pos.nodeBefore;
+    if (node && node.type.name === "tag") {
+      sharedDragTag = {
+        node,
+        startPos: $pos.pos - ($pos.nodeBefore ? $pos.nodeBefore.nodeSize : 0),
+      };
+      isDraggingTag = true;
+      tagElement.draggable = true;
+    }
+  }
+
+  dragover(event: DragEvent) {
+    if (!sharedDragTag) return;
+    event.preventDefault();
+    event.dataTransfer!.dropEffect = "move";
+
+    const coords = this.editorView.posAtCoords({
+      left: event.clientX,
+      top: event.clientY,
+    });
+
+    if (!coords) {
+      this.setCursor(null);
+      return;
+    }
+
+    const pos = coords.pos;
+
+    // 如果位置在被拖拽元素范围内，不显示光标
+    const tagEndPos = sharedDragTag.startPos + sharedDragTag.node.nodeSize;
+    if (pos >= sharedDragTag.startPos && pos <= tagEndPos) {
+      this.setCursor(null);
+      return;
+    }
+
+    this.setCursor(pos);
+  }
+
+  dragleave(event: DragEvent) {
+    if (!this.editorView.dom.contains(event.relatedTarget as Node)) {
+      this.setCursor(null);
+    }
+  }
+
+  dragend() {
+    this.setCursor(null);
+    sharedDragTag = null;
+    isDraggingTag = false;
+  }
 }
 
 /**
@@ -419,7 +600,12 @@ export function getEditorContent(state: EditorState): {
   tags: Array<{ id: string; label: string; icon?: string; position: number }>;
 } {
   const text: string[] = [];
-  const tags: Array<{ id: string; label: string; icon?: string; position: number }> = [];
+  const tags: Array<{
+    id: string;
+    label: string;
+    icon?: string;
+    position: number;
+  }> = [];
 
   state.doc.descendants((node: ProseMirrorNode, pos: number) => {
     if (node.isText) {
@@ -449,7 +635,9 @@ export function setEditorContent(
   content: string
 ): EditorState {
   const doc = createDocFromText(schema, content);
-  return state.apply(state.tr.replaceWith(0, state.doc.content.size, doc.content));
+  return state.apply(
+    state.tr.replaceWith(0, state.doc.content.size, doc.content)
+  );
 }
 
 /**
@@ -487,12 +675,14 @@ export function insertTag(
     }
   }
 
-  // 插入标签
-  tr = tr.insert(insertPos, tagNode);
+  // 插入标签后，再插入一个空格，确保光标显示正常（并在标签后有文本节点）
+  // 注意：需要显式指定空格的插入位置为标签之后，否则因为 selection 未更新，空格会插入到标签前面
+  tr = tr
+    .insert(insertPos, tagNode)
+    .insertText(" ", insertPos + tagNode.nodeSize);
 
-  // 将光标移动到标签后面
-  // 标签节点的大小是固定的（atom节点），所以直接计算位置
-  const newPos = insertPos + tagNode.nodeSize;
+  // 将光标移动到空格后面
+  const newPos = insertPos + tagNode.nodeSize + 1;
 
   // 解析位置，确保光标在标签后面
   const $pos = tr.doc.resolve(newPos);
@@ -513,4 +703,3 @@ export function insertTag(
 
   return tr;
 }
-
