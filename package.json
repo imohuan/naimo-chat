@@ -4,8 +4,9 @@
   "private": true,
   "description": "Naimo Chat Monorepo",
   "scripts": {
-    "dev": "node scripts/start-dev.js",
-    "build": "node scripts/build.js",
+    "prebuild": "node scripts/prebuild.js",
+    "dev": "pnpm prebuild && node scripts/start-dev.js",
+    "build": "pnpm prebuild && node scripts/build.js",
     "dev:all": "pnpm --filter 'packages/*' dev",
     "build:all": "pnpm --filter 'packages/*' build",
     "start:all": "pnpm --filter 'packages/backend' start"

@@ -17,6 +17,11 @@ const routes: RouteRecordRaw[] = [
     name: "Demo",
     component: () => import("./views/demo/index.vue"),
   },
+  {
+    path: "/immersive",
+    name: "ImmersiveTest",
+    component: () => import("./views/ImmersiveTest.vue"),
+  },
 ];
 
 export const router = createRouter({

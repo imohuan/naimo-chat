@@ -10,6 +10,8 @@ const HOME_DIR = join(homedir(), ".claude-llm");
 // const HOME_DIR = join(process.cwd(), ".claude-llm");
 /* 配置文件：存储路由器和提供者配置的主配置文件 */
 const CONFIG_FILE = join(HOME_DIR, "config.json");
+/* MCP 服务器目录：存储 MCP 服务器文件的目录 */
+const MCP_SERVER_DIR = join(HOME_DIR, "mcp-server");
 /* 项目保存目录 */
 const PROJECT_DIR = join(HOME_DIR, "projects");
 /* PID 文件：存储后台服务进程 ID 的文件 */
@@ -40,6 +42,7 @@ const MCP_SERVERS_CONFIG_FILE = join(HOME_DIR, "mcp-servers.json");
 module.exports = {
   HOME_DIR,
   CONFIG_FILE,
+  MCP_SERVER_DIR,
   PROJECT_DIR,
   PID_FILE,
   RESTART_SIGNAL_FILE,

@@ -8,6 +8,7 @@ const { registerClipboardWatchRoutes } = require("./clipboardWatch");
 const { registerMcpRoutes } = require("./mcpRoutes");
 const { registerClaudeRoutes } = require("./claudeRoutes");
 const { registerProjectRoutes } = require("./projectRoutes");
+const { registerChatModuleRoutes } = require("../chat/router");
 
 function registerApiRoutes(server) {
   const app = server.app;
@@ -26,6 +27,7 @@ function registerApiRoutes(server) {
   registerMcpRoutes(server);
   registerClaudeRoutes(server);
   registerProjectRoutes(server);
+  registerChatModuleRoutes(server);
 
   // 注册静态文件服务
   try {
