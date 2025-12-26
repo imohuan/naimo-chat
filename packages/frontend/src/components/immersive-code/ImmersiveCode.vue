@@ -446,7 +446,7 @@ function formatTime(ts: number) {
             @click="uiMode = 'code'"
             :class="[
               'flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition',
-              mode === 'code'
+              ['code', 'diff'].includes(mode)
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700',
             ]"
@@ -509,7 +509,7 @@ function formatTime(ts: number) {
 
       <!-- Preview Area -->
       <div
-        v-if="mode === 'preview'"
+        v-show="mode === 'preview'"
         class="flex-1 overflow-hidden bg-slate-50 relative z-0"
       >
         <div class="w-full h-full bg-white overflow-hidden relative ring-4">

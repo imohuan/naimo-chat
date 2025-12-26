@@ -541,32 +541,49 @@ defineExpose({
 /* 编辑器的位置 */
 :deep(.monaco-diff-editor .editor.modified) {
   left: 0 !important;
+  right: 30px !important;
+  width: auto !important;
+}
+
+/* 编辑器的宽度 */
+:deep(.monaco-diff-editor .monaco-editor.modified-in-monaco-diff-editor.vs),
+:deep(.monaco-diff-editor
+    .monaco-editor.modified-in-monaco-diff-editor.vs
+    .overflow-guard) {
+  width: 100% !important;
 }
 
 /** 编辑器内容的位置 */
-/* :deep(.monaco-diff-editor .monaco-scrollable-element.editor-scrollable) {
-  left: 17px !important;
-} */
+:deep(.monaco-diff-editor .monaco-scrollable-element.editor-scrollable) {
+  width: calc(100% - 30px) !important;
+}
 
 /* 行号位置 */
 :deep(.monaco-diff-editor .view-lines.monaco-mouse-cursor-text) {
-  left: 17px !important;
+  left: 16px !important;
 }
 
 /** 选中行或缩进的标志符 */
 :deep(.monaco-diff-editor .view-overlays > div) {
-  left: 17px !important;
+  left: 16px !important;
 }
 
 /** - 号 */
 :deep(.monaco-diff-editor .margin-view-zones) {
-  /* left: 17px !important; */
+  /* left: 16px !important; */
   display: none;
 }
 
 /* + 号 */
 :deep(.monaco-diff-editor .margin-view-overlays .codicon-diff-insert) {
-  /* left: 17px !important; */
+  /* left: 16px !important; */
   display: none !important;
 }
+
+/* 
+editor modified
+monaco-editor modified-in-monaco-diff-editor no-user-select  showUnused showDeprecated vs
+overflow-guard
+monaco-scrollable-element editor-scrollable vs
+*/
 </style>
