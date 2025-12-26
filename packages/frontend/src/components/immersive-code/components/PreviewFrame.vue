@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed } from "vue";
 
 const props = defineProps<{
   code: string;
@@ -11,76 +11,88 @@ const emit = defineEmits<{
 
 const iframeRef = ref<HTMLIFrameElement>();
 
-// The shim URL provided by the user
-const SHIM_URL =
-  "https://3g4lalt740fefj4r2o39w1yrw93nnx9x222a7cbl9i3es2y5s6-h845251650.scf.usercontent.goog/gemini-code-immersive/shim.html?origin=https%3A%2F%2Fgemini.google.com&cache=1";
+// Console interception script to inject
+const INJECTED_SCRIPT = `
+<script>
+  (function() {
+    const originalConsole = {
+      log: console.log,
+      warn: console.warn,
+      error: console.error,
+      info: console.info
+    };
 
-function updatePreview() {
-  if (!iframeRef.value?.contentWindow) return;
+    function sendLog(method, args) {
+      try {
+        // Simple serialization to pass across iframe boundary
+        const serializedArgs = args.map(arg => {
+          if (typeof arg === 'undefined') return 'undefined';
+          if (arg === null) return 'null';
+          if (typeof arg === 'function') return arg.toString();
+          if (arg instanceof Error) return arg.message;
+          try {
+             return JSON.parse(JSON.stringify(arg));
+          } catch (e) {
+             return String(arg);
+          }
+        });
+        
+        window.parent.postMessage({
+          type: 'console-log', 
+          method, 
+          args: serializedArgs 
+        }, '*');
+      } catch (err) {
+        console.error('Failed to send log to parent', err);
+      }
+    }
 
-  // Sending the code to the shim.
-  // Based on "using doc to render code", we send the content.
-  // We send it as 'doc' and 'html' to cover bases, or assuming a standard structure.
-  // Ideally, the shim expects a message. We will send a generic structure that likely works or is intended.
-  const message = {
-    type: "render", // or 'preview'
-    code: props.code,
-    doc: props.code, // Explicitly honoring "use doc" hint if it refers to property name
-    html: props.code,
-  };
+    console.log = (...args) => { originalConsole.log(...args); sendLog('log', args); };
+    console.warn = (...args) => { originalConsole.warn(...args); sendLog('warn', args); };
+    console.error = (...args) => { originalConsole.error(...args); sendLog('error', args); };
+    console.info = (...args) => { originalConsole.info(...args); sendLog('info', args); };
 
-  iframeRef.value.contentWindow.postMessage(message, "*");
-}
+    window.addEventListener('error', (event) => {
+      sendLog('error', [event.message]);
+    });
+  })();
+<\/script>
+`;
 
-watch(
-  () => props.code,
-  () => {
-    // Debounce slightly? Or direct.
-    updatePreview();
-  }
-);
+const srcDoc = computed(() => {
+  // Inject the script at the beginning of the code
+  // This works for both Fragments and full HTML documents in most browsers
+  return INJECTED_SCRIPT + props.code;
+});
 
 function handleMessage(event: MessageEvent) {
-  // Filter messages relevant to us
-  // The logging shim likely sends messages back.
-  // We blindly accept logs for now to show in terminal.
-  if (event.data) {
-    // Check for log-like structures
-    if (
-      event.data.type === "log" ||
-      event.data.console ||
-      (event.data.method &&
-        ["log", "error", "warn", "info"].includes(event.data.method))
-    ) {
-      emit("console-log", event.data);
-    }
+  const data = event.data;
+  if (data && data.type === "console-log") {
+    emit("console-log", {
+      method: data.method,
+      args: data.args,
+    });
   }
 }
 
-onMounted(() => {
+// Re-expose refresh if needed, though srcdoc updates reactive
+function refresh() {
+  // Force refresh logic if necessary, usually srcdoc change triggers it.
+}
+
+defineExpose({ refresh });
+
+// Listen to messages
+if (typeof window !== "undefined") {
   window.addEventListener("message", handleMessage);
-  // Allow time for iframe to load before first render
-  if (iframeRef.value) {
-    iframeRef.value.onload = () => {
-      updatePreview();
-    };
-  }
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("message", handleMessage);
-});
-
-defineExpose({
-  refresh: updatePreview,
-});
+}
 </script>
 
 <template>
   <div class="w-full h-full bg-white relative">
     <iframe
       ref="iframeRef"
-      :src="SHIM_URL"
+      :srcdoc="srcDoc"
       class="w-full h-full border-none"
       allow="xr-spatial-tracking; web-share"
       sandbox="allow-pointer-lock allow-popups allow-forms allow-popups-to-escape-sandbox allow-downloads allow-scripts allow-same-origin"

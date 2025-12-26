@@ -254,6 +254,8 @@ function registerChatRoutes(server) {
         mcpConfigPath,
       });
 
+      console.log("[chat:cmd]", claudePath, args)
+
       const child = spawn(claudePath, args, {
         stdio: ["ignore", "pipe", "pipe"],
         env,

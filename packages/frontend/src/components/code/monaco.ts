@@ -6,6 +6,7 @@ import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import { emmetHTML, emmetCSS, emmetJSX } from "emmet-monaco-es";
 
 type MonacoModule = typeof import("monaco-editor");
 
@@ -78,8 +79,21 @@ async function configureMonaco(monaco: MonacoModule) {
 
   monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
+  // 初始化 Emmet 支持（必须在所有编辑器实例创建之前）
+  console.log("🔧 初始化 Emmet 支持...");
+  // HTML Emmet 支持（适用于 HTML 和 PHP 等兼容 HTML 的语言）
+  // emmetHTML(monaco, ["html", "php"]);
+  // emmetHTML(monaco, ["html"]);
+  emmetHTML(monaco);
+  // CSS Emmet 支持（适用于 CSS、LESS、SCSS 等）
+  // emmetCSS(monaco, ["css", "less", "scss"]);
+  // emmetCSS(monaco, ["css"]);
+  // JSX Emmet 支持（适用于 JavaScript、TypeScript、JSX、TSX、MDX 等）
+  // emmetJSX(monaco, ["javascript", "typescript", "jsx", "tsx", "mdx"]);
+  // emmetJSX(monaco, ["javascript"]);
   console.log("✅ Monaco Editor 配置完成");
   console.log("✅ TypeScript 服务配置: checkJs=true, EagerModelSync=true");
+  console.log("✅ Emmet 支持已启用: HTML, CSS, JSX");
 }
 
 export async function loadMonaco(): Promise<MonacoModule> {

@@ -4,12 +4,9 @@ import {
   Undo2,
   Redo2,
   Code2,
-  Play,
   Share2,
   RefreshCcw,
   Terminal,
-  History,
-  MonitorPlay,
 } from "lucide-vue-next";
 import { useCodeHistory } from "./composables/useCodeHistory";
 import PreviewFrame from "./components/PreviewFrame.vue";
@@ -27,34 +24,40 @@ import { useDebounceFn } from "@vueuse/core";
 /**
  * Initial Code Template
  */
-const DEFAULT_CODE = `export default {
-  props: ['data'],
-  template: \`
-    <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6">
-      <h1 class="text-4xl font-bold mb-4">Code Immersive</h1>
-      <p class="text-lg opacity-90 mb-8">Edit the code to see live changes!</p>
-      <div class="bg-black/20 p-4 rounded-lg backdrop-blur-sm">
-        <pre class="font-mono text-sm">{{ data || 'No Data' }}</pre>
-      </div>
-    </div>
-  \`
-}`;
+const DEFAULT_CODE = `
+<div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6">
+  <h1 class="text-4xl font-bold mb-4">Code Immersive</h1>
+  <p class="text-lg opacity-90 mb-8">Edit the code to see live changes!</p>
+  <div class="bg-black/20 p-4 rounded-lg backdrop-blur-sm">
+    <p class="font-mono text-sm">Hello World</p>
+  </div>
+</div>
+`;
 
 const props = defineProps<{
   initialCode?: string;
+  enableShare?: boolean;
 }>();
 
 const {
-  history,
-  currentIndex,
+  versions,
+  currentVersionIndex,
   currentCode,
   canUndo,
   canRedo,
   record,
+  addMajorVersion,
   undo,
   redo,
-  jumpTo,
+  switchVersion,
 } = useCodeHistory(props.initialCode || DEFAULT_CODE);
+
+// Expose methods for parent control
+defineExpose({
+  addMajorVersion: (code?: string, label?: string) =>
+    addMajorVersion(code || currentCode.value, label),
+  getCurrentCode: () => currentCode.value,
+});
 
 // View State
 const mode = ref<"code" | "preview">("preview");
@@ -99,11 +102,10 @@ function refreshPreview() {
   clearConsole();
 }
 
-// Select History
-// We map history index to string for Select value
-const historyValue = computed({
-  get: () => String(currentIndex.value),
-  set: (val) => jumpTo(Number(val)),
+// Select Version
+const versionValue = computed({
+  get: () => String(currentVersionIndex.value),
+  set: (val) => switchVersion(Number(val)),
 });
 
 // Format time for dropdown
@@ -147,25 +149,23 @@ function formatTime(ts: number) {
             <Redo2 class="w-4 h-4" />
           </button>
 
-          <!-- History Dropdown -->
-          <Select v-model="historyValue">
+          <!-- Versions Dropdown -->
+          <Select v-model="versionValue">
             <SelectTrigger
-              class="w-[140px] h-8 text-xs border-none bg-transparent hover:bg-slate-50 focus:ring-0 shadow-none px-2"
+              class="w-[160px] h-8 text-xs border-none bg-transparent hover:bg-slate-50 focus:ring-0 shadow-none px-2"
             >
-              <SelectValue placeholder="History" />
+              <SelectValue placeholder="Select Version" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem
-                v-for="(item, idx) in history"
-                :key="item.id"
+                v-for="(ver, idx) in versions"
+                :key="ver.id"
                 :value="String(idx)"
               >
                 <div class="flex flex-col text-xs">
-                  <span class="font-medium truncate"
-                    >Version {{ idx + 1 }}</span
-                  >
+                  <span class="font-medium truncate">{{ ver.label }}</span>
                   <span class="text-[10px] text-gray-400">{{
-                    formatTime(item.timestamp)
+                    formatTime(ver.timestamp)
                   }}</span>
                 </div>
               </SelectItem>
@@ -226,6 +226,7 @@ function formatTime(ts: number) {
 
         <!-- Share -->
         <button
+          v-if="props.enableShare"
           class="flex items-center space-x-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition text-sm font-medium"
         >
           <Share2 class="w-3.5 h-3.5" />
@@ -238,17 +239,15 @@ function formatTime(ts: number) {
     <div class="flex-1 flex flex-col overflow-hidden relative">
       <!-- Code Editor Area -->
       <div v-show="mode === 'code'" class="flex-1 overflow-hidden relative z-0">
-        <CodeEditor v-model="editorValue" language="javascript" theme="vs" />
+        <CodeEditor v-model="editorValue" language="html" theme="vs" />
       </div>
 
       <!-- Preview Area -->
       <div
         v-show="mode === 'preview'"
-        class="flex-1 overflow-hidden bg-slate-50 p-4 relative z-0"
+        class="flex-1 overflow-hidden bg-slate-50 relative z-0"
       >
-        <div
-          class="w-full h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative ring-4 ring-slate-100"
-        >
+        <div class="w-full h-full bg-white overflow-hidden relative ring-4">
           <PreviewFrame
             :key="previewKey"
             :code="currentCode"

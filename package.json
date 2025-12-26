@@ -11,6 +11,9 @@
     "build:all": "pnpm --filter 'packages/*' build",
     "start:all": "pnpm --filter 'packages/backend' start"
   },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * MCP (Model Context Protocol) 权限审批服务器
  * 
