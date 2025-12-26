@@ -319,6 +319,7 @@ function createSelectionPlugin(): Plugin {
 // 共享的拖拽状态，用于在 PluginView 和 handleDrop 之间通信
 let sharedDragTag: { node: ProseMirrorNode; startPos: number } | null = null;
 let sharedCursorPos: number | null = null;
+let sharedCursorElement: HTMLElement | null = null;
 let isDraggingTag = false;
 
 export function createTagDragPlugin(): Plugin {
@@ -391,18 +392,19 @@ export function createTagDragPlugin(): Plugin {
         const deletePos = sharedDragTag.startPos;
         const nodeSize = nodeToMove.nodeSize;
 
-        // 清除状态
+        // 清除状态和隐藏光标元素
         sharedDragTag = null;
         sharedCursorPos = null;
         isDraggingTag = false;
+        if (sharedCursorElement) {
+          sharedCursorElement.style.opacity = "0";
+        }
 
         // 计算位置调整
         let insertPos = targetPos;
         if (insertPos > deletePos) {
           insertPos -= nodeSize;
         }
-
-        debugger;
 
         // 执行移动：先删除后插入
         const tr = view.state.tr
@@ -450,10 +452,10 @@ class TagDragView {
     if (pos === sharedCursorPos) return;
     sharedCursorPos = pos;
     if (pos === null) {
-      if (this.element && this.element.parentNode) {
-        this.element.parentNode.removeChild(this.element);
+      // 使用透明度隐藏，而不是删除元素
+      if (this.element) {
+        this.element.style.opacity = "0";
       }
-      this.element = null;
     } else {
       this.updateOverlay();
     }
@@ -484,6 +486,8 @@ class TagDragView {
       } else {
         document.body.appendChild(this.element);
       }
+      // 保存到共享变量，以便 handleDrop 可以清除
+      sharedCursorElement = this.element;
     }
 
     // 计算相对于 offsetParent 的位置
@@ -511,6 +515,8 @@ class TagDragView {
     this.element.style.top = (coords.top - parentTop) / scaleY + "px";
     this.element.style.width = width / scaleX + "px";
     this.element.style.height = (coords.bottom - coords.top) / scaleY + "px";
+    // 确保元素可见
+    this.element.style.opacity = "1";
   }
 
   mousedown(event: MouseEvent) {
