@@ -22,20 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebounceFn } from "@vueuse/core";
+import DEFAULT_CODE from "./default-ui.html?raw";
 
 /**
  * Initial Code Template
  */
-const DEFAULT_CODE = `
-<div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6">
-  <h1 class="text-4xl font-bold mb-4">Code Immersive</h1>
-  <p class="text-lg opacity-90 mb-8">Edit the code to see live changes!</p>
-  <div class="bg-black/20 p-4 rounded-lg backdrop-blur-sm">
-    <p class="font-mono text-sm">Hello World</p>
-  </div>
-</div>
-`;
-
 const props = defineProps<{
   initialCode?: string;
   enableShare?: boolean;
@@ -60,12 +51,14 @@ const { applyDiff } = useCodeDiff();
 // View State
 const uiMode = ref<"code" | "preview">("code"); // Renamed to avoid conflict with computed 'mode'
 const showConsole = ref(false);
+const consoleExpanded = ref(false);
 const logs = ref<LogEntry[]>([]);
 const previewKey = ref(0);
 const editorValue = ref(currentCode.value);
 const fontSize = ref(14); // 字体大小状态
 const isNavigatingHistory = ref(false); // 标志：是否正在切换历史版本
 let navigationTimer: ReturnType<typeof setTimeout> | null = null; // 导航保护计时器
+const isRefreshing = ref(false); // 标志：是否正在刷新预览
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -288,6 +281,8 @@ function handleLog(log: any) {
     method: log.method || "log",
     args: log.args || (log.message ? [log.message] : [log]), // Normalize
     timestamp: new Date().toLocaleTimeString(),
+    caller: log.caller,
+    stack: log.stack,
   };
   logs.value.push(entry);
 }
@@ -297,8 +292,16 @@ function clearConsole() {
 }
 
 function refreshPreview() {
+  isRefreshing.value = true;
   previewKey.value++;
   clearConsole();
+  // 等待 iframe 加载完成，使用 nextTick 和延迟来确保加载完成
+  nextTick(() => {
+    // 给 iframe 一些时间加载内容
+    setTimeout(() => {
+      isRefreshing.value = false;
+    }, 300);
+  });
 }
 
 // 处理 DiffEditor 字体大小变化
@@ -356,6 +359,116 @@ const versionValue = computed({
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString();
 }
+
+// Keyboard shortcuts handler
+function handleKeyDown(event: KeyboardEvent) {
+  // 检查是否在输入框或文本区域中，如果是则不处理快捷键
+  const target = event.target as HTMLElement;
+  if (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable
+  ) {
+    // 检查是否在 Monaco Editor 中（Monaco Editor 有自己的快捷键处理）
+    // 如果焦点在编辑器内，让编辑器自己处理 Ctrl+Z/Ctrl+Y
+    const isInEditor =
+      target.closest(".monaco-editor") ||
+      target.closest('[class*="monaco"]');
+    if (isInEditor) {
+      // 对于编辑器内的快捷键，我们仍然需要处理一些全局快捷键
+      // 但跳过编辑器的默认快捷键（如 Ctrl+Z, Ctrl+Y）
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        (event.key === "s" || event.key === "S")
+      ) {
+        // Ctrl+S: 阻止系统默认保存
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        (event.key === "r" || event.key === "R")
+      ) {
+        // Ctrl+R: 刷新预览
+        event.preventDefault();
+        event.stopPropagation();
+        refreshPreview();
+        return;
+      }
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        (event.key === "`" || event.key === "Backquote")
+      ) {
+        // Ctrl+`: 切换终端
+        event.preventDefault();
+        event.stopPropagation();
+        showConsole.value = !showConsole.value;
+        return;
+      }
+      return;
+    }
+  }
+
+  // Ctrl+Z: 撤销
+  if ((event.ctrlKey || event.metaKey) && event.key === "z" && !event.shiftKey) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (canUndo.value) {
+      undo();
+    }
+    return;
+  }
+
+  // Ctrl+Y 或 Ctrl+Shift+Z: 恢复/重做
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    (event.key === "y" ||
+      (event.key === "z" && event.shiftKey))
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (canRedo.value) {
+      redo();
+    }
+    return;
+  }
+
+  // Ctrl+`: 切换终端显示
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    (event.key === "`" || event.key === "Backquote")
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    showConsole.value = !showConsole.value;
+    return;
+  }
+
+  // Ctrl+S: 阻止系统默认保存
+  if ((event.ctrlKey || event.metaKey) && (event.key === "s" || event.key === "S")) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  // Ctrl+R: 刷新预览页面
+  if ((event.ctrlKey || event.metaKey) && (event.key === "r" || event.key === "R")) {
+    event.preventDefault();
+    event.stopPropagation();
+    refreshPreview();
+    return;
+  }
+}
+
+// Setup keyboard shortcuts
+onMounted(() => {
+  window.addEventListener("keydown", handleKeyDown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleKeyDown);
+});
 </script>
 
 <template>
@@ -437,7 +550,12 @@ function formatTime(ts: number) {
           class="p-1.5 text-slate-400 hover:text-slate-600 transition"
           title="Refresh Preview"
         >
-          <RefreshCcw class="w-4 h-4" />
+          <RefreshCcw
+            :class="[
+              'w-4 h-4 transition-transform duration-300',
+              isRefreshing ? 'animate-spin' : '',
+            ]"
+          />
         </button>
 
         <!-- Mode Switcher -->
@@ -520,9 +638,16 @@ function formatTime(ts: number) {
       <!-- Floating Console Overlay -->
       <div
         v-if="showConsole"
-        class="absolute bottom-0 inset-x-0 h-48 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-transform duration-300 transform bg-[#1e1e1e]"
+        :class="[
+          'absolute bottom-0 inset-x-0 z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] transition-all duration-300 transform bg-[#1e1e1e]',
+          consoleExpanded ? 'top-0' : 'h-48',
+        ]"
       >
-        <ConsolePanel :logs="logs" @clear="clearConsole" />
+        <ConsolePanel
+          :logs="logs"
+          @clear="clearConsole"
+          @expand="consoleExpanded = $event"
+        />
       </div>
     </div>
   </div>
