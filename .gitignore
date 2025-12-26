@@ -1,0 +1,45 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+log.txt
+
+# 嵌入的静态资源
+embedded-resources.js
+# Bun 打包生成的文件
+*.bun-build
+# 符号链接
+links/
+# 后端公共资源 - 静态资源
+packages/backend/public
+
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+dist-ssr
+tsconfig.tsbuildinfo
+
+# Environment variables
+.env
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Project specific
+.claude-llm
+

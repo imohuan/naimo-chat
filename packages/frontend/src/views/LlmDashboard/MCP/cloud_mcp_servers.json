@@ -1,0 +1,86 @@
+[
+  {
+    "name": "Alpha Vantage MCP",
+    "description": "官方 Alpha Vantage MCP，提供实时与历史股票市场数据访问。",
+    "value": "alphavantage/alphavantage-mcp",
+    "realName": "alphavantage"
+  },
+  {
+    "name": "Nano Banana Edit MCP",
+    "description": "Google 前沿图像生成与编辑模型的 MCP 服务。",
+    "value": "fal-ai/nano-banana-edit-mcp",
+    "realName": "fal-nano-banana-edit"
+  },
+  {
+    "name": "Nano Banana MCP",
+    "description": "Google 前沿图像生成模型的 MCP 服务。",
+    "value": "fal-ai/nano-banana-mcp",
+    "realName": "fal-nano-banana"
+  },
+  {
+    "name": "Playwright MCP",
+    "description": "基于 Playwright 的浏览器自动化 MCP，提供可访问性快照交互能力。",
+    "value": "microsoft/playwright-mcp",
+    "realName": "playwright"
+  },
+  {
+    "name": "MiniMax MCP",
+    "description": "MiniMax MCP，提供图像生成、视频生成、TTS 等能力。",
+    "value": "minimax/minimax-mcp",
+    "realName": "minimax"
+  },
+  {
+    "name": "Perplexity Ask MCP Server",
+    "description": "集成 Sonar API 的 Perplexity Ask MCP，支持实时全网检索。",
+    "value": "perplexity/perplexity-mcp",
+    "realName": "perplexity-ask"
+  },
+  {
+    "name": "ElevenLabs MCP",
+    "description": "官方 ElevenLabs MCP，提供强大的 TTS 与音频处理 API。",
+    "value": "elevenlabs/elevenlabs-mcp",
+    "realName": "elevenlabs"
+  },
+  {
+    "name": "EdgeOne Pages MCP",
+    "description": "将 HTML/目录/zip 部署到 EdgeOne Pages 并获取公网 URL 的 MCP 服务。",
+    "value": "tencent/edgeone-pages-mcp",
+    "realName": "edgeone-pages"
+  },
+  {
+    "name": "Context7 MCP",
+    "description": "为任意提示提供最新代码文档的 MCP 服务。",
+    "value": "upstash/context7-mcp",
+    "realName": "context7"
+  },
+  {
+    "name": "Amap Maps MCP Server",
+    "description": "高德地图官方 MCP 服务。",
+    "value": "amap/amap-mcp",
+    "realName": "amap-maps"
+  },
+  {
+    "name": "HuggingFace MCP Server",
+    "description": "HuggingFace 官方 MCP 服务。",
+    "value": "huggingface/hf-mcp",
+    "realName": "hf-mcp"
+  },
+  {
+    "name": "Sequential Thinking MCP Server",
+    "description": "提供结构化反思式解题流程的 Sequential Thinking MCP。",
+    "value": "anthropic/sequentialthinking",
+    "realName": "sequential-thinking"
+  },
+  {
+    "name": "Fetch MCP Server",
+    "description": "具备网页内容抓取与 HTML 转 Markdown 能力的 MCP 服务。",
+    "value": "anthropic/fetch-mcp",
+    "realName": "fetch"
+  },
+  {
+    "name": "Time MCP Server",
+    "description": "提供时间查询与时区转换能力的 MCP 服务，自动检测系统时区。",
+    "value": "anthropic/time-mcp",
+    "realName": "time"
+  }
+]

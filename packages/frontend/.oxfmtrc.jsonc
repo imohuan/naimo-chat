@@ -1,0 +1,80 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  // 大多数选项与 Prettier 兼容
+  // 参考: https://prettier.io/docs/options
+
+  // ========== 引号相关 ==========
+  "singleQuote": false, // 使用单引号而不是双引号。可选值: true | false (默认: false)
+  "jsxSingleQuote": false, // 在 JSX 中使用单引号而不是双引号。可选值: true | false (默认: false)
+  "quoteProps": "as-needed", // 对象属性何时使用引号。可选值: "as-needed" | "preserve" (默认: "as-needed")
+  // "as-needed": 仅在需要时添加引号
+  // "preserve": 保留对象属性中的引号
+
+  // ========== 分号相关 ==========
+  "semi": true, // 在语句末尾打印分号。可选值: true | false (默认: true)
+
+  // ========== 逗号相关 ==========
+  "trailingComma": "all", // 尽可能打印尾随逗号。可选值: "all" | "es5" | "none" (默认: "all")
+  // "all": 在所有可能的地方添加尾随逗号（包括函数参数）
+  // "es5": 在 ES5 有效的地方添加尾随逗号（对象、数组等）
+  // "none": 不添加尾随逗号
+
+  // ========== 缩进相关 ==========
+  "useTabs": false, // 使用制表符而不是空格进行缩进。可选值: true | false (默认: false)
+  "tabWidth": 2, // 每个缩进级别的空格数。可选值: 数字 (默认: 2, 范围: 0-255)
+
+  // ========== 行宽相关 ==========
+  "printWidth": 120, // 打印器将换行的行长度。可选值: 数字 (默认: 100, 范围: 0-65535)
+
+  // ========== 换行符相关 ==========
+  "endOfLine": "lf", // 应用的行尾字符。可选值: "lf" | "crlf" | "cr" (默认: "lf")
+  // "lf": 仅换行符 (\n)，Unix 和 macOS 系统
+  // "crlf": 回车符 + 换行符 (\r\n)，Windows 系统
+  // "cr": 仅回车符 (\r)，旧版 Mac 系统
+
+  // ========== 箭头函数相关 ==========
+  "arrowParens": "always", // 在唯一的箭头函数参数周围包含括号。可选值: "always" | "avoid" (默认: "always")
+  // "always": 总是包含括号，例如: (x) => x
+  // "avoid": 尽可能避免括号，例如: x => x
+
+  // ========== 对象和数组相关 ==========
+  "bracketSpacing": true, // 在对象字面量中的括号之间打印空格。可选值: true | false (默认: true)
+  // true: { foo: bar }
+  // false: {foo: bar}
+  "objectWrap": "preserve", // 当对象字面量可以放在一行或跨多行时如何换行。可选值: "preserve" | "collapse" | "always" (默认: "preserve")
+  // "preserve": 保持原有格式
+  // "collapse": 尽可能折叠到一行
+  // "always": 总是换行（oxfmt 扩展选项，Prettier 不支持）
+
+  // ========== JSX 相关 ==========
+  "bracketSameLine": false, // 将多行 JSX 元素的 > 放在最后一行的末尾，而不是单独放在下一行。可选值: true | false (默认: false)
+  "singleAttributePerLine": false, // 在 JSX 中将每个属性放在新行上。可选值: true | false (默认: false)
+
+  // ========== 嵌入语言相关 ==========
+  "embeddedLanguageFormatting": "auto", // 控制是否格式化文件中嵌入的引用代码。可选值: "auto" | "off" (默认: "auto")
+  // "auto": 自动格式化嵌入的代码（如模板字符串中的代码）
+  // "off": 关闭嵌入代码的格式化
+
+  // ========== 导入排序（实验性功能） ==========
+  "experimentalSortImports": null, // 实验性: 排序 import 语句。默认禁用。可选值: 对象配置 | null
+  // 示例配置:
+  // {
+  //   "order": "asc", // 排序顺序。可选值: "asc" | "desc"
+  //   "ignoreCase": true, // 排序时忽略大小写。可选值: true | false (默认: true)
+  //   "newlinesBetween": true, // 在导入组之间添加空行。可选值: true | false (默认: true)
+  //   "partitionByComment": false, // 按注释分区。可选值: true | false (默认: false)
+  //   "partitionByNewline": false, // 按换行符分区。可选值: true | false (默认: false)
+  //   "sortSideEffects": false, // 排序副作用导入。可选值: true | false (默认: false)
+  //   "groups": [ // 自定义分组配置，用于组织导入
+  //     ["builtin"], // 内置模块
+  //     ["external"], // 外部依赖
+  //     ["internal"], // 内部模块
+  //     ["parent", "sibling"], // 父级和同级导入
+  //     ["index"] // 索引文件
+  //   ]
+  // }
+
+  // ========== 忽略模式 ==========
+  "ignorePatterns": null // 忽略匹配这些 glob 模式的文件。使用当前工作目录作为根目录。可选值: string[] | null
+  // 示例: ["**/*.min.js", "**/vendor/**", "**/*.bundle.js"]
+}

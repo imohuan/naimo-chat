@@ -1,0 +1,28 @@
+{
+  "name": "demo-router",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/index_llm.js",
+  "scripts": {
+    "start": "node src/index_llm.js",
+    "build": "node scripts/build.js",
+    "build:direct": "bun build src/index_llm.js --compile --outfile dist/llm-server.exe",
+    "build:win": "bun build src/index_llm.js --compile --outfile dist/llm-server.exe",
+    "build:linux": "bun build src/index_llm.js --compile --outfile dist/llm-server",
+    "build:mac": "bun build src/index_llm.js --compile --outfile dist/llm-server"
+  },
+  "dependencies": {
+    "@crosscopy/clipboard": "^0.2.8",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/static": "^8.3.0",
+    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@musistudio/llms": "^1.0.48",
+    "clipboardy": "^5.0.1",
+    "fastify": "^5.6.2",
+    "json5": "^2.2.3",
+    "node-fetch": "^3.3.2",
+    "rotating-file-stream": "^3.2.7",
+    "zod": "^3.23.8"
+  }
+}

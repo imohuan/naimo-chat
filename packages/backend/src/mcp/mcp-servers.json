@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "test-group": {
+      "command": "node",
+      "args": [
+        "src/mcp/mcps/test-mcp-server.js"
+      ],
+      "description": "测试用的 MCP 服务器，提供基本的工具和资源",
+      "enabled": true
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "ctx7sk-fd1b5b76-1d8f-463a-88ec-80e3cb107be7"
+      }
+    }
+  }
+}

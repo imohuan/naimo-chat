@@ -1,0 +1,372 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // 此配置文件与 ESLint v8 的配置架构对齐 (eslintrc.json)
+  // 参考文档: https://oxc.rs/docs/guide/usage/linter/
+
+  // ========== 插件配置 (plugins) ==========
+  // 启用内置插件。注意：设置 plugins 字段会覆盖基础插件集
+  // plugins 数组应反映您想要使用的所有插件
+  // 支持的插件列表: https://oxc.rs/docs/guide/usage/linter/plugins.html#supported-plugins
+  // 可选值: 字符串数组 | null (默认: null，使用基础插件集)
+  "plugins": [
+    "vue", // Vue.js 框架插件
+    "typescript" // TypeScript 插件
+    // 其他可用插件:
+    // "eslint", // ESLint 核心规则
+    // "react", // React 相关规则
+    // "unicorn", // Unicorn 规则集
+    // "oxc", // Oxc 特定规则
+    // "import", // 导入/导出相关规则
+    // "jsdoc", // JSDoc 注释相关规则
+    // "jest", // Jest 测试框架规则
+    // "vitest", // Vitest 测试框架规则
+    // "jsx-a11y", // JSX 可访问性规则
+    // "nextjs", // Next.js 框架规则
+    // "react-perf", // React 性能优化规则
+    // "promise", // Promise 相关规则
+    // "node", // Node.js 相关规则
+    // "regex" // 正则表达式相关规则
+  ],
+
+  // ========== 规则分类配置 (categories) ==========
+  // 一次性配置整个规则分类
+  // 通过此方式启用或禁用的规则会被 rules 字段中的单个规则覆盖
+  // 可选值: 对象，键为分类名，值为 "off" | "allow" | "warn" | "error" | "deny" | 0 | 1 | 2
+  "categories": {
+    "correctness": "warn" // 正确性检查分类（默认: 空对象，表示使用默认配置）
+    // 其他可用分类:
+    // "nursery": "warn", // 实验性规则分类
+    // "pedantic": "warn", // 严格规则分类
+    // "perf": "warn", // 性能相关规则分类
+    // "restriction": "warn", // 限制性规则分类
+    // "style": "warn", // 代码风格规则分类
+    // "suspicious": "warn" // 可疑代码规则分类
+  },
+
+  // ========== 环境配置 (env) ==========
+  // 预定义全局变量。环境指定了哪些全局变量是预定义的
+  // 参考 ESLint 环境列表: https://eslint.org/docs/v8.x/use/configure/language-options#specifying-environments
+  // 可选值: 对象，键为环境名，值为 true | false
+  // 默认值: { "builtin": true }
+  "env": {
+    "browser": true, // 浏览器全局变量（window, document 等）
+    "node": true, // Node.js 全局变量和作用域（process, global 等）
+    "builtin": true // 内置全局变量（默认启用）
+    // 其他可用环境:
+    // "es6": true, // 启用 ES6 特性（除了模块）
+    // "es2015": true, // 等同于 es6
+    // "es2016": true, // 启用 ES2016 全局变量
+    // "es2017": true, // 启用 ES2017 全局变量
+    // "es2018": true, // 启用 ES2018 全局变量
+    // "es2019": true, // 启用 ES2019 全局变量
+    // "es2020": true, // 启用 ES2020 全局变量
+    // "es2021": true, // 启用 ES2021 全局变量
+    // "es2022": true, // 启用 ES2022 全局变量
+    // "es2023": true, // 启用 ES2023 全局变量
+    // "es2024": true, // 启用 ES2024 全局变量
+    // "worker": true, // Web Workers 全局变量
+    // "serviceworker": true, // Service Workers 全局变量
+    // "shared-node-browser": true, // Node.js 和浏览器共享的全局变量
+    // "amd": true, // 定义 require() 和 define() 作为全局变量
+    // "commonjs": true, // CommonJS 全局变量和作用域
+    // "mocha": true, // Mocha 测试框架全局变量
+    // "jasmine": true, // Jasmine 测试框架全局变量
+    // "jest": true, // Jest 测试框架全局变量
+    // "phantomjs": true, // PhantomJS 全局变量
+    // "jquery": true, // jQuery 全局变量
+    // "qunit": true, // QUnit 测试框架全局变量
+    // "prototypejs": true, // Prototype.js 全局变量
+    // "shelljs": true, // ShellJS 全局变量
+    // "meteor": true, // Meteor 全局变量
+    // "mongo": true, // MongoDB 全局变量
+    // "applescript": true, // AppleScript 全局变量
+    // "nashorn": true, // Java 8 Nashorn 全局变量
+    // "atomtest": true, // Atom 测试辅助函数
+    // "embertest": true, // Ember 测试辅助函数
+    // "webextensions": true, // WebExtensions 全局变量
+    // "greasemonkey": true // Greasemonkey 全局变量
+  },
+
+  // ========== 全局变量配置 (globals) ==========
+  // 添加或移除全局变量
+  // 对于每个全局变量，设置对应的值为 "writable" 允许变量被覆盖，或 "readonly" 禁止覆盖
+  // 可以通过设置值为 "off" 来禁用全局变量
+  // 可选值: 对象，键为全局变量名，值为 "readonly" | "writeable" | "off" | "readable" | "writable" | true | false
+  // 默认值: {}
+  // "globals": {
+  //   "foo": "readonly", // 只读全局变量（等同于 "readable" 或 false）
+  //   "bar": "writeable", // 可写全局变量（等同于 "writable" 或 true）
+  //   "Promise": "off" // 禁用全局变量（例如在 ES6 环境中禁用 Promise）
+  // },
+
+  // ========== 扩展配置 (extends) ==========
+  // 此配置文件扩展（继承）的配置文件路径
+  // 文件相对于包含 extends 属性的配置文件位置解析
+  // 配置文件从第一个到最后一个合并，最后一个文件覆盖之前的文件
+  // 可选值: 字符串数组
+  // "extends": [
+  //   "oxlint:recommended", // 继承官方推荐的规则集
+  //   "./shared-config.jsonc", // 继承共享配置文件
+  //   "./base-config.jsonc" // 继承基础配置文件
+  // ],
+
+  // ========== 设置配置 (settings) ==========
+  // 配置 linter 插件的行为
+  // 可选值: 对象，包含各种插件的设置
+  // "settings": {
+  //   // React 插件设置
+  //   "react": {
+  //     // 用作 <form> 替代的表单组件，例如 <Formik>
+  //     "formComponents": [
+  //       "CustomForm",
+  //       // 其他表单组件示例:
+  //       // { "name": "OtherForm", "formAttribute": "endpoint" },
+  //       // { "name": "Form", "formAttribute": ["registerEndpoint", "loginEndpoint"] }
+  //     ],
+  //     // 用作 <a> 替代的链接组件，例如 <Link>
+  //     "linkComponents": [
+  //       "HyperLink",
+  //       // 其他链接组件示例:
+  //       // { "name": "MyLink", "linkAttribute": "to" },
+  //       // { "name": "Link", "linkAttribute": ["to", "href"] }
+  //     ]
+  //   },
+  //   // JSX A11y 插件设置
+  //   "jsx-a11y": {
+  //     // 多态组件的 prop 名称（用于确定元素类型）
+  //     "polymorphicPropName": null, // 例如: "as"
+  //     // 自定义组件到 DOM 元素的映射
+  //     "components": {
+  //       "Link": "a", // Link 组件被视为 <a> 元素
+  //       "IconButton": "button" // IconButton 组件被视为 <button> 元素
+  //     },
+  //     // 属性名到其 DOM 等效项的映射
+  //     "attributes": {
+  //       "for": ["htmlFor", "for"] // for 属性映射到 htmlFor 或 for
+  //     }
+  //   },
+  //   // Next.js 插件设置
+  //   "next": {
+  //     // Next.js 项目的根目录（适用于 monorepo）
+  //     "rootDir": [] // 例如: ["apps/dashboard/"]
+  //   },
+  //   // JSDoc 插件设置
+  //   "jsdoc": {
+  //     "ignorePrivate": false, // 是否忽略私有成员（不适用于 check-access 和 empty-tags 规则）
+  //     "ignoreInternal": false, // 是否忽略内部成员（不适用于 empty-tags 规则）
+  //     "ignoreReplacesDocs": true, // 是否忽略替换文档（仅适用于 require-* 规则）
+  //     "overrideReplacesDocs": true, // 覆盖是否替换文档（仅适用于 require-* 规则）
+  //     "augmentsExtendsReplacesDocs": false, // augments/extends 是否替换文档（仅适用于 require-* 规则）
+  //     "implementsReplacesDocs": false, // implements 是否替换文档（仅适用于 require-* 规则）
+  //     "exemptDestructuredRootsFromChecks": false, // 是否免除解构根检查（仅适用于 require-param-type 和 require-param-description 规则）
+  //     "tagNamePreference": {} // 标签名称偏好设置
+  //   },
+  //   // Vitest 插件设置
+  //   "vitest": {
+  //     "typecheck": false // 是否为 Vitest 规则启用类型检查模式
+  //   }
+  // },
+
+  // ========== 覆盖配置 (overrides) ==========
+  // 为特定文件或文件组添加、移除或重新配置规则
+  // 可选值: 覆盖对象数组
+  // "overrides": [
+  //   {
+  //     // 要覆盖的 glob 模式列表
+  //     "files": ["*.test.ts", "*.spec.ts", "**/*.test.js", "**/*.spec.js"],
+  //     // 针对匹配文件的规则配置
+  //     "rules": {
+  //       "no-console": "off", // 在测试文件中允许使用 console
+  //       "@typescript-eslint/no-explicit-any": "off" // 在测试文件中允许使用 any
+  //     },
+  //     // 可选: 为覆盖指定环境
+  //     "env": {
+  //       "jest": true // 在测试文件中启用 Jest 环境
+  //     },
+  //     // 可选: 为覆盖指定全局变量
+  //     "globals": {
+  //       "testUtils": "readonly" // 测试工具全局变量
+  //     },
+  //     // 可选: 为覆盖指定插件
+  //     "plugins": ["jest", "vitest"],
+  //     // 可选: JS 插件（实验性，不受 semver 约束，语言服务器不支持）
+  //     "jsPlugins": null
+  //   },
+  //   {
+  //     "files": ["*.config.js", "*.config.ts"],
+  //     "rules": {
+  //       "no-console": "off" // 在配置文件中允许使用 console
+  //     }
+  //   }
+  // ],
+
+  // ========== 忽略模式 (ignorePatterns) ==========
+  // 在 linting 期间要忽略的 glob 模式
+  // 这些模式从配置文件路径解析
+  // 可选值: 字符串数组
+  // 默认值: []
+  // "ignorePatterns": [
+  //   "node_modules/", // 忽略 node_modules 目录
+  //   "dist/", // 忽略 dist 目录
+  //   "build/", // 忽略 build 目录
+  //   "*.min.js", // 忽略所有 .min.js 文件
+  //   "**/*.bundle.js", // 忽略所有 .bundle.js 文件
+  //   "coverage/", // 忽略覆盖率报告目录
+  //   ".next/", // 忽略 Next.js 构建目录
+  //   ".nuxt/", // 忽略 Nuxt.js 构建目录
+  //   "*.d.ts" // 忽略 TypeScript 声明文件
+  // ],
+
+  // ========== JS 插件配置 (jsPlugins) ==========
+  // JS 插件（实验性功能，不受 semver 约束，目前语言服务器不支持）
+  // 可选值: 字符串数组 | null
+  // "jsPlugins": null,
+  // ========== 规则配置 (rules) ==========
+  // 配置具体的 lint 规则
+  // 规则配置格式说明：
+  // 1. 字符串格式（推荐）：
+  //    - "off" 或 "allow": 关闭规则
+  //    - "warn": 启用规则作为警告（不影响退出代码）
+  //    - "error" 或 "deny": 启用规则作为错误（会导致退出失败代码）
+  // 2. 数字格式：
+  //    - 0: 关闭规则
+  //    - 1: 启用规则作为警告
+  //    - 2: 启用规则作为错误
+  // 3. 数组格式（带选项）：
+  //    - [级别, 选项对象]: 例如 ["error", { "ignoreReadBeforeAssign": true }]
+  //
+  // 规则名称格式：
+  // - 基础规则: "规则名" (例如: "no-alert", "eqeqeq")
+  // - 插件规则: "插件名/规则名" (例如: "vue/require-v-for-key", "react/self-closing-comp")
+  //
+  // 支持的插件（plugins）：
+  // - "eslint": ESLint 核心规则
+  // - "react": React 相关规则
+  // - "unicorn": Unicorn 规则集
+  // - "typescript": TypeScript 相关规则
+  // - "oxc": Oxc 特定规则
+  // - "import": 导入/导出相关规则
+  // - "jsdoc": JSDoc 注释相关规则
+  // - "jest": Jest 测试框架规则
+  // - "vitest": Vitest 测试框架规则
+  // - "jsx-a11y": JSX 可访问性规则
+  // - "nextjs": Next.js 框架规则
+  // - "react-perf": React 性能优化规则
+  // - "promise": Promise 相关规则
+  // - "node": Node.js 相关规则
+  // - "regex": 正则表达式相关规则
+  // - "vue": Vue.js 框架规则
+  //
+  // 查看所有可用规则: https://oxc.rs/docs/guide/usage/linter/rules.html
+  "rules": {
+    // ========== ESLint 核心规则示例 ==========
+    // 禁止使用 alert() 函数，并将其设置为错误级别
+    "no-alert": "error",
+    // 禁止使用 console (可选: "off" | "warn" | "error")
+    // "no-console": "warn",
+    // 禁止未使用的变量 (可选: "off" | "warn" | "error")
+    // "no-unused-vars": "error",
+    // 要求使用 === 和 !== (可选: "off" | "warn" | "error", 可配置选项)
+    // "eqeqeq": ["error", "always"],
+    // 要求使用 const 而不是 let (可选: "off" | "warn" | "error", 可配置选项)
+    // "prefer-const": ["error", { "ignoreReadBeforeAssign": true }],
+
+    // ========== Oxc 特定规则示例 ==========
+    // 将不推荐的常量近似值检测设置为警告级别
+    "oxc/approx-constant": "warn",
+    // 其他 oxc 规则示例:
+    // "oxc/no-console-spy": "error", // 禁止 console.spy
+    // "oxc/no-debugger": "error", // 禁止 debugger 语句
+
+    // ========== Vue 插件规则示例 ==========
+    // 确保 Vue 模板中的 key 是必要的
+    "vue/require-v-for-key": "error"
+    // 其他 Vue 规则示例:
+    // "vue/no-unused-vars": "error", // 禁止未使用的变量
+    // "vue/require-prop-type-constructor": "error", // 要求 prop 类型是构造函数
+    // "vue/require-default-prop": "warn", // 要求 prop 有默认值
+
+    // ========== TypeScript 插件规则示例 ==========
+    // "typescript/no-explicit-any": "warn", // 禁止使用 any 类型
+    // "typescript/no-unused-vars": "error", // 禁止未使用的变量
+    // "typescript/explicit-function-return-type": "off", // 要求函数显式返回类型
+
+    // ========== React 插件规则示例 ==========
+    // "react/self-closing-comp": ["error", { "component": true, "html": false }], // 要求自闭合组件
+    // "react/jsx-uses-react": "error", // 防止 React 被标记为未使用
+    // "react/jsx-uses-vars": "error", // 防止变量被标记为未使用
+
+    // ========== Import 插件规则示例 ==========
+    // "import/no-cycle": "error", // 禁止循环依赖
+    // "import/no-unresolved": "error", // 禁止未解析的导入
+    // "import/order": ["error", { "groups": ["builtin", "external", "internal"] }], // 要求导入顺序
+
+    // ========== 其他插件规则示例 ==========
+    // Jest 规则:
+    // "jest/no-disabled-tests": "warn", // 禁止禁用的测试
+    // "jest/no-focused-tests": "error", // 禁止聚焦的测试
+    //
+    // Vitest 规则:
+    // "vitest/consistent-test-it": ["error", { "fn": "it" }], // 要求一致的测试函数名
+    //
+    // Unicorn 规则:
+    // "unicorn/prefer-module": "error", // 偏好 ES 模块
+    // "unicorn/no-array-callback-reference": "error", // 禁止数组回调引用
+    //
+    // Node 规则:
+    // "node/no-process-exit": "error", // 禁止 process.exit()
+    //
+    // Promise 规则:
+    // "promise/catch-or-return": "error", // 要求 Promise 有 catch 或 return
+    //
+    // JSX A11y 规则:
+    // "jsx-a11y/alt-text": "error", // 要求 img 元素有 alt 属性
+    // "jsx-a11y/anchor-is-valid": "error", // 要求锚点有效
+    //
+    // Next.js 规则:
+    // "nextjs/no-html-link-for-pages": "error", // 禁止在 Next.js 页面中使用 HTML 链接
+    //
+    // React Perf 规则:
+    // "react-perf/jsx-no-new-object-as-prop": "warn", // 禁止在 JSX 中使用新对象作为 prop
+    //
+    // Regex 规则:
+    // "regex/invalid": "error", // 禁止无效的正则表达式
+    //
+    // JSDoc 规则:
+    // "jsdoc/require-description": "warn", // 要求 JSDoc 注释有描述
+    // "jsdoc/require-param": "warn", // 要求 JSDoc 注释有参数说明
+
+    // ========== 规则配置示例（带选项） ==========
+    // 某些规则支持额外的配置选项，使用数组格式：
+    //
+    // 示例 1: 带选项的规则
+    // "prefer-const": ["error", {
+    //   "destructuring": "any", // 解构赋值处理方式
+    //   "ignoreReadBeforeAssign": false // 是否忽略在赋值前读取的变量
+    // }],
+    //
+    // 示例 2: React 规则带选项
+    // "react/self-closing-comp": ["error", {
+    //   "component": true, // 组件必须自闭合
+    //   "html": false // HTML 元素不需要自闭合
+    // }],
+    //
+    // 示例 3: Import 规则带选项
+    // "import/order": ["error", {
+    //   "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
+    //   "newlinesBetween": "always", // 组之间总是有空行
+    //   "alphabetize": { "order": "asc", "caseInsensitive": true } // 按字母顺序排序
+    // }],
+    //
+    // 示例 4: TypeScript 规则带选项
+    // "typescript/no-explicit-any": ["warn", {
+    //   "ignoreRestArgs": false // 是否忽略剩余参数中的 any
+    // }]
+
+    // ========== 使用数字格式的规则配置示例 ==========
+    // 也可以使用数字格式（0=关闭, 1=警告, 2=错误）：
+    // "no-console": 1, // 等同于 "warn"
+    // "no-debugger": 2, // 等同于 "error"
+    // "no-unused-vars": 0 // 等同于 "off"
+  }
+}

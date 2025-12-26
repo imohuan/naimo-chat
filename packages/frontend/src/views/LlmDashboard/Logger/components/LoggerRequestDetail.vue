@@ -1,0 +1,1208 @@
+<script setup lang="ts">
+import { computed, ref, useTemplateRef, watch, onUnmounted, onMounted } from "vue";
+import { useIntersectionObserver, useDebounceFn } from "@vueuse/core";
+import {
+  VisibilityOutlined,
+  ListOutlined,
+  CodeOutlined,
+  PersonOutlined,
+  SmartToyOutlined,
+  SettingsOutlined,
+  AutoAwesomeOutlined,
+  WarningOutlined,
+  KeyboardArrowDownOutlined,
+} from "@vicons/material";
+import CodeEditor from "@/components/code/CodeEditor.vue";
+import MessageActionButtons from "./MessageActionButtons.vue";
+import ToolUseEdit from "./ToolUseEdit.vue";
+import ImageDisplay from "@/components/llm/ImageDisplay.vue";
+import QueueExample from "./QueueExample.vue";
+import type { LogRequest, LogChatMessage } from "../types";
+import { useCharLoading } from "@/composables/useCharLoading";
+
+const props = defineProps<{
+  request: LogRequest | null;
+}>();
+
+const activeTab = ref<"preview" | "timeline" | "raw">("preview");
+const rawJson = computed(() => formatJson(props.request?.logs || []));
+
+const logsSource = computed(() => props.request?.logs || []);
+
+// 过滤后的消息源，排除空内容
+const messagesSource = computed(() => {
+  if (!props.request || !isChatRequest(props.request)) return [];
+
+  const messages = getChatMessages(props.request);
+  return messages.filter((msg) => {
+    if (Array.isArray(msg.content)) {
+      return msg.content.some((part) => {
+        // Check for text content
+        if (part.type === "text" && part.text && part.text.trim()) {
+          return true;
+        }
+        // Check for tool_use content
+        if (part.type === "tool_use") {
+          return true; // tool_use is always meaningful content
+        }
+        // Check for tool_result content
+        if (part.type === "tool_result") {
+          return true; // tool_result is always meaningful content
+        }
+        // Check for other content types
+        return part && Object.keys(part).length > 0;
+      });
+    }
+    return msg.content && msg.content.trim();
+  });
+});
+
+// 获取所有显示项（消息 + Full Response + Error）
+const allDisplayItems = computed(() => {
+  if (!props.request || !isChatRequest(props.request)) return [];
+
+  const items: Array<{
+    type: "message" | "full_response" | "error";
+    data: any;
+  }> = [];
+
+  // 添加消息
+  messagesSource.value.forEach((msg) => {
+    items.push({
+      type: "message",
+      data: msg,
+    });
+  });
+
+  // 添加 Full Response 和 Error 日志
+  const logs = props.request.logs || [];
+  logs.forEach((log) => {
+    if (log.type === "full_response") {
+      items.push({
+        type: "full_response",
+        data: log,
+      });
+    } else if (log.type === "error") {
+      items.push({
+        type: "error",
+        data: log,
+      });
+    }
+  });
+
+  return items;
+});
+
+// 使用字符加载hooks - 时间轴
+const timelineLoading = useCharLoading(
+  logsSource,
+  (log) => {
+    return JSON.stringify(log).length;
+  },
+  {
+    initialChars: 1000,
+    loadMoreChars: 1000,
+  }
+);
+
+const messageContainerRef = useTemplateRef<HTMLElement>("messageContainerRef");
+const timelineContainerRef = useTemplateRef<HTMLElement>("timelineContainerRef");
+const messageLoadTriggerRef = useTemplateRef<HTMLElement>("messageLoadTriggerRef");
+const timelineLoadTriggerRef = useTemplateRef<HTMLElement>("timelineLoadTriggerRef");
+
+// 使用字符加载hooks - 所有显示项
+const messageLoading = useCharLoading(
+  allDisplayItems,
+  (item) => {
+    if (item.type === "message") {
+      const message = item.data;
+      if (Array.isArray(message.content)) {
+        // Count actual content length, including tool and image content
+        return message.content.reduce((total: number, part: any) => {
+          if (part.type === "text") {
+            return total + String(part.text || "").length;
+          } else if (part.type === "tool_use") {
+            return (
+              total +
+              String(part.name || "").length +
+              JSON.stringify(part.input || {}).length
+            );
+          } else if (part.type === "tool_result") {
+            return total + String(part.content || "").length;
+          } else if (part.type === "image") {
+            // Images have a fixed character count for loading purposes
+            return total + 200; // Treat images as 200 characters for loading calculation
+          }
+          return total + JSON.stringify(part).length;
+        }, 0);
+      }
+      return String(message.content || "").length;
+    } else if (item.type === "full_response") {
+      return JSON.stringify(item.data.data?.content || "").length;
+    } else if (item.type === "error") {
+      return JSON.stringify(item.data.err || "").length;
+    }
+    return 0;
+  },
+  {
+    initialChars: 5000,
+    loadMoreChars: 5000,
+  }
+);
+
+// Debounce 加载更多函数
+const debouncedTimelineLoadMore = useDebounceFn(() => {
+  if (timelineLoading.hasMore.value && !timelineLoading.isLoading.value) {
+    timelineLoading.loadMore();
+  }
+}, 66);
+
+const debouncedMessageLoadMore = useDebounceFn(() => {
+  if (messageLoading.hasMore.value && !messageLoading.isLoading.value) {
+    messageLoading.loadMore();
+  }
+}, 66);
+
+watch(
+  () => messageLoading.lastIndex.value,
+  () => {
+    console.log(
+      "messageLoading.visibleItems",
+      messageLoading.visibleItems.value.slice(-10)
+    );
+  }
+);
+
+// 设置底部触发器的可见性监听
+const { stop: stopTimelineObserver } = useIntersectionObserver(
+  timelineLoadTriggerRef,
+  ([entry]) => {
+    const isIntersecting = entry?.isIntersecting;
+    if (isIntersecting) {
+      debouncedTimelineLoadMore();
+    }
+  },
+  {
+    threshold: 0.1,
+    rootMargin: "50px",
+  }
+);
+
+const { stop: stopMessageObserver } = useIntersectionObserver(
+  messageLoadTriggerRef,
+  ([entry]) => {
+    const isIntersecting = entry?.isIntersecting;
+    if (isIntersecting) {
+      debouncedMessageLoadMore();
+    }
+  },
+  {
+    threshold: 0.1,
+    rootMargin: "50px",
+  }
+);
+
+// 请求变化时重置加载状态
+watch(
+  () => props.request,
+  () => {
+    timelineLoading.reset();
+    messageLoading.reset();
+
+    // 自动折叠超过5000字符的内容
+    collapsedItems.value.clear();
+    if (props.request && isChatRequest(props.request)) {
+      const items = allDisplayItems.value;
+      items.forEach((item) => {
+        if (shouldAutoCollapse(item)) {
+          const itemId = `${item.type}-${
+            item.data.time || item.data.role || Math.random()
+          }`;
+          collapsedItems.value.add(itemId);
+        }
+      });
+    }
+
+    messageContainerRef.value?.scrollTo({ top: 0, behavior: "instant" });
+    timelineContainerRef.value?.scrollTo({ top: 0, behavior: "instant" });
+  }
+);
+
+// 获取可见项目
+const visibleLogs = computed(() => timelineLoading.visibleItems.value);
+const visibleItems = computed(() => messageLoading.visibleItems.value);
+
+const previewEnabled = computed(() => {
+  const req = props.request;
+  if (!req) return false;
+  if (!isChatRequest(req)) return false;
+  const hasMessages = getChatMessages(req).length > 0;
+  const hasResponse = req.logs.some((log) => log.type === "full_response");
+  const hasError = req.logs.some((log) => log.type === "error");
+  return hasMessages || hasResponse || hasError;
+});
+
+watch(
+  () => props.request,
+  (req) => {
+    if (!req) {
+      activeTab.value = "timeline";
+      return;
+    }
+    if (previewEnabled.value) {
+      activeTab.value = "preview";
+      return;
+    }
+    if (activeTab.value === "preview") {
+      activeTab.value = "timeline";
+    }
+  },
+  { immediate: true }
+);
+
+function formatTimeLong(ts: number): string {
+  return new Date(ts).toLocaleString();
+}
+
+function formatTimeDetail(ts: number): string {
+  const d = new Date(ts);
+  return `${d
+    .getHours()
+    .toString()
+    .padStart(2, "0")}:${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}:${d
+    .getSeconds()
+    .toString()
+    .padStart(2, "0")}.${d.getMilliseconds().toString().padStart(3, "0")}`;
+}
+
+function computeTimeDelta(logs: any[], idx: number): number {
+  if (!Array.isArray(logs) || idx <= 0) return 0;
+  const prev = logs[idx - 1];
+  const curr = logs[idx];
+  if (!prev || !curr) return 0;
+  if (typeof curr.time !== "number" || typeof prev.time !== "number") return 0;
+  return curr.time - prev.time;
+}
+
+function formatJson(obj: any): string {
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch (e) {
+    return String(obj);
+  }
+}
+
+function isChatRequest(req: LogRequest | null): boolean {
+  return (
+    !!req && (req.url.includes("/messages") || req.url.includes("/chat/completions"))
+  );
+}
+
+function getChatMessages(req: LogRequest): LogChatMessage[] {
+  if (!req) return [];
+  const bodyLog = req.logs.find(
+    (l) => l.type === "request body" && l.data && l.data.messages
+  );
+
+  let messages: LogChatMessage[] = [];
+
+  if (bodyLog) {
+    messages = [...bodyLog.data.messages];
+    if (bodyLog.data.system) {
+      messages.unshift({
+        role: "system",
+        content: bodyLog.data.system,
+      });
+    }
+  } else {
+    const finalReqLog = req.logs.find((l) => l.request && l.request.body);
+    if (finalReqLog) {
+      try {
+        const parsedBody = JSON.parse(finalReqLog.request.body);
+        if (parsedBody.messages) messages = parsedBody.messages;
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  return messages;
+}
+
+function getLevelColor(level: number): string {
+  if (level === 30) return "bg-blue-500";
+  if (level === 40) return "bg-yellow-500";
+  if (level >= 50) return "bg-red-500";
+  return "bg-slate-400";
+}
+
+// 处理长内容折叠
+const collapsedItems = ref(new Set<string>());
+
+// 复制成功状态管理
+const copySuccessStates = ref(new Map<string, boolean>());
+
+function toggleCollapse(id: string) {
+  const newSet = new Set(collapsedItems.value);
+  if (newSet.has(id)) {
+    newSet.delete(id);
+  } else {
+    newSet.add(id);
+  }
+  collapsedItems.value = newSet;
+}
+
+function isCollapsed(id: string): boolean {
+  return collapsedItems.value.has(id);
+}
+
+function getItemContent(item: any): string {
+  if (item.type === "message") {
+    const message = item.data;
+    if (Array.isArray(message.content)) {
+      return message.content
+        .map((part: any) => {
+          if (part.type === "text") {
+            return part.text || "";
+          } else if (part.type === "tool_use") {
+            return `[Tool: ${part.name || "Unknown"}] ${
+              part.input ? JSON.stringify(part.input) : ""
+            }`;
+          } else if (part.type === "tool_result") {
+            return `[Tool Result] ${
+              part.content
+                ? Array.isArray(part.content)
+                  ? part.content.join("\n")
+                  : part.content
+                : ""
+            }`;
+          } else if (part.type === "image") {
+            return `[Image: ${part.alt || "Generated image"}] ${
+              part.detail ? `(${part.detail})` : ""
+            }`;
+          }
+          return `[${part.type}] ${JSON.stringify(part)}`;
+        })
+        .join("");
+    }
+    return message.content || "";
+  } else if (item.type === "full_response") {
+    return item.data.data?.content || "";
+  } else if (item.type === "error") {
+    return JSON.stringify(item.data.err || "");
+  }
+  return "";
+}
+
+const showCollapseNum = 1000;
+const showAutoCollapseNum = 1000;
+
+function shouldShowCollapse(item: any): boolean {
+  const content = getItemContent(item);
+  return content.length > showCollapseNum; // 超过500字符显示折叠按钮
+}
+
+function shouldAutoCollapse(item: any): boolean {
+  const content = getItemContent(item);
+  return content.length > showAutoCollapseNum; // 超过5000字符自动折叠
+}
+
+function getDisplayContent(item: any): string {
+  const content = getItemContent(item);
+
+  if (!shouldShowCollapse(item)) {
+    return content.trim();
+  }
+
+  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+  if (!isCollapsed(itemId)) {
+    return content.trim();
+  }
+
+  return content.trim().substring(0, showAutoCollapseNum) + "...";
+}
+
+function getCollapsedCharCount(item: any): number {
+  const content = getItemContent(item);
+  if (content.length <= showCollapseNum) return 0;
+  return content.length - showCollapseNum;
+}
+
+// 复制对象数据到剪贴板
+async function copyItemData(item: any) {
+  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+
+  try {
+    const dataToCopy = {
+      type: item.type,
+      data: item.data,
+      // 添加一些额外的上下文信息
+      context: {
+        requestId: props.request?.id,
+        timestamp: item.data.time || Date.now(),
+      },
+    };
+
+    await navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2));
+
+    // 设置复制成功状态
+    copySuccessStates.value.set(itemId, true);
+
+    // 3秒后恢复原状态
+    setTimeout(() => {
+      copySuccessStates.value.delete(itemId);
+    }, 3000);
+  } catch (err) {
+    console.error("Failed to copy:", err);
+    // 降级方案：使用传统的复制方法
+    const textArea = document.createElement("textarea");
+    textArea.value = JSON.stringify(
+      {
+        type: item.type,
+        data: item.data,
+        context: {
+          requestId: props.request?.id,
+          timestamp: item.data.time || Date.now(),
+        },
+      },
+      null,
+      2
+    );
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textArea);
+
+    // 即使降级成功也显示成功状态
+    copySuccessStates.value.set(itemId, true);
+    setTimeout(() => {
+      copySuccessStates.value.delete(itemId);
+    }, 3000);
+  }
+}
+
+// 检查是否显示复制成功状态
+function isCopySuccess(itemId: string): boolean {
+  return copySuccessStates.value.get(itemId) || false;
+}
+
+// 检查是否是 TodoWrite tool_use
+function isTodoWrite(toolData: any): boolean {
+  return toolData?.name === "TodoWrite" && toolData?.input?.todos;
+}
+
+// 转换 TodoWrite 的 todos 格式为 QueueTodo 格式
+function convertTodosToQueueFormat(
+  todos: any[]
+): Array<{
+  id: string;
+  title: string;
+  description?: string;
+  status?: "pending" | "completed";
+}> {
+  return todos.map((todo, index) => ({
+    id: todo.id || `todo-${index}`,
+    title: todo.content || "",
+    description: todo.activeForm || undefined,
+    status: todo.status === "completed" ? "completed" : "pending",
+  }));
+}
+
+// 组件卸载时清理观察器
+onUnmounted(() => {
+  stopTimelineObserver();
+  stopMessageObserver();
+});
+
+// 添加键盘事件监听器
+let handleKeyDown: (e: KeyboardEvent) => void;
+
+onMounted(() => {
+  handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      // 关闭所有打开的图片预览
+      const openPreviews = document.querySelectorAll('[data-preview-open="true"]');
+      openPreviews.forEach((preview) => {
+        (preview as any).closePreview?.();
+      });
+    }
+  };
+  document.addEventListener("keydown", handleKeyDown);
+});
+
+onUnmounted(() => {
+  if (handleKeyDown) {
+    document.removeEventListener("keydown", handleKeyDown);
+  }
+});
+
+// 加载全部内容并滚动到底部
+async function loadAllAndScrollToBottom() {
+  const currentLoading = activeTab.value === "preview" ? messageLoading : timelineLoading;
+  const currentContainer =
+    activeTab.value === "preview"
+      ? messageContainerRef.value
+      : timelineContainerRef.value;
+  const currentSource =
+    activeTab.value === "preview" ? allDisplayItems.value : logsSource.value;
+
+  // 直接设置 lastIndex 为数组长度，一次性加载所有内容
+  if (currentLoading.lastIndex.value < currentSource.length) {
+    currentLoading.lastIndex.value = currentSource.length;
+  }
+
+  // 等待 DOM 更新后滚动到底部
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  if (currentContainer) {
+    currentContainer.scrollTo({
+      top: currentContainer.scrollHeight,
+      behavior: "smooth",
+    });
+  }
+}
+
+// 计算是否还有更多内容需要加载
+const hasMoreToLoad = computed(() => {
+  if (activeTab.value === "preview") {
+    return messageLoading.hasMore.value;
+  } else if (activeTab.value === "timeline") {
+    return timelineLoading.hasMore.value;
+  }
+  return false;
+});
+</script>
+
+<template>
+  <div v-if="request" class="w-full h-full flex flex-col bg-slate-50">
+    <!-- 请求头部 -->
+    <div class="bg-white p-4 border-b border-slate-200 shadow-sm">
+      <div class="flex justify-between items-start">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-3 mb-2">
+            <span
+              class="px-3 py-1 rounded-md text-sm font-bold"
+              :class="
+                request.method === 'GET'
+                  ? 'bg-blue-100 text-blue-700'
+                  : request.method === 'POST'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-slate-100 text-slate-700'
+              "
+              >{{ request.method }}</span
+            >
+            <span class="text-sm text-slate-700 break-all font-mono">{{
+              request.url
+            }}</span>
+            <span
+              v-if="request.status"
+              class="px-2 py-1 rounded text-xs font-bold"
+              :class="
+                request.status === 200
+                  ? 'bg-green-100 text-green-700 border border-green-300'
+                  : 'bg-red-100 text-red-700 border border-red-300'
+              "
+            >
+              {{ request.status }}
+            </span>
+          </div>
+          <div class="flex gap-6 text-xs text-slate-500 font-mono">
+            <span>Start: {{ formatTimeLong(request.startTime) }}</span>
+            <span v-if="request.duration"
+              >Duration: {{ request.duration.toFixed(2) }}ms</span
+            >
+            <span>{{ request.id }}</span>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button
+            @click="activeTab = 'preview'"
+            :disabled="!previewEnabled"
+            :class="[
+              'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
+              !previewEnabled
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                : activeTab === 'preview'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:bg-slate-50',
+            ]"
+          >
+            <VisibilityOutlined class="w-4 h-4" /> 预览
+          </button>
+          <button
+            @click="activeTab = 'timeline'"
+            :class="[
+              'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
+              activeTab === 'timeline'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:bg-slate-50',
+            ]"
+          >
+            <ListOutlined class="w-4 h-4" /> 时间轴
+          </button>
+          <button
+            @click="activeTab = 'raw'"
+            :class="[
+              'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
+              activeTab === 'raw'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-white text-slate-600 hover:bg-slate-50',
+            ]"
+          >
+            <CodeOutlined class="w-4 h-4" /> 原始数据
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 内容 -->
+    <div class="flex-1 overflow-hidden p-6 relative">
+      <!-- 加载全部并滚动到底部按钮 -->
+      <button
+        v-if="activeTab === 'preview' || activeTab === 'timeline'"
+        @click="loadAllAndScrollToBottom"
+        class="fixed right-12 bottom-8 z-50 w-8 h-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        title="加载全部内容并滚动到底部"
+      >
+        <KeyboardArrowDownOutlined class="w-6 h-6" />
+      </button>
+      <!-- 预览 Tab -->
+      <div v-if="activeTab === 'preview'" class="w-full h-full">
+        <div v-if="!isChatRequest(request)" class="text-center py-20 text-slate-400">
+          <p class="text-lg">此请求不是聊天补全请求，无法预览对话。</p>
+          <p class="text-sm mt-2">请切换到"时间轴"或"原始数据"查看详情。</p>
+        </div>
+
+        <div v-else class="h-full space-y-6">
+          <!-- Messages (lazy loaded) -->
+          <div ref="messageContainerRef" class="max-h-full overflow-y-auto pr-1">
+            <!-- Model Info -->
+            <div v-if="request.model" class="flex justify-center mb-6">
+              <span
+                class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-full text-xs font-mono shadow-sm"
+              >
+                Model: <span class="font-bold">{{ request.model }}</span>
+              </span>
+            </div>
+
+            <div>
+              <template v-for="(item, index) in visibleItems" :key="index">
+                <!-- Message Item -->
+                <div
+                  v-if="item.type === 'message'"
+                  class="flex gap-4 mb-4 last:mb-0 w-10/12 mx-auto"
+                  :class="{ 'flex-row-reverse': item.data.role === 'user' }"
+                >
+                  <div
+                    class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-md"
+                    :class="
+                      item.data.role === 'user'
+                        ? 'bg-indigo-600'
+                        : item.data.role === 'system'
+                        ? 'bg-slate-600'
+                        : 'bg-orange-600'
+                    "
+                  >
+                    <PersonOutlined
+                      v-if="item.data.role === 'user'"
+                      class="w-5 h-5 text-white"
+                    />
+                    <SettingsOutlined
+                      v-else-if="item.data.role === 'system'"
+                      class="w-5 h-5 text-white"
+                    />
+                    <SmartToyOutlined v-else class="w-5 h-5 text-white" />
+                  </div>
+
+                  <div
+                    class="flex flex-col max-w-[85%]"
+                    :class="{ 'items-end': item.data.role === 'user' }"
+                  >
+                    <div
+                      class="text-xs text-slate-500 mb-1 font-bold uppercase tracking-wider"
+                    >
+                      {{ item.data.role }}
+                    </div>
+                    <div
+                      class="min-w-32 px-4 pt-4 rounded-2xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap wrap-break-word font-mono select-text w-full flex flex-col gap-1 relative"
+                      :class="[
+                        item.data.role === 'system'
+                          ? 'bg-slate-100 text-slate-800 border border-slate-200'
+                          : 'bg-white text-slate-800 border border-slate-200',
+                      ]"
+                    >
+                      <template v-if="Array.isArray(item.data.content)">
+                        <div
+                          v-for="(part, pIdx) in item.data.content"
+                          :key="pIdx"
+                          class="mb-1 last:mb-0"
+                        >
+                          <!-- Text content -->
+                          <div v-if="part.type === 'text'" class="whitespace-pre-wrap">
+                            <template
+                              v-if="
+                                shouldShowCollapse(item) &&
+                                isCollapsed(
+                                  `${item.type}-${item.data.role || Math.random()}`
+                                )
+                              "
+                            >
+                              {{ (part.text?.trim() || "").substring(0, 200) + "..." }}
+                            </template>
+                            <template v-else>
+                              {{ part.text?.trim() || "" }}
+                            </template>
+                          </div>
+
+                          <!-- Tool use content -->
+                          <div v-else-if="part.type === 'tool_use'">
+                            <!-- TodoWrite: 使用 QueueExample 组件 -->
+                            <div v-if="isTodoWrite(part)" class="mb-1">
+                              <QueueExample
+                                :todos="convertTodosToQueueFormat(part.input.todos)"
+                                :show-messages="false"
+                                :preview="true"
+                              />
+                            </div>
+                            <!-- 其他 tool_use: 使用 ToolUseEdit 组件 -->
+                            <ToolUseEdit
+                              v-else
+                              :tool-data="part"
+                              :is-collapsed="
+                                shouldShowCollapse(item) &&
+                                isCollapsed(
+                                  `${item.type}-${item.data.role || Math.random()}`
+                                )
+                              "
+                            />
+                          </div>
+
+                          <!-- Tool result content -->
+                          <div
+                            v-else-if="part.type === 'tool_result'"
+                            class="bg-green-50 border border-green-200 rounded-lg p-3 mb-1 shadow-sm"
+                          >
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="text-xs font-bold text-green-600 uppercase"
+                                >Tool Result:</span
+                              >
+                              <span
+                                v-if="part.tool_use_id"
+                                class="text-xs font-mono text-green-700"
+                                >{{ part.tool_use_id }}</span
+                              >
+                            </div>
+                            <div
+                              v-if="part.content"
+                              class="text-xs font-mono text-slate-700"
+                            >
+                              <template
+                                v-if="
+                                  shouldShowCollapse(item) &&
+                                  isCollapsed(
+                                    `${item.type}-${item.data.role || Math.random()}`
+                                  )
+                                "
+                              >
+                                <pre class="whitespace-pre-wrap">{{
+                                  (Array.isArray(part.content)
+                                    ? part.content.join("\n").trim()
+                                    : part.content?.trim() || ""
+                                  ).substring(0, 200) + "..."
+                                }}</pre>
+                              </template>
+                              <template v-else>
+                                <pre class="whitespace-pre-wrap">{{
+                                  Array.isArray(part.content)
+                                    ? part.content.join("\n").trim()
+                                    : part.content?.trim() || ""
+                                }}</pre>
+                              </template>
+                            </div>
+                            <div
+                              v-if="part.is_error"
+                              class="text-xs text-red-600 mt-1 font-bold"
+                            >
+                              Error: {{ part.is_error }}
+                            </div>
+                          </div>
+
+                          <!-- Image content -->
+                          <div v-else-if="part.type === 'image'" class="mb-1">
+                            <div class="flex items-center gap-2 mb-2">
+                              <span class="text-xs font-bold text-purple-700 uppercase"
+                                >Image:</span
+                              >
+                            </div>
+                            <ImageDisplay
+                              :src="part.source?.data || part.data || ''"
+                              :alt="part.alt || 'Generated image'"
+                              max-width="250px"
+                              max-height="250px"
+                              class="inline-block"
+                              :debug="false"
+                            />
+                            <div
+                              v-if="part.detail"
+                              class="text-xs text-slate-500 mt-2 ml-2"
+                            >
+                              {{ part.detail }}
+                            </div>
+                          </div>
+
+                          <!-- Other content types -->
+                          <div
+                            v-else
+                            class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-1 shadow-sm"
+                          >
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="text-xs font-bold text-yellow-700 uppercase"
+                                >{{ part.type }}:</span
+                              >
+                            </div>
+                            <pre
+                              class="text-xs font-mono text-slate-700 whitespace-pre-wrap"
+                            >
+                              <template
+                                v-if="
+                                  shouldShowCollapse(item) &&
+                                  isCollapsed(`${item.type}-${item.data.role || Math.random()}`)
+                                "
+                              >
+                                {{ formatJson(part).trim().substring(0, 200) + "..." }}
+                              </template>
+                              <template v-else>
+                                {{ formatJson(part).trim() }}
+                              </template>
+                            </pre>
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else> {{ getDisplayContent(item) }} </template>
+
+                      <!-- 底部按钮组 -->
+                      <MessageActionButtons
+                        :item-type="item.type"
+                        :item-data="item.data"
+                        :should-show-collapse="shouldShowCollapse(item)"
+                        :is-collapsed="
+                          isCollapsed(`${item.type}-${item.data.role || Math.random()}`)
+                        "
+                        :collapsed-char-count="getCollapsedCharCount(item)"
+                        :is-copy-success="
+                          isCopySuccess(`${item.type}-${item.data.role || Math.random()}`)
+                        "
+                        @toggle-collapse="
+                          toggleCollapse(
+                            `${item.type}-${item.data.role || Math.random()}`
+                          )
+                        "
+                        @copy-item="copyItemData(item)"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Full Response Item -->
+                <div
+                  v-else-if="item.type === 'full_response'"
+                  class="flex gap-4 mb-4 last:mb-0 w-10/12 mx-auto"
+                >
+                  <div
+                    class="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center shrink-0 shadow-md"
+                  >
+                    <AutoAwesomeOutlined class="w-5 h-5 text-white" />
+                  </div>
+                  <div class="flex flex-col max-w-[85%] w-full">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span
+                        class="text-xs text-green-600 font-bold uppercase tracking-wider"
+                        >Full Response (Reconstructed)</span
+                      >
+                      <span class="font-mono text-[10px] opacity-70"
+                        >Length: {{ item.data.data?.content?.length || 0 }} chars</span
+                      >
+                    </div>
+                    <div
+                      class="bg-white text-slate-800 border border-green-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm whitespace-pre-wrap font-mono select-text flex flex-col gap-1 relative"
+                    >
+                      <div class="w-1 h-full bg-green-600 rounded-r-sm mr-2"></div>
+                      <div class="flex-1">
+                        {{ getDisplayContent(item) }}
+                      </div>
+
+                      <!-- 底部按钮组 -->
+                      <MessageActionButtons
+                        :item-type="item.type"
+                        :item-data="item.data"
+                        :should-show-collapse="shouldShowCollapse(item)"
+                        :is-collapsed="isCollapsed(`${item.type}-${item.data.time}`)"
+                        :collapsed-char-count="getCollapsedCharCount(item)"
+                        :is-copy-success="isCopySuccess(`${item.type}-${item.data.time}`)"
+                        @toggle-collapse="
+                          toggleCollapse(`${item.type}-${item.data.time}`)
+                        "
+                        @copy-item="copyItemData(item)"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Error Item -->
+                <div
+                  v-else-if="item.type === 'error'"
+                  class="flex gap-4 mb-4 last:mb-0 w-10/12 mx-auto"
+                >
+                  <div
+                    class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-md"
+                  >
+                    <WarningOutlined class="w-5 h-5 text-white" />
+                  </div>
+                  <div class="flex flex-col max-w-[85%] w-full">
+                    <div
+                      class="text-xs text-red-600 mb-1 font-bold uppercase tracking-wider"
+                    >
+                      Error
+                    </div>
+                    <div
+                      class="bg-red-50 border border-red-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-1 relative"
+                    >
+                      <pre
+                        class="text-red-600 text-xs overflow-x-auto select-text flex-1"
+                        :class="{
+                          'max-h-40 overflow-y-auto':
+                            shouldShowCollapse(item) &&
+                            !isCollapsed(`${item.type}-${item.data.time}`),
+                        }"
+                        >{{
+                          isCollapsed(`${item.type}-${item.data.time}`) &&
+                          shouldShowCollapse(item)
+                            ? formatJson(item.data.err).trim().substring(0, 500) + "..."
+                            : formatJson(item.data.err).trim()
+                        }}</pre
+                      >
+
+                      <!-- 底部按钮组 -->
+                      <MessageActionButtons
+                        :item-type="item.type"
+                        :item-data="item.data"
+                        :should-show-collapse="shouldShowCollapse(item)"
+                        :is-collapsed="isCollapsed(`${item.type}-${item.data.time}`)"
+                        :collapsed-char-count="getCollapsedCharCount(item)"
+                        :is-copy-success="isCopySuccess(`${item.type}-${item.data.time}`)"
+                        @toggle-collapse="
+                          toggleCollapse(`${item.type}-${item.data.time}`)
+                        "
+                        @copy-item="copyItemData(item)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Load More Trigger for Messages -->
+            <div
+              ref="messageLoadTriggerRef"
+              v-if="messageLoading.hasMore.value"
+              class="w-full h-1 flex items-center justify-center py-2"
+            >
+              <div
+                v-if="messageLoading.isLoading.value"
+                class="text-xs text-slate-400 animate-pulse"
+              >
+                Loading more...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 时间轴 Tab -->
+      <div
+        v-if="activeTab === 'timeline'"
+        ref="timelineContainerRef"
+        class="h-full overflow-y-auto pr-1"
+      >
+        <div>
+          <div
+            v-for="(log, index) in visibleLogs"
+            :key="index"
+            class="flex gap-4 group mb-4 last:mb-0 max-w-5xl mx-auto"
+          >
+            <!-- Time Column -->
+            <div class="flex flex-col items-end w-24 shrink-0 pt-1">
+              <span class="text-xs text-slate-500 font-mono">{{
+                formatTimeDetail(log.time)
+              }}</span>
+              <span class="text-[10px] text-slate-400 font-mono">
+                +{{ computeTimeDelta(logsSource, index) }}ms
+              </span>
+            </div>
+
+            <!-- Dot & Line -->
+            <div class="relative flex flex-col items-center">
+              <div
+                class="w-3 h-3 rounded-full border-2 border-white shadow-sm z-10"
+                :class="getLevelColor(log.level || 30)"
+              ></div>
+              <div
+                v-if="index !== (request.logs?.length || 0) - 1"
+                class="w-0.5 bg-slate-200 h-full absolute top-3"
+              ></div>
+            </div>
+
+            <!-- Content -->
+            <div class="pb-6 flex-1 min-w-0">
+              <div
+                class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm"
+              >
+                <div class="flex justify-between items-start mb-1">
+                  <span class="text-xs font-bold text-indigo-600" v-if="log.msg">{{
+                    log.msg
+                  }}</span>
+                  <span class="text-xs font-bold text-slate-500" v-else>Log Entry</span>
+                  <span
+                    class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded"
+                    >Level {{ log.level }}</span
+                  >
+                </div>
+
+                <!-- Structured Data Preview -->
+                <div
+                  v-if="
+                    log.data ||
+                    log.request ||
+                    log.response ||
+                    log.req ||
+                    log.res ||
+                    log.err
+                  "
+                  class="mt-2 text-xs font-mono bg-slate-50 p-3 rounded border border-slate-100 overflow-x-auto text-slate-600"
+                >
+                  <!-- Full Response Log -->
+                  <div v-if="log.type === 'full_response' && log.data?.content">
+                    <span class="text-green-600 font-bold mb-1 flex items-center gap-2">
+                      <AutoAwesomeOutlined class="w-4 h-4" />
+                      > Full Response:
+                    </span>
+                    <div
+                      class="bg-white border border-green-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
+                    >
+                      <div class="absolute top-0 left-0 w-1 h-full bg-green-600"></div>
+                      <pre class="text-slate-800 whitespace-pre-wrap select-text">{{
+                        log.data.content?.trim() || ""
+                      }}</pre>
+                      <div class="text-xs text-slate-500 mt-2 text-right">
+                        Length: {{ log.data.content.length }} chars
+                        <span v-if="log.data.model" class="ml-2"
+                          >Model: {{ log.data.model }}</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Error Log -->
+                  <div v-else-if="log.type === 'error'">
+                    <span class="text-red-600 font-bold mb-1 flex items-center gap-2">
+                      <WarningOutlined class="w-4 h-4" />
+                      > Error:
+                    </span>
+                    <div class="bg-red-50 border border-red-200 p-3 rounded mt-2">
+                      <pre class="text-red-600 select-text">{{
+                        formatJson(log.err).trim()
+                      }}</pre>
+                    </div>
+                  </div>
+
+                  <!-- Other logs -->
+                  <template v-else>
+                    <div v-if="log.data && log.type !== 'recieved data'">
+                      <span class="text-blue-600 font-bold block mb-1"
+                        >> Payload Data:</span
+                      >
+                      <pre class="text-slate-700">{{ formatJson(log.data).trim() }}</pre>
+                    </div>
+                    <div v-if="log.req">
+                      <span class="text-purple-600 font-bold block mb-1"
+                        >> Request Info:</span
+                      >
+                      <pre class="text-slate-700">{{ formatJson(log.req).trim() }}</pre>
+                    </div>
+                    <div v-if="log.request">
+                      <span class="text-purple-600 font-bold block mb-1"
+                        >> Outbound Request:</span
+                      >
+                      <pre class="text-slate-700">{{
+                        formatJson(log.request).trim()
+                      }}</pre>
+                    </div>
+                    <div v-if="log.response && !log.data">
+                      <span class="text-green-600 font-bold block mb-1"
+                        >> Response Info:</span
+                      >
+                      <pre class="text-slate-700">{{
+                        formatJson(log.response).trim()
+                      }}</pre>
+                    </div>
+                    <div v-if="log.type === 'recieved data'" class="opacity-70">
+                      <span class="text-teal-600 font-bold">> Stream Chunk Received</span>
+                    </div>
+                    <div v-if="log.err">
+                      <span class="text-red-600 font-bold block mb-1"
+                        >> Error Trace:</span
+                      >
+                      <pre class="text-red-600">{{ formatJson(log.err).trim() }}</pre>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Load More Trigger for Timeline -->
+          <div
+            ref="timelineLoadTriggerRef"
+            v-if="timelineLoading.hasMore.value"
+            class="w-full h-1 flex items-center justify-center py-2"
+          >
+            <div
+              v-if="timelineLoading.isLoading.value"
+              class="text-xs text-slate-400 animate-pulse"
+            >
+              Loading more...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 原始数据 Tab -->
+      <div v-if="activeTab === 'raw'" class="max-w-8xl h-full mx-auto">
+        <CodeEditor
+          class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm h-[560px]"
+          :model-value="rawJson"
+          language="json"
+          :readonly="true"
+          :options="{
+            wordWrap: 'on',
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+          }"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- 占位符 -->
+  <div
+    v-else
+    class="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400"
+  >
+    <p class="text-xl font-semibold mb-2">选择一个请求查看详情</p>
+    <p class="text-sm max-w-md text-center">
+      左侧列表展示了所有捕获的请求。点击任意条目可以查看时间轴、对话还原及原始日志数据。
+    </p>
+  </div>
+</template>

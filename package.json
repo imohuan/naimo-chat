@@ -1,0 +1,31 @@
+{
+  "name": "naimo-chat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Naimo Chat Monorepo",
+  "scripts": {
+    "dev": "node scripts/start-dev.js",
+    "build": "node scripts/build.js",
+    "dev:all": "pnpm --filter 'packages/*' dev",
+    "build:all": "pnpm --filter 'packages/*' build",
+    "start:all": "pnpm --filter 'packages/backend' start"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "zod": "^3.23.8",
+      "vite": "8.0.0-beta.0"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "vite": "*"
+      }
+    },
+    "onlyBuiltDependencies": [
+      "vue-demi"
+    ]
+  }
+}

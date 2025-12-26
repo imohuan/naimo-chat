@@ -1,0 +1,30 @@
+{
+  "session_id": "5e926516-9ad6-47c3-b871-d86e52b7b263",
+  "transcript_path": "C:\\Users\\IMOHUAN\\.claude\\projects\\G--ClaudeCode-vite8-vue-oxc\\5e926516-9ad6-47c3-b871-d86e52b7b263.jsonl",
+  "cwd": "G:\\ClaudeCode\\vite8-vue-oxc",
+  "model": {
+    "id": "claude-sonnet-4-5-20250929",
+    "display_name": "Sonnet 4.5"
+  },
+  "workspace": {
+    "current_dir": "G:\\ClaudeCode\\vite8-vue-oxc",
+    "project_dir": "G:\\ClaudeCode\\vite8-vue-oxc"
+  },
+  "version": "2.0.65",
+  "output_style": {
+    "name": "default"
+  },
+  "cost": {
+    "total_cost_usd": 0.1603282,
+    "total_duration_ms": 502171,
+    "total_api_duration_ms": 52123,
+    "total_lines_added": 0,
+    "total_lines_removed": 0
+  },
+  "context_window": {
+    "total_input_tokens": 41766,
+    "total_output_tokens": 1209,
+    "context_window_size": 200000
+  },
+  "exceeds_200k_tokens": false
+}
