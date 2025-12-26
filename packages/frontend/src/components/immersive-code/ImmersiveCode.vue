@@ -7,6 +7,7 @@ import {
   Share2,
   RefreshCcw,
   Terminal,
+  MousePointer2,
 } from "lucide-vue-next";
 import { useCodeHistory } from "./composables/useCodeHistory";
 import { useCodeDiff } from "./composables/useCodeDiff";
@@ -30,6 +31,12 @@ import DEFAULT_CODE from "./default-ui.html?raw";
 const props = defineProps<{
   initialCode?: string;
   enableShare?: boolean;
+}>();
+
+// Define emits for error notifications
+const emit = defineEmits<{
+  error: [message: string];
+  "element-selected": [selector: string, data?: any];
 }>();
 
 const {
@@ -59,6 +66,7 @@ const fontSize = ref(14); // 字体大小状态
 const isNavigatingHistory = ref(false); // 标志：是否正在切换历史版本
 let navigationTimer: ReturnType<typeof setTimeout> | null = null; // 导航保护计时器
 const isRefreshing = ref(false); // 标志：是否正在刷新预览
+const isElementSelectorActive = ref(false); // 标志：元素选择器是否激活
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -285,10 +293,28 @@ function handleLog(log: any) {
     stack: log.stack,
   };
   logs.value.push(entry);
+
+  // Emit error notification if it's an error
+  if (entry.method === "error") {
+    const errorMessage = entry.args?.[0]?.toString() || "发生了一个错误";
+    emit("error", errorMessage);
+  }
 }
 
 function clearConsole() {
   logs.value = [];
+}
+
+function handleElementSelected(selector: string, data?: any) {
+  emit("element-selected", selector, data);
+}
+
+function handleToggleConsole() {
+  showConsole.value = !showConsole.value;
+}
+
+function handleToggleElementSelector(enabled: boolean) {
+  isElementSelectorActive.value = enabled;
 }
 
 function refreshPreview() {
@@ -544,19 +570,38 @@ onBeforeUnmount(() => {
           <Terminal class="w-4 h-4" />
         </button>
 
-        <!-- Refresh -->
-        <button
-          @click="refreshPreview"
-          class="p-1.5 text-slate-400 hover:text-slate-600 transition"
-          title="Refresh Preview"
-        >
-          <RefreshCcw
+        <template v-if="mode === 'preview'">
+          <!-- Refresh -->
+          <button
+            @click="refreshPreview"
+            class="p-1.5 text-slate-400 hover:text-slate-600 transition"
+            title="Refresh Preview"
+          >
+            <RefreshCcw
+              :class="[
+                'w-4 h-4 transition-transform duration-300',
+                isRefreshing ? 'animate-spin' : '',
+              ]"
+            />
+          </button>
+          <!-- Select Area -->
+          <button
+            @click="isElementSelectorActive = !isElementSelectorActive"
             :class="[
-              'w-4 h-4 transition-transform duration-300',
-              isRefreshing ? 'animate-spin' : '',
+              'p-1.5 rounded transition',
+              isElementSelectorActive
+                ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                : 'text-slate-400 hover:text-slate-600',
             ]"
-          />
-        </button>
+            :title="
+              isElementSelectorActive
+                ? 'Disable Element Selector'
+                : 'Enable Element Selector'
+            "
+          >
+            <MousePointer2 class="w-4 h-4" />
+          </button>
+        </template>
 
         <!-- Mode Switcher -->
         <div class="flex items-center bg-slate-100 rounded-lg p-1">
@@ -631,7 +676,15 @@ onBeforeUnmount(() => {
         class="flex-1 overflow-hidden bg-slate-50 relative z-0"
       >
         <div class="w-full h-full bg-white overflow-hidden relative ring-4">
-          <PreviewFrame :key="previewKey" :code="currentCode" @console-log="handleLog" />
+          <PreviewFrame
+            :key="previewKey"
+            :code="currentCode"
+            :enable-element-selector="isElementSelectorActive"
+            @console-log="handleLog"
+            @element-selected="handleElementSelected"
+            @toggle-console="handleToggleConsole"
+            @toggle-element-selector="handleToggleElementSelector"
+          />
         </div>
       </div>
 

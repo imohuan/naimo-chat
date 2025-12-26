@@ -1,130 +1,40 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
+import LOG_SCRIPT from "./preload/log.js?raw";
+import ELEMENT_SELECTOR_SCRIPT from "./preload/element-selector.js?raw";
+import SHORTCUTS_SCRIPT from "./preload/shortcuts.js?raw";
 
 const props = defineProps<{
   code: string;
+  enableElementSelector?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "console-log", log: any): void;
+  (e: "element-selected", selector: string, data?: any): void;
+  (e: "toggle-console"): void;
+  (e: "toggle-element-selector", enabled: boolean): void;
 }>();
 
 const iframeRef = ref<HTMLIFrameElement>();
 
 // Console interception script to inject
-const INJECTED_SCRIPT = `
-<script>
-  (function() {
-    const originalConsole = {
-      log: console.log,
-      warn: console.warn,
-      error: console.error,
-      info: console.info
-    };
-
-    function sendLog(method, args) {
-      try {
-        // Check if any argument is an Error object with stack
-        let errorStack = null;
-        const hasError = args.some(arg => arg instanceof Error && arg.stack);
-        if (hasError) {
-          // Find the first Error object with stack
-          const errorArg = args.find(arg => arg instanceof Error && arg.stack);
-          if (errorArg && errorArg.stack) {
-            errorStack = errorArg.stack;
-          }
-        }
-        
-        // Capture caller information from current stack
-        const stack = new Error().stack;
-        let caller = 'unknown';
-        let stackTrace = '';
-        
-        if (stack) {
-          const stackLines = stack.split('\\n');
-          // Find the caller (usually the 3rd line, skip Error and sendLog)
-          if (stackLines.length > 2) {
-            const callerLine = stackLines[2] || stackLines[1];
-            if (callerLine) {
-              // Extract function/file info from stack line
-              const match = callerLine.match(/at\\s+(.+?)\\s+\\((.+?):(\\d+):(\\d+)\\)/) || 
-                           callerLine.match(/at\\s+(.+?)\\s+(.+?):(\\d+):(\\d+)/) ||
-                           callerLine.match(/at\\s+(.+)/);
-              if (match) {
-                caller = (match[1] || match[0]).trim();
-              }
-            }
-            // Get full stack trace (skip first line: Error, keep sendLog for context)
-            // Include all lines after Error for complete stack trace
-            stackTrace = stackLines.slice(1).join('\\n');
-          } else if (stackLines.length > 1) {
-            // If only 2 lines, still include them
-            stackTrace = stackLines.slice(1).join('\\n');
-          }
-        }
-        
-        // If we have an Error stack, use it instead (it's more complete)
-        if (errorStack) {
-          stackTrace = errorStack;
-          // Extract caller from error stack if possible
-          const errorStackLines = errorStack.split('\\n');
-          if (errorStackLines.length > 1) {
-            const errorCallerLine = errorStackLines[1];
-            const match = errorCallerLine.match(/at\\s+(.+?)\\s+\\((.+?):(\\d+):(\\d+)\\)/) || 
-                         errorCallerLine.match(/at\\s+(.+?)\\s+(.+?):(\\d+):(\\d+)/) ||
-                         errorCallerLine.match(/at\\s+(.+)/);
-            if (match) {
-              caller = (match[1] || match[0]).trim();
-            }
-          }
-        }
-        
-        // Simple serialization to pass across iframe boundary
-        const serializedArgs = args.map(arg => {
-          if (typeof arg === 'undefined') return 'undefined';
-          if (arg === null) return 'null';
-          if (typeof arg === 'function') return arg.toString();
-          if (arg instanceof Error) {
-            return {
-              message: arg.message,
-              stack: arg.stack || ''
-            };
-          }
-          try {
-             return JSON.parse(JSON.stringify(arg));
-          } catch (e) {
-             return String(arg);
-          }
-        });
-        
-        window.parent.postMessage({
-          type: 'console-log', 
-          method, 
-          args: serializedArgs,
-          caller: caller,
-          stack: stackTrace
-        }, '*');
-      } catch (err) {
-        console.error('Failed to send log to parent', err);
-      }
-    }
-
-    console.log = (...args) => { originalConsole.log(...args); sendLog('log', args); };
-    console.warn = (...args) => { originalConsole.warn(...args); sendLog('warn', args); };
-    console.error = (...args) => { originalConsole.error(...args); sendLog('error', args); };
-    console.info = (...args) => { originalConsole.info(...args); sendLog('info', args); };
-
-    window.addEventListener('error', (event) => {
-      sendLog('error', [event.message]);
-    });
-  })();
-<\/script>
-`;
+const INJECTED_SCRIPT = "<script>" + LOG_SCRIPT + "<\/script>";
+// Element selector script to inject
+const ELEMENT_SELECTOR_INJECTED_SCRIPT =
+  "<script>" + ELEMENT_SELECTOR_SCRIPT + "<\/script>";
+// Shortcuts script to inject
+const SHORTCUTS_INJECTED_SCRIPT = "<script>" + SHORTCUTS_SCRIPT + "<\/script>";
 
 const srcDoc = computed(() => {
-  // Inject the script at the beginning of the code
+  // Inject the scripts at the beginning of the code
   // This works for both Fragments and full HTML documents in most browsers
-  return INJECTED_SCRIPT + props.code;
+  return (
+    INJECTED_SCRIPT +
+    ELEMENT_SELECTOR_INJECTED_SCRIPT +
+    SHORTCUTS_INJECTED_SCRIPT +
+    props.code
+  );
 });
 
 function handleMessage(event: MessageEvent) {
@@ -136,12 +46,64 @@ function handleMessage(event: MessageEvent) {
       caller: data.caller,
       stack: data.stack,
     });
+  } else if (data && data.type === "element-selected") {
+    emit("element-selected", data.selector, data.data);
+  } else if (data && data.type === "toggle-console") {
+    emit("toggle-console");
+  } else if (data && data.type === "toggle-element-selector") {
+    emit("toggle-element-selector", data.enabled || false);
   }
 }
 
 // Re-expose refresh if needed, though srcdoc updates reactive
 function refresh() {
   // Force refresh logic if necessary, usually srcdoc change triggers it.
+}
+
+// Toggle element selector in iframe
+function toggleElementSelector(enabled: boolean) {
+  if (iframeRef.value?.contentWindow) {
+    iframeRef.value.contentWindow.postMessage(
+      {
+        type: "toggle-element-selector",
+        enabled: enabled,
+      },
+      "*"
+    );
+  }
+}
+
+// Watch for element selector prop changes
+watch(
+  () => props.enableElementSelector,
+  (enabled) => {
+    // Wait for iframe to load before sending message
+    nextTick(() => {
+      if (iframeRef.value?.contentWindow) {
+        toggleElementSelector(enabled || false);
+        // Focus iframe when element selector is enabled
+        if (enabled) {
+          // Focus the iframe element itself
+          iframeRef.value?.focus();
+          // Also send focus message to iframe content
+          iframeRef.value.contentWindow.postMessage(
+            {
+              type: "focus-iframe",
+            },
+            "*"
+          );
+        }
+      }
+    });
+  },
+  { immediate: true }
+);
+
+// Listen for iframe load to initialize selector state
+function handleIframeLoad() {
+  if (props.enableElementSelector && iframeRef.value?.contentWindow) {
+    toggleElementSelector(true);
+  }
 }
 
 defineExpose({ refresh });
@@ -160,6 +122,7 @@ if (typeof window !== "undefined") {
       class="w-full h-full border-none"
       allow="xr-spatial-tracking; web-share"
       sandbox="allow-pointer-lock allow-popups allow-forms allow-popups-to-escape-sandbox allow-downloads allow-scripts allow-same-origin"
+      @load="handleIframeLoad"
     ></iframe>
   </div>
 </template>

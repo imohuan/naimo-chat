@@ -1,9 +1,47 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { ImmersiveCode } from "@/components/immersive-code";
+import { useToasts } from "@/hooks/useToasts";
 
 const immersiveRef = ref();
 const enableShare = ref(false);
+const { pushToast } = useToasts();
+
+function handleError(message: string) {
+  pushToast(`错误: ${message}`, "error");
+}
+
+function handleElementSelected(selector: string, data?: any) {
+  console.log("=== 选中元素信息 ===");
+  console.log("选择器 (Selector):", selector);
+
+  if (data) {
+    console.log("标签名 (Tag):", data.tagName);
+    console.log("ID:", data.id || "(无)");
+    console.log("类名 (Classes):", data.classList.length > 0 ? data.classList : "(无)");
+    console.log("文本内容 (Text):", data.textContent || "(无)");
+    console.log("位置信息 (Position):", data.position);
+    console.log("样式信息 (Styles):", data.styles);
+    console.log("属性 (Attributes):", data.attributes);
+    console.log("完整数据对象:", data);
+  } else {
+    console.log("完整数据:", {
+      selector: selector,
+      timestamp: new Date().toISOString(),
+      type: "element-selected",
+    });
+  }
+
+  console.log("===================");
+
+  // 显示一个提示
+  const displayText = data?.tagName
+    ? `${data.tagName}${data.id ? "#" + data.id : ""}${
+        data.classList.length > 0 ? "." + data.classList.join(".") : ""
+      }`
+    : selector;
+  pushToast(`已选中元素: ${displayText}`, "success");
+}
 
 function handleAddMajorVersion() {
   if (immersiveRef.value) {
@@ -124,7 +162,12 @@ function handleApplyMultipleDiff() {
         </div>
       </div>
 
-      <ImmersiveCode ref="immersiveRef" :enable-share="enableShare" />
+      <ImmersiveCode
+        ref="immersiveRef"
+        :enable-share="enableShare"
+        @error="handleError"
+        @element-selected="handleElementSelected"
+      />
     </div>
   </div>
 </template>
