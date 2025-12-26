@@ -51,7 +51,7 @@ import {
   PromptInputFooter,
   PromptInputHeader,
   PromptInputSubmit,
-  PromptInputTextarea,
+  PromptInputEditor,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
@@ -70,6 +70,8 @@ import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
 import ChatSidebar from "./components/ChatSidebar.vue";
 import { useChatConversations, type MessageType } from "./useChatConversations";
+import { ImmersiveCode } from "@/components/immersive-code";
+import { useToasts } from "@/hooks/useToasts";
 
 const props = defineProps<{
   providers?: LlmProvider[];
@@ -109,6 +111,11 @@ const liked = ref<Record<string, boolean>>({});
 const disliked = ref<Record<string, boolean>>({});
 const copied = ref<Record<string, boolean>>({});
 const copyTimers = new Map<string, number>();
+
+// ImmersiveCode ref (保留用于将来可能的 API 调用，如 diff、streamWrite 等)
+// 在模板中使用，但 TypeScript 可能无法识别
+const immersiveCodeRef = ref<InstanceType<typeof ImmersiveCode> | null>(null);
+const { pushToast } = useToasts();
 
 const initialMessages: MessageType[] = [
   {
@@ -625,6 +632,40 @@ function handleClear() {
   clearActiveConversation();
   emit("clear");
 }
+
+function handleImmersiveError(message: string) {
+  pushToast(`错误: ${message}`, "error");
+}
+
+function handleElementSelected(selector: string, data?: any) {
+  console.log("=== 选中元素信息 ===");
+  console.log("选择器 (Selector):", selector);
+  if (data) {
+    console.log("标签名 (Tag):", data.tagName);
+    console.log("ID:", data.id || "(无)");
+    console.log("类名 (Classes):", data.classList.length > 0 ? data.classList : "(无)");
+    console.log("文本内容 (Text):", data.textContent || "(无)");
+    console.log("位置信息 (Position):", data.position);
+    console.log("样式信息 (Styles):", data.styles);
+    console.log("属性 (Attributes):", data.attributes);
+    console.log("完整数据对象:", data);
+  }
+  console.log("===================");
+  // 访问 ref 以确保 TypeScript 识别其使用
+  if (immersiveCodeRef.value) {
+    // ref 已挂载，可用于将来的 API 调用
+  }
+}
+
+function handleTagClick(data: { id: string; label: string; icon?: string; data?: Record<string, any> }) {
+  console.log("=== 标签点击信息 ===");
+  console.log("标签 ID:", data.id);
+  console.log("标签文本:", data.label);
+  console.log("标签图标:", data.icon || "(无)");
+  console.log("标签数据:", data.data || "(无)");
+  console.log("完整标签对象:", data);
+  console.log("===================");
+}
 </script>
 
 <template>
@@ -648,127 +689,129 @@ function handleClear() {
       />
 
       <!-- 右侧主对话区域 -->
-      <div
-        class="flex h-full w-full py-4 md:py-6"
-        :class="hasMessages ? 'flex-col' : 'items-center justify-center'"
-      >
+      <div class="flex h-full w-full flex-1 overflow-hidden">
+        <!-- 左侧对话区域 -->
         <div
-          class="relative flex h-full w-full overflow-hidden"
-          :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
+          class="flex h-full w-full py-4 md:py-6"
+          :class="hasMessages ? 'flex-col' : 'items-center justify-center'"
         >
-          <Conversation v-if="hasMessages" class="conversation-content border-none">
-            <ConversationContent
-              class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl px-4 select-text"
-            >
-              <MessageBranch
-                v-for="message in messages"
-                :key="`${message.key}-${message.versions.length}`"
-                :default-branch="Math.max(0, message.versions.length - 1)"
-                class="px-4 pb-6 pt-2 md:px-6"
+          <div
+            class="relative flex h-full w-full overflow-hidden"
+            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
+          >
+            <Conversation v-if="hasMessages" class="conversation-content border-none">
+              <ConversationContent
+                class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl px-4 select-text"
               >
-                <MessageBranchContent class="overflow-hidden">
-                  <Message
-                    v-for="version in message.versions"
-                    :key="`${message.key}-${version.id}`"
-                    :from="message.from"
-                    class="items-start gap-3"
-                  >
-                    <div
-                      class="flex flex-col items-center gap-1.5 shrink-0"
-                      :class="
-                        message.from === 'user' ? 'order-last pl-1' : 'order-first pr-1'
-                      "
+                <MessageBranch
+                  v-for="message in messages"
+                  :key="`${message.key}-${message.versions.length}`"
+                  :default-branch="Math.max(0, message.versions.length - 1)"
+                  class="px-4 pb-6 pt-2 md:px-6"
+                >
+                  <MessageBranchContent class="overflow-hidden">
+                    <Message
+                      v-for="version in message.versions"
+                      :key="`${message.key}-${version.id}`"
+                      :from="message.from"
+                      class="items-start gap-3"
                     >
                       <div
-                        class="size-11 rounded-full flex items-center justify-center text-white shadow-sm ring-2"
-                        :class="[
-                          roleStyles[message.from].bg,
-                          roleStyles[message.from].ring,
-                        ]"
-                      >
-                        <PersonRound v-if="message.from === 'user'" class="w-5 h-5" />
-                        <SmartToyRound v-else class="w-5 h-5" />
-                      </div>
-                    </div>
-
-                    <div class="flex-1 min-w-0 flex flex-col gap-1">
-                      <span
-                        class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
+                        class="flex flex-col items-center gap-1.5 shrink-0"
                         :class="
-                          message.from === 'user' ? 'text-right pr-1' : 'text-left pl-1'
+                          message.from === 'user' ? 'order-last pl-1' : 'order-first pr-1'
                         "
                       >
-                        {{ roleStyles[message.from].label }}
-                      </span>
-
-                      <Sources v-if="message.sources?.length">
-                        <SourcesTrigger :count="message.sources.length" />
-                        <SourcesContent>
-                          <Source
-                            v-for="source in message.sources"
-                            :key="source.href"
-                            :href="source.href"
-                            :title="source.title"
-                          />
-                        </SourcesContent>
-                      </Sources>
-
-                      <Reasoning
-                        v-if="message.reasoning"
-                        :duration="message.reasoning.duration"
-                      >
-                        <ReasoningTrigger />
-                        <ReasoningContent :content="message.reasoning.content" />
-                      </Reasoning>
-
-                      <MessageContent class="max-w-full">
-                        <MessageAttachments v-if="version.files?.length" class="mb-2">
-                          <MessageAttachment
-                            v-for="(file, fileIndex) in version.files"
-                            :key="file.url || file.filename || fileIndex"
-                            :data="file"
-                            class="pointer-events-none"
-                          />
-                        </MessageAttachments>
                         <div
-                          v-if="
-                            message.from === 'assistant' &&
-                            version?.content?.trim()?.length < 1
-                          "
-                          class="flex items-center justify-center px-2 py-1 size-full"
+                          class="size-11 rounded-full flex items-center justify-center text-white shadow-sm ring-2"
+                          :class="[
+                            roleStyles[message.from].bg,
+                            roleStyles[message.from].ring,
+                          ]"
                         >
-                          <Shimmer>正在生成回复…</Shimmer>
+                          <PersonRound v-if="message.from === 'user'" class="w-5 h-5" />
+                          <SmartToyRound v-else class="w-5 h-5" />
                         </div>
+                      </div>
 
-                        <MessageResponse v-else :content="version.content" />
-                      </MessageContent>
-                    </div>
-                  </Message>
-                </MessageBranchContent>
+                      <div class="flex-1 min-w-0 flex flex-col gap-1">
+                        <span
+                          class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
+                          :class="
+                            message.from === 'user' ? 'text-right pr-1' : 'text-left pl-1'
+                          "
+                        >
+                          {{ roleStyles[message.from].label }}
+                        </span>
 
-                <MessageToolbar
-                  v-if="
-                    message.from === 'assistant' &&
-                    message.versions.length > 1 &&
-                    isAssistantMessageReady(message)
-                  "
-                  class="sticky bottom-0 z-10 backdrop-blur-md"
-                >
-                  <MessageBranchSelector :from="message.from">
-                    <MessageBranchPrevious />
-                    <MessageBranchPage />
-                    <MessageBranchNext />
-                  </MessageBranchSelector>
+                        <Sources v-if="message.sources?.length">
+                          <SourcesTrigger :count="message.sources.length" />
+                          <SourcesContent>
+                            <Source
+                              v-for="source in message.sources"
+                              :key="source.href"
+                              :href="source.href"
+                              :title="source.title"
+                            />
+                          </SourcesContent>
+                        </Sources>
 
-                  <MessageActions>
-                    <MessageAction
-                      label="Retry"
-                      tooltip="重新生成回复"
-                      @click="handleRetry(message.key)"
-                    >
-                      <RefreshCcwIcon class="size-4" />
-                    </MessageAction>
-                    <!-- <MessageAction
+                        <Reasoning
+                          v-if="message.reasoning"
+                          :duration="message.reasoning.duration"
+                        >
+                          <ReasoningTrigger />
+                          <ReasoningContent :content="message.reasoning.content" />
+                        </Reasoning>
+
+                        <MessageContent class="max-w-full">
+                          <MessageAttachments v-if="version.files?.length" class="mb-2">
+                            <MessageAttachment
+                              v-for="(file, fileIndex) in version.files"
+                              :key="file.url || file.filename || fileIndex"
+                              :data="file"
+                              class="pointer-events-none"
+                            />
+                          </MessageAttachments>
+                          <div
+                            v-if="
+                              message.from === 'assistant' &&
+                              version?.content?.trim()?.length < 1
+                            "
+                            class="flex items-center justify-center px-2 py-1 size-full"
+                          >
+                            <Shimmer>正在生成回复…</Shimmer>
+                          </div>
+
+                          <MessageResponse v-else :content="version.content" />
+                        </MessageContent>
+                      </div>
+                    </Message>
+                  </MessageBranchContent>
+
+                  <MessageToolbar
+                    v-if="
+                      message.from === 'assistant' &&
+                      message.versions.length > 1 &&
+                      isAssistantMessageReady(message)
+                    "
+                    class="sticky bottom-0 z-10 backdrop-blur-md"
+                  >
+                    <MessageBranchSelector :from="message.from">
+                      <MessageBranchPrevious />
+                      <MessageBranchPage />
+                      <MessageBranchNext />
+                    </MessageBranchSelector>
+
+                    <MessageActions>
+                      <MessageAction
+                        label="Retry"
+                        tooltip="重新生成回复"
+                        @click="handleRetry(message.key)"
+                      >
+                        <RefreshCcwIcon class="size-4" />
+                      </MessageAction>
+                      <!-- <MessageAction
                       label="Like"
                       tooltip="点赞"
                       @click="toggleLike(message.key)"
@@ -788,13 +831,73 @@ function handleClear() {
                         :fill="disliked[message.key] ? 'currentColor' : 'none'"
                       />
                     </MessageAction> -->
+                      <MessageAction
+                        label="Copy"
+                        tooltip="复制内容"
+                        @click="
+                          handleCopy(
+                            message.key,
+                            message.versions?.find((v) => v.id)?.content || ''
+                          )
+                        "
+                      >
+                        <CheckIcon
+                          v-if="copied[message.key]"
+                          class="size-4 text-emerald-500"
+                        />
+                        <CopyIcon v-else class="size-4" />
+                      </MessageAction>
+                    </MessageActions>
+                  </MessageToolbar>
+
+                  <MessageBranchSelector
+                    v-else-if="message.versions.length > 1"
+                    :from="message.from"
+                  >
+                    <MessageBranchPrevious />
+                    <MessageBranchPage />
+                    <MessageBranchNext />
+                  </MessageBranchSelector>
+                  <MessageActions
+                    v-else-if="
+                      message.from === 'assistant' && isAssistantMessageReady(message)
+                    "
+                    class="pt-2"
+                  >
+                    <MessageAction
+                      label="Retry"
+                      tooltip="重新生成回复"
+                      @click="handleRetry(message.key)"
+                    >
+                      <RefreshCcwIcon class="size-4" />
+                    </MessageAction>
+                    <MessageAction
+                      label="Like"
+                      tooltip="点赞"
+                      @click="toggleLike(message.key)"
+                    >
+                      <ThumbsUpIcon
+                        class="size-4"
+                        :fill="liked[message.key] ? 'currentColor' : 'none'"
+                      />
+                    </MessageAction>
+                    <MessageAction
+                      label="Dislike"
+                      tooltip="点踩"
+                      @click="toggleDislike(message.key)"
+                    >
+                      <ThumbsDownIcon
+                        class="size-4"
+                        :fill="disliked[message.key] ? 'currentColor' : 'none'"
+                      />
+                    </MessageAction>
                     <MessageAction
                       label="Copy"
                       tooltip="复制内容"
                       @click="
                         handleCopy(
                           message.key,
-                          message.versions?.find((v) => v.id)?.content || ''
+                          message.versions?.[message.versions.length - 1]?.content || ''
                         )
                       "
                     >
@@ -805,190 +908,145 @@ function handleClear() {
                       <CopyIcon v-else class="size-4" />
                     </MessageAction>
                   </MessageActions>
-                </MessageToolbar>
-
-                <MessageBranchSelector
-                  v-else-if="message.versions.length > 1"
-                  :from="message.from"
-                >
-                  <MessageBranchPrevious />
-                  <MessageBranchPage />
-                  <MessageBranchNext />
-                </MessageBranchSelector>
-                <MessageActions
-                  v-else-if="
-                    message.from === 'assistant' && isAssistantMessageReady(message)
-                  "
-                  class="pt-2"
-                >
-                  <MessageAction
-                    label="Retry"
-                    tooltip="重新生成回复"
-                    @click="handleRetry(message.key)"
-                  >
-                    <RefreshCcwIcon class="size-4" />
-                  </MessageAction>
-                  <MessageAction
-                    label="Like"
-                    tooltip="点赞"
-                    @click="toggleLike(message.key)"
-                  >
-                    <ThumbsUpIcon
-                      class="size-4"
-                      :fill="liked[message.key] ? 'currentColor' : 'none'"
-                    />
-                  </MessageAction>
-                  <MessageAction
-                    label="Dislike"
-                    tooltip="点踩"
-                    @click="toggleDislike(message.key)"
-                  >
-                    <ThumbsDownIcon
-                      class="size-4"
-                      :fill="disliked[message.key] ? 'currentColor' : 'none'"
-                    />
-                  </MessageAction>
-                  <MessageAction
-                    label="Copy"
-                    tooltip="复制内容"
-                    @click="
-                      handleCopy(
-                        message.key,
-                        message.versions?.[message.versions.length - 1]?.content || ''
-                      )
-                    "
-                  >
-                    <CheckIcon
-                      v-if="copied[message.key]"
-                      class="size-4 text-emerald-500"
-                    />
-                    <CopyIcon v-else class="size-4" />
-                  </MessageAction>
-                </MessageActions>
-              </MessageBranch>
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-
-          <div
-            class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl"
-            :class="
-              hasMessages
-                ? 'grid shrink-0 gap-4'
-                : 'flex flex-col items-center justify-center'
-            "
-          >
-            <Suggestions v-if="hasMessages" class="px-4 md:px-6">
-              <Suggestion
-                v-for="suggestion in suggestions"
-                :key="suggestion"
-                :suggestion="suggestion"
-                @click="handleSuggestionClick"
-              />
-            </Suggestions>
+                </MessageBranch>
+              </ConversationContent>
+              <ConversationScrollButton />
+            </Conversation>
 
             <div
-              class="w-full px-4"
-              :class="hasMessages ? 'pb-4 md:px-6 md:pb-6' : 'pb-0'"
+              class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl"
+              :class="
+                hasMessages
+                  ? 'grid shrink-0 gap-4'
+                  : 'flex flex-col items-center justify-center'
+              "
             >
-              <PromptInput class="w-full" multiple global-drop @submit="handleSubmit">
-                <PromptInputHeader>
-                  <PromptInputAttachments>
-                    <template #default="{ file }">
-                      <PromptInputAttachment :file="file" />
-                    </template>
-                  </PromptInputAttachments>
-                </PromptInputHeader>
+              <Suggestions v-if="hasMessages" class="px-4 md:px-6">
+                <Suggestion
+                  v-for="suggestion in suggestions"
+                  :key="suggestion"
+                  :suggestion="suggestion"
+                  @click="handleSuggestionClick"
+                />
+              </Suggestions>
 
-                <PromptInputBody>
-                  <PromptInputTextarea />
-                </PromptInputBody>
+              <div
+                class="w-full px-4"
+                :class="hasMessages ? 'pb-4 md:px-6 md:pb-6' : 'pb-0'"
+              >
+                <PromptInput class="w-full" multiple global-drop @submit="handleSubmit">
+                  <PromptInputHeader>
+                    <PromptInputAttachments>
+                      <template #default="{ file }">
+                        <PromptInputAttachment :file="file" />
+                      </template>
+                    </PromptInputAttachments>
+                  </PromptInputHeader>
 
-                <PromptInputFooter>
-                  <PromptInputTools>
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
+                  <PromptInputBody>
+                    <PromptInputEditor @tag-click="handleTagClick" />
+                  </PromptInputBody>
 
-                    <PromptInputButton
-                      :variant="useMicrophone ? 'default' : 'ghost'"
-                      @click="toggleMicrophone"
-                    >
-                      <MicRound class="w-4 h-4" />
-                      <span class="sr-only">Microphone</span>
-                    </PromptInputButton>
+                  <PromptInputFooter>
+                    <PromptInputTools>
+                      <PromptInputActionMenu>
+                        <PromptInputActionMenuTrigger />
+                        <PromptInputActionMenuContent>
+                          <PromptInputActionAddAttachments />
+                        </PromptInputActionMenuContent>
+                      </PromptInputActionMenu>
 
-                    <PromptInputButton
-                      :variant="useWebSearch ? 'default' : 'ghost'"
-                      @click="toggleWebSearch"
-                    >
-                      <SearchRound class="w-4 h-4" />
-                      <span>Search</span>
-                    </PromptInputButton>
+                      <PromptInputButton
+                        :variant="useMicrophone ? 'default' : 'ghost'"
+                        @click="toggleMicrophone"
+                      >
+                        <MicRound class="w-4 h-4" />
+                        <span class="sr-only">Microphone</span>
+                      </PromptInputButton>
 
-                    <ModelSelector v-model:open="modelSelectorOpen">
-                      <ModelSelectorTrigger as-child>
-                        <PromptInputButton>
-                          <ModelSelectorLogo
-                            v-if="selectedModelData?.chefSlug"
-                            :provider="selectedModelData.chefSlug"
-                          />
-                          <ModelSelectorName v-if="selectedModelData?.name">
-                            {{ selectedModelData.name }}
-                          </ModelSelectorName>
-                        </PromptInputButton>
-                      </ModelSelectorTrigger>
+                      <PromptInputButton
+                        :variant="useWebSearch ? 'default' : 'ghost'"
+                        @click="toggleWebSearch"
+                      >
+                        <SearchRound class="w-4 h-4" />
+                        <span>Search</span>
+                      </PromptInputButton>
 
-                      <ModelSelectorContent>
-                        <ModelSelectorInput placeholder="Search models..." />
-                        <ModelSelectorList>
-                          <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                      <ModelSelector v-model:open="modelSelectorOpen">
+                        <ModelSelectorTrigger as-child>
+                          <PromptInputButton>
+                            <ModelSelectorLogo
+                              v-if="selectedModelData?.chefSlug"
+                              :provider="selectedModelData.chefSlug"
+                            />
+                            <ModelSelectorName v-if="selectedModelData?.name">
+                              {{ selectedModelData.name }}
+                            </ModelSelectorName>
+                          </PromptInputButton>
+                        </ModelSelectorTrigger>
 
-                          <ModelSelectorGroup
-                            v-for="group in modelGroups"
-                            :key="group.heading"
-                            :heading="group.heading"
-                          >
-                            <ModelSelectorItem
-                              v-for="m in group.models"
-                              :key="m.id"
-                              :value="m.id"
-                              @select="() => handleModelSelect(m.id)"
+                        <ModelSelectorContent>
+                          <ModelSelectorInput placeholder="Search models..." />
+                          <ModelSelectorList>
+                            <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+
+                            <ModelSelectorGroup
+                              v-for="group in modelGroups"
+                              :key="group.heading"
+                              :heading="group.heading"
                             >
-                              <ModelSelectorLogo
-                                v-if="m.chefSlug"
-                                :provider="m.chefSlug"
-                              />
-                              <ModelSelectorName>{{ m.name }}</ModelSelectorName>
-                              <ModelSelectorLogoGroup v-if="m.providers?.length">
+                              <ModelSelectorItem
+                                v-for="m in group.models"
+                                :key="m.id"
+                                :value="m.id"
+                                @select="() => handleModelSelect(m.id)"
+                              >
                                 <ModelSelectorLogo
-                                  v-for="provider in m.providers"
-                                  :key="provider"
-                                  :provider="provider"
+                                  v-if="m.chefSlug"
+                                  :provider="m.chefSlug"
                                 />
-                              </ModelSelectorLogoGroup>
-                              <CheckCircleRound
-                                v-if="modelId === m.id"
-                                class="ml-auto w-4 h-4 text-emerald-500"
-                              />
-                              <div v-else class="ml-auto size-4" />
-                            </ModelSelectorItem>
-                          </ModelSelectorGroup>
-                        </ModelSelectorList>
-                      </ModelSelectorContent>
-                    </ModelSelector>
-                  </PromptInputTools>
+                                <ModelSelectorName>{{ m.name }}</ModelSelectorName>
+                                <ModelSelectorLogoGroup v-if="m.providers?.length">
+                                  <ModelSelectorLogo
+                                    v-for="provider in m.providers"
+                                    :key="provider"
+                                    :provider="provider"
+                                  />
+                                </ModelSelectorLogoGroup>
+                                <CheckCircleRound
+                                  v-if="modelId === m.id"
+                                  class="ml-auto w-4 h-4 text-emerald-500"
+                                />
+                                <div v-else class="ml-auto size-4" />
+                              </ModelSelectorItem>
+                            </ModelSelectorGroup>
+                          </ModelSelectorList>
+                        </ModelSelectorContent>
+                      </ModelSelector>
+                    </PromptInputTools>
 
-                  <PromptInputSubmit
-                    :disabled="status === 'streaming'"
-                    :status="status"
-                  />
-                </PromptInputFooter>
-              </PromptInput>
+                    <PromptInputSubmit
+                      :disabled="status === 'streaming'"
+                      :status="status"
+                    />
+                  </PromptInputFooter>
+                </PromptInput>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 右侧 ImmersiveCode 区域 -->
+        <div class="shrink-0 w-2/3 h-full flex flex-col overflow-hidden p-2">
+          <div class="h-full w-full">
+            <ImmersiveCode
+              ref="immersiveCodeRef"
+              :enable-share="false"
+              :readonly="false"
+              @error="handleImmersiveError"
+              @element-selected="handleElementSelected"
+              class="immersive-code-full-height"
+            />
           </div>
         </div>
       </div>

@@ -27,11 +27,14 @@ import DEFAULT_CODE from "./default-ui.html?raw";
 /**
  * Initial Code Template
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   initialCode?: string;
   enableShare?: boolean;
   readonly?: boolean;
-}>();
+  title?: string;
+}>(), {
+  title: 'Fixed Script',
+});
 
 // Define emits for error notifications
 const emit = defineEmits<{
@@ -527,7 +530,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex flex-col w-full h-[600px] bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+    class="flex flex-col w-full h-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-sm"
   >
     <!-- Header -->
     <div
@@ -536,7 +539,7 @@ onBeforeUnmount(() => {
       <div class="flex items-center space-x-4">
         <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
           <Code2 class="w-5 h-5 text-purple-600" />
-          <span>Fixed Script</span>
+          <span>{{ props.title }}</span>
         </div>
 
         <!-- History Controls -->
