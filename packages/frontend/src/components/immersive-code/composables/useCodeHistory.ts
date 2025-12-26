@@ -40,6 +40,7 @@ export function useCodeHistory(initialCode: string = "") {
   ]);
 
   const currentVersionIndex = ref(0);
+  const lastNavigationTime = ref(0); // 记录最近一次历史导航的时间戳
 
   const currentVersion = computed(
     () => versions.value[currentVersionIndex.value]
@@ -117,11 +118,24 @@ export function useCodeHistory(initialCode: string = "") {
     const v = currentVersion.value;
     if (!v || !v.records) return;
 
+    // 保护机制：如果当前不在历史末尾，且新代码与当前记录相同，且最近刚导航过历史（1秒内）
+    // 这很可能是切换历史导致的同步，而不是真正的编辑，应该忽略
+    const now = Date.now();
+    const timeSinceNavigation = now - lastNavigationTime.value;
+    const isInMiddleOfHistory = v.currentIndex < v.records.length - 1;
+    const isCodeUnchanged = last && code === last.code;
+
+    if (isInMiddleOfHistory && isCodeUnchanged && timeSinceNavigation < 1000) {
+      console.log(
+        `🚫 [ImmersiveHistory] Ignoring record: likely navigation sync (${timeSinceNavigation}ms ago)`
+      );
+      return;
+    }
+
     // Remove future history if we are in the middle (Standard Undo/Redo behavior)
     if (v.currentIndex < v.records.length - 1) {
       console.log(
-        `✂️ [ImmersiveHistory] Truncating future history from index ${
-          v.currentIndex + 1
+        `✂️ [ImmersiveHistory] Truncating future history from index ${v.currentIndex + 1
         }`
       );
       v.records = v.records.slice(0, v.currentIndex + 1);
@@ -173,6 +187,7 @@ export function useCodeHistory(initialCode: string = "") {
   function undo() {
     if (currentVersion.value && canUndo.value) {
       console.log("⬅️ [ImmersiveHistory] Undo");
+      lastNavigationTime.value = Date.now(); // 记录导航时间
       currentVersion.value.currentIndex--;
     } else {
       console.warn("🚫 [ImmersiveHistory] Cannot Undo");
@@ -182,6 +197,7 @@ export function useCodeHistory(initialCode: string = "") {
   function redo() {
     if (currentVersion.value && canRedo.value) {
       console.log("➡️ [ImmersiveHistory] Redo");
+      lastNavigationTime.value = Date.now(); // 记录导航时间
       currentVersion.value.currentIndex++;
     } else {
       console.warn("🚫 [ImmersiveHistory] Cannot Redo");
@@ -194,6 +210,7 @@ export function useCodeHistory(initialCode: string = "") {
   function switchVersion(index: number) {
     if (index >= 0 && index < versions.value.length) {
       console.log(`🔀 [ImmersiveHistory] Switching to Major Version ${index}`);
+      lastNavigationTime.value = Date.now(); // 记录导航时间
       currentVersionIndex.value = index;
     }
   }

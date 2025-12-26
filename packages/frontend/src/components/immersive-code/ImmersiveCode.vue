@@ -64,6 +64,8 @@ const logs = ref<LogEntry[]>([]);
 const previewKey = ref(0);
 const editorValue = ref(currentCode.value);
 const fontSize = ref(14); // 字体大小状态
+const isNavigatingHistory = ref(false); // 标志：是否正在切换历史版本
+let navigationTimer: ReturnType<typeof setTimeout> | null = null; // 导航保护计时器
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -129,23 +131,44 @@ watch(
 // Diff State
 // The "Modified" side is computed by applying the stored DIFF (patch) to the current code.
 // This makes the history the single source of truth for the Diff state.
+// 使用 ref 存储 diff 应用结果，避免在计算属性中重复计算
+const diffResult = ref<{ content: string; success: boolean; message?: string }>({
+  content: "",
+  success: true,
+});
+
+// 监听 diff 应用，只在需要时执行一次
+watch(
+  [currentDiffTarget, currentCode],
+  () => {
+    if (!currentDiffTarget.value) {
+      diffResult.value = { content: "", success: true };
+      return;
+    }
+
+    // 执行一次 diff 应用
+    const result = applyDiff(currentCode.value, currentDiffTarget.value);
+    diffResult.value = result;
+
+    // 如果应用失败，自动退出 diff 模式
+    if (!result.success) {
+      console.warn(
+        "⚠️ [ImmersiveCode] Failed to apply stored diff to current code:",
+        result.message
+      );
+      // 自动退出 diff 模式
+      exitDiffMode();
+    }
+  },
+  { immediate: true }
+);
+
+// 计算属性使用存储的结果
 const diffResultCode = computed(() => {
   if (!currentDiffTarget.value) return "";
-
-  // If we have a stored diff target, try to apply it to the current code
-  const result = applyDiff(currentCode.value, currentDiffTarget.value);
-  if (result.success) {
-    return result.content;
-  }
-
-  // Fallback: If application fails (e.g. underlying code changed), return current code?
-  // Or maybe return the FAILURE message to show something is wrong?
-  // For now, let's return current code so it shows "No Changes" effectively.
-  console.warn(
-    "⚠️ [ImmersiveCode] Failed to apply stored diff to current code:",
-    result.message
-  );
-  return currentCode.value; // Show same code on both sides if fail
+  return diffResult.value.success
+    ? diffResult.value.content
+    : currentCode.value; // 失败时返回当前代码
 });
 
 const diffSuccess = ref(false);
@@ -192,12 +215,30 @@ defineExpose({
 });
 
 // Sync Editor -> History (Debounced)
-const debouncedRecord = useDebounceFn((val: string) => {
-  // Only record if we are in 'code' mode
-  if (mode.value === "code") {
-    record(val);
+// 使用可取消的防抖函数
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const debouncedRecord = (val: string) => {
+  // 如果正在切换历史版本，取消之前的防抖任务并直接返回
+  if (isNavigatingHistory.value) {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    return;
   }
-}, 800);
+  // 取消之前的防抖任务
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+  // 设置新的防抖任务
+  debounceTimer = setTimeout(() => {
+    // Only record if we are in 'code' mode
+    if (mode.value === "code" && !isNavigatingHistory.value) {
+      record(val);
+    }
+    debounceTimer = null;
+  }, 800);
+};
 
 // Debounced record for Diff Mode (Typing in Diff Editor)
 const debouncedDiffRecord = useDebounceFn((val: string) => {
@@ -215,7 +256,28 @@ watch(editorValue, (val) => {
 // Sync History -> Editor
 watch(currentCode, (val) => {
   if (val !== editorValue.value) {
+    // 标记正在切换历史版本，防止编辑器变化触发记录
+    isNavigatingHistory.value = true;
+    // 取消任何待执行的防抖记录任务
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    // 清除之前的导航保护计时器（如果存在）
+    if (navigationTimer) {
+      clearTimeout(navigationTimer);
+      navigationTimer = null;
+    }
     editorValue.value = val;
+    // 等待编辑器同步完成后再清除标志
+    nextTick(() => {
+      // 使用更长的延迟确保编辑器完全同步后再允许记录
+      // 快速切换时，新的切换会清除这个计时器并重新设置
+      navigationTimer = setTimeout(() => {
+        isNavigatingHistory.value = false;
+        navigationTimer = null;
+      }, 500);
+    });
   }
 });
 
