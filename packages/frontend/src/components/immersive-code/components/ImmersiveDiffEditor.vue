@@ -34,6 +34,10 @@ const props = defineProps({
     type: Number,
     default: 14,
   },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits<{
@@ -71,8 +75,8 @@ onMounted(async () => {
 
   // 与 CodeEditor.vue 保持一致的编辑器配置
   diffEditor.value = monaco.editor.createDiffEditor(container.value, {
-    originalEditable: true,
-    readOnly: false,
+    originalEditable: !props.readonly,
+    readOnly: props.readonly,
     renderSideBySide: false, // Inline Diff
     ignoreTrimWhitespace: false,
     automaticLayout: true,
@@ -279,6 +283,8 @@ const updateDiffInfo = () => {
 
 const addActionButtonsToChange = (change: any) => {
   if (!diffEditor.value || !monaco) return;
+  // 只读模式下不显示操作按钮
+  if (props.readonly) return;
 
   const modifiedEditor = diffEditor.value.getModifiedEditor();
   const lineNumber = change.modifiedEndLineNumber;
@@ -491,6 +497,25 @@ watch(
   }
 );
 
+watch(
+  () => props.readonly,
+  (newReadonly) => {
+    if (diffEditor.value) {
+      diffEditor.value.updateOptions({
+        originalEditable: !newReadonly,
+        readOnly: newReadonly,
+      });
+      // 如果切换到只读模式，清除所有操作按钮
+      if (newReadonly) {
+        clearAllWidgets();
+      } else {
+        // 如果切换到可编辑模式，重新更新 diff 信息
+        updateDiffInfo();
+      }
+    }
+  }
+);
+
 // 获取当前字体大小
 function getFontSize(): number {
   if (!diffEditor.value || !monaco) return props.fontSize;
@@ -520,6 +545,7 @@ defineExpose({
     <div class="h-full w-full relative" ref="container"></div>
 
     <DiffBottomNavigation
+      v-if="!readonly"
       :current-index="currentIndex"
       :total-changes="totalChanges"
       @next="nextChange"

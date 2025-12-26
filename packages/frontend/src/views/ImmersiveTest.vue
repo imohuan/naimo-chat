@@ -5,6 +5,7 @@ import { useToasts } from "@/hooks/useToasts";
 
 const immersiveRef = ref();
 const enableShare = ref(false);
+const readonly = ref(false);
 const { pushToast } = useToasts();
 
 function handleError(message: string) {
@@ -102,6 +103,120 @@ function handleApplyMultipleDiff() {
     }
   }
 }
+
+// 流式写入示例
+async function handleStreamWrite() {
+  if (!immersiveRef.value) return;
+
+  const editor = immersiveRef.value;
+  const baseCode = editor.getCurrentCode();
+
+  // 模拟流式写入的代码片段
+  const codeChunks = [
+    baseCode.substring(0, 100),
+    baseCode.substring(0, 200),
+    baseCode.substring(0, 300),
+    baseCode.substring(0, 400),
+    baseCode.substring(0, 500),
+    baseCode, // 完整代码
+  ];
+
+  pushToast("开始流式写入...", "info");
+
+  // 开始流式写入模式
+  editor.startStreaming();
+
+  try {
+    // 模拟逐字符/逐块写入
+    for (let i = 0; i < codeChunks.length; i++) {
+      editor.streamWrite(codeChunks[i]);
+      pushToast(`流式写入中... ${i + 1}/${codeChunks.length}`, "info");
+      // 等待一段时间模拟流式效果
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    pushToast("流式写入完成！", "success");
+  } catch (error) {
+    console.error("流式写入错误:", error);
+    pushToast("流式写入失败", "error");
+  } finally {
+    // 结束流式写入，记录最终状态
+    editor.endStreaming();
+  }
+}
+
+// 流式写入示例 - 模拟 AI 代码生成
+async function handleStreamWriteAI() {
+  if (!immersiveRef.value) return;
+
+  const editor = immersiveRef.value;
+  const template = `<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>AI 生成的页面<\/title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n<\/head>\n<body class="bg-gradient-to-br from-purple-400 to-pink-400 min-h-screen flex items-center justify-center">\n  <div class="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full">\n    <h1 class="text-3xl font-bold text-gray-800 mb-4">欢迎使用<\/h1>\n    <p class="text-gray-600 mb-6">这是一个由 AI 流式生成的页面<\/p>\n    <button class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition">\n      开始体验<\/button>  <\/div>\n<\/body>\n<\/html>`
+    .trim()
+    .replace(/\n/g, "");
+
+  pushToast("开始 AI 流式生成代码...", "info");
+
+  editor.startStreaming();
+
+  try {
+    // 模拟逐字符流式写入
+    let currentCode = "";
+    for (let i = 0; i < template.length; i++) {
+      currentCode += template[i];
+      editor.streamWrite(currentCode);
+
+      // 每 10 个字符更新一次，模拟真实的流式效果
+      if (i % 10 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+
+    pushToast("AI 代码生成完成！", "success");
+  } catch (error) {
+    console.error("AI 流式写入错误:", error);
+    pushToast("AI 代码生成失败", "error");
+  } finally {
+    editor.endStreaming();
+  }
+}
+
+// 流式写入示例 - 增量更新
+async function handleStreamWriteIncremental() {
+  if (!immersiveRef.value) return;
+
+  const editor = immersiveRef.value;
+  const currentCode = editor.getCurrentCode();
+
+  // 模拟增量添加内容
+  const additions = [
+    "\n<!-- 这是第一行注释 -->",
+    "\n<!-- 这是第二行注释 -->",
+    "\n<div class='new-section'>",
+    "\n  <p>新增的内容</p>",
+    "\n</div>",
+  ];
+
+  pushToast("开始增量流式写入...", "info");
+
+  editor.startStreaming();
+
+  try {
+    let code = currentCode;
+    for (let i = 0; i < additions.length; i++) {
+      code += additions[i];
+      editor.streamWrite(code);
+      pushToast(`添加第 ${i + 1} 个片段...`, "info");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+
+    pushToast("增量写入完成！", "success");
+  } catch (error) {
+    console.error("增量流式写入错误:", error);
+    pushToast("增量写入失败", "error");
+  } finally {
+    editor.endStreaming();
+  }
+}
 </script>
 
 <template>
@@ -128,6 +243,17 @@ function handleApplyMultipleDiff() {
               class="rounded text-purple-600 focus:ring-purple-500"
             />
             <span>Enable Share</span>
+          </label>
+
+          <label
+            class="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              v-model="readonly"
+              class="rounded text-blue-600 focus:ring-blue-500"
+            />
+            <span>只读模式</span>
           </label>
 
           <div class="h-4 w-px bg-slate-200"></div>
@@ -160,11 +286,40 @@ function handleApplyMultipleDiff() {
             应用多处 Diff
           </button>
         </div>
+
+        <!-- 流式写入测试区域 -->
+        <div
+          class="mt-4 flex items-center space-x-4 bg-white p-3 rounded-lg border border-slate-200"
+        >
+          <span class="text-sm font-semibold text-slate-700">流式写入测试：</span>
+
+          <button
+            @click="handleStreamWrite"
+            class="px-3 py-1 text-sm bg-cyan-50 text-cyan-600 rounded hover:bg-cyan-100 transition font-medium"
+          >
+            基础流式写入
+          </button>
+
+          <button
+            @click="handleStreamWriteAI"
+            class="px-3 py-1 text-sm bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition font-medium"
+          >
+            AI 流式生成
+          </button>
+
+          <button
+            @click="handleStreamWriteIncremental"
+            class="px-3 py-1 text-sm bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition font-medium"
+          >
+            增量流式写入
+          </button>
+        </div>
       </div>
 
       <ImmersiveCode
         ref="immersiveRef"
         :enable-share="enableShare"
+        :readonly="readonly"
         @error="handleError"
         @element-selected="handleElementSelected"
       />

@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useDebounceFn } from "@vueuse/core";
 import DEFAULT_CODE from "./default-ui.html?raw";
 
 /**
@@ -31,6 +30,7 @@ import DEFAULT_CODE from "./default-ui.html?raw";
 const props = defineProps<{
   initialCode?: string;
   enableShare?: boolean;
+  readonly?: boolean;
 }>();
 
 // Define emits for error notifications
@@ -67,6 +67,7 @@ const isNavigatingHistory = ref(false); // 标志：是否正在切换历史版�
 let navigationTimer: ReturnType<typeof setTimeout> | null = null; // 导航保护计时器
 const isRefreshing = ref(false); // 标志：是否正在刷新预览
 const isElementSelectorActive = ref(false); // 标志：元素选择器是否激活
+const isStreaming = ref(false); // 标志：是否正在流式写入
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -174,6 +175,32 @@ const diffResultCode = computed(() => {
 
 const diffSuccess = ref(false);
 
+// 流式写入方法
+function startStreaming() {
+  console.log("🌊 [ImmersiveCode] Starting streaming mode");
+  isStreaming.value = true;
+}
+
+function endStreaming() {
+  console.log("🌊 [ImmersiveCode] Ending streaming mode");
+  isStreaming.value = false;
+  // 流式写入结束后，记录一次最终状态
+  if (mode.value === "code") {
+    record(editorValue.value);
+  } else if (mode.value === "diff") {
+    record(editorValue.value, currentDiffTarget.value);
+  }
+}
+
+function streamWrite(code: string) {
+  if (!isStreaming.value) {
+    console.warn("⚠️ [ImmersiveCode] streamWrite called but not in streaming mode");
+    return;
+  }
+  // 直接更新编辑器值，不记录历史
+  editorValue.value = code;
+}
+
 // Expose methods for parent control
 defineExpose({
   addMajorVersion: (code?: string, label?: string) =>
@@ -213,12 +240,20 @@ defineExpose({
     console.groupEnd();
     return { success: true, message: "Opening Diff View with Raw Patch." };
   },
+  // 流式写入相关方法
+  startStreaming,
+  endStreaming,
+  streamWrite,
 });
 
 // Sync Editor -> History (Debounced)
 // 使用可取消的防抖函数
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const debouncedRecord = (val: string) => {
+  // 如果正在流式写入，不记录历史
+  if (isStreaming.value) {
+    return;
+  }
   // 如果正在切换历史版本，取消之前的防抖任务并直接返回
   if (isNavigatingHistory.value) {
     if (debounceTimer) {
@@ -234,19 +269,12 @@ const debouncedRecord = (val: string) => {
   // 设置新的防抖任务
   debounceTimer = setTimeout(() => {
     // Only record if we are in 'code' mode
-    if (mode.value === "code" && !isNavigatingHistory.value) {
+    if (mode.value === "code" && !isNavigatingHistory.value && !isStreaming.value) {
       record(val);
     }
     debounceTimer = null;
   }, 800);
 };
-
-// Debounced record for Diff Mode (Typing in Diff Editor)
-const debouncedDiffRecord = useDebounceFn((val: string) => {
-  if (mode.value === "diff") {
-    record(val, currentDiffTarget.value);
-  }
-}, 800);
 
 watch(editorValue, (val) => {
   if (mode.value === "code") {
@@ -512,7 +540,10 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- History Controls -->
-        <div class="flex items-center space-x-1 pl-4 border-l border-slate-200">
+        <div
+          v-if="!props.readonly"
+          class="flex items-center space-x-1 pl-4 border-l border-slate-200"
+        >
           <button
             @click="undo"
             :disabled="!canUndo"
@@ -649,6 +680,7 @@ onBeforeUnmount(() => {
           v-model="editorValue"
           language="html"
           theme="vs"
+          :readonly="props.readonly"
           :options="{ fontSize }"
           @font-size-change="handleFontSizeChange"
         />
@@ -662,6 +694,7 @@ onBeforeUnmount(() => {
           :modified="diffResultCode"
           language="html"
           theme="vs"
+          :readonly="props.readonly"
           :font-size="fontSize"
           @update:original="handleDiffUpdate"
           @save="exitDiffMode"
