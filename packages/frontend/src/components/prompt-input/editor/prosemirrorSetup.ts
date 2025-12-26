@@ -402,6 +402,8 @@ export function createTagDragPlugin(): Plugin {
           insertPos -= nodeSize;
         }
 
+        debugger;
+
         // 执行移动：先删除后插入
         const tr = view.state.tr
           .delete(deletePos, deletePos + nodeSize)
@@ -518,16 +520,28 @@ class TagDragView {
       return;
     }
 
-    const { state } = this.editorView;
-    const pos = this.editorView.posAtDOM(tagElement, 0);
-    if (pos === null || pos === undefined) return;
+    // 获取标签的 ID
+    const tagId = tagElement.getAttribute("data-tag-id");
+    if (!tagId) return;
 
-    const $pos = state.doc.resolve(pos);
-    const node = $pos.nodeAfter || $pos.nodeBefore;
-    if (node && node.type.name === "tag") {
+    const { state } = this.editorView;
+
+    // 遍历文档查找标签位置（posAtDOM 在自定义 NodeView 中不可靠）
+    let foundPos: number | null = null;
+    let foundNode: ProseMirrorNode | null = null;
+
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === "tag" && node.attrs.id === tagId) {
+        foundPos = pos;
+        foundNode = node;
+        return false; // 停止遍历
+      }
+    });
+
+    if (foundPos !== null && foundNode !== null) {
       sharedDragTag = {
-        node,
-        startPos: $pos.pos - ($pos.nodeBefore ? $pos.nodeBefore.nodeSize : 0),
+        node: foundNode,
+        startPos: foundPos,
       };
       isDraggingTag = true;
       tagElement.draggable = true;
