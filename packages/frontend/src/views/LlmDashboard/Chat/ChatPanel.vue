@@ -40,10 +40,6 @@ import {
 } from "@/components/ai-elements/model-selector";
 import {
   PromptInput,
-  PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
   PromptInputAttachment,
   PromptInputAttachments,
   PromptInputBody,
@@ -53,6 +49,7 @@ import {
   PromptInputSubmit,
   PromptInputEditor,
   PromptInputTools,
+  usePromptInput,
 } from "@/components/ai-elements/prompt-input";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
 import {
@@ -63,15 +60,24 @@ import {
 } from "@/components/ai-elements/sources";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { MicRound, CheckCircleRound, PersonRound, SmartToyRound, SearchRound } from "@vicons/material";
-import { CheckIcon, CopyIcon, RefreshCcwIcon, ThumbsDownIcon, ThumbsUpIcon } from "lucide-vue-next";
-import { computed, ref, watch } from "vue";
+import { MicRound, CheckCircleRound, PersonRound, SmartToyRound } from "@vicons/material";
+import { CheckIcon, CopyIcon, RefreshCcwIcon, ThumbsDownIcon, ThumbsUpIcon, ChevronDown, Globe, ImageIcon, Infinity as InfinityIcon } from "lucide-vue-next";
+import { computed, ref, watch, defineComponent, h } from "vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
 import ChatSidebar from "./components/ChatSidebar.vue";
 import { useChatConversations, type MessageType } from "./useChatConversations";
 import { ImmersiveCode } from "@/components/immersive-code";
 import { useToasts } from "@/hooks/useToasts";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const props = defineProps<{
   providers?: LlmProvider[];
@@ -106,6 +112,7 @@ const modelId = ref<string>("");
 const modelSelectorOpen = ref(false);
 const useWebSearch = ref(false);
 const useMicrophone = ref(false);
+const selectedMode = ref<string>("chat");
 const status = ref<ChatStatus>("ready");
 const liked = ref<Record<string, boolean>>({});
 const disliked = ref<Record<string, boolean>>({});
@@ -350,6 +357,39 @@ const modelGroups = computed(() => {
     groups.get(m.chef)!.models.push(m);
   });
   return Array.from(groups.values());
+});
+
+const conversationModes = [
+  {
+    value: 'agent',
+    label: '智能',
+    description: 'Agent 可以在执行任务前进行规划。适用于深度研究、复杂任务或协作工作',
+  },
+  {
+    value: 'chat',
+    label: '对话',
+    description: '直接对话模式。适用于简单问题和快速响应',
+  },
+  {
+    value: 'canvas',
+    label: '画布',
+    description: '可视化工作区模式。用于创建和编辑视觉内容',
+  },
+  {
+    value: '图片',
+    label: '图片生成',
+    description: '图片处理模式。用于图片分析、编辑和生成',
+  },
+  {
+    value: '视频',
+    label: '视频生成',
+    description: '视频处理模式。用于视频分析、编辑和处理',
+  },
+] as const;
+
+const selectedModeLabel = computed(() => {
+  const mode = conversationModes.find((m) => m.value === selectedMode.value);
+  return mode?.label || 'Chat';
 });
 
 const selectedModelData = computed(() =>
@@ -666,6 +706,22 @@ function handleTagClick(data: { id: string; label: string; icon?: string; data?:
   console.log("完整标签对象:", data);
   console.log("===================");
 }
+
+// 文件上传按钮组件（必须在 PromptInput 内部使用）
+const FileUploadButton = defineComponent({
+  setup() {
+    const { openFileDialog } = usePromptInput();
+    return () =>
+      h(PromptInputButton, {
+        onClick: openFileDialog,
+      }, {
+        default: () => [
+          h(ImageIcon, { class: "w-4 h-4" }),
+          h("span", { class: "sr-only" }, "上传文件"),
+        ],
+      });
+  },
+});
 </script>
 
 <template>
@@ -949,28 +1005,52 @@ function handleTagClick(data: { id: string; label: string; icon?: string; data?:
 
                   <PromptInputFooter>
                     <PromptInputTools>
-                      <PromptInputActionMenu>
-                        <PromptInputActionMenuTrigger />
-                        <PromptInputActionMenuContent>
-                          <PromptInputActionAddAttachments />
-                        </PromptInputActionMenuContent>
-                      </PromptInputActionMenu>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                          <PromptInputButton
+                            class="gap-1.5 bg-gray-200 hover:bg-gray-300"
+                          >
+                            <InfinityIcon class="w-4 h-4" />
+                            <span class="font-medium">{{ selectedModeLabel }}</span>
+                            <ChevronDown class="w-3.5 h-3.5 opacity-50" />
+                          </PromptInputButton>
+                        </DropdownMenuTrigger>
 
-                      <PromptInputButton
-                        :variant="useMicrophone ? 'default' : 'ghost'"
-                        @click="toggleMicrophone"
-                      >
-                        <MicRound class="w-4 h-4" />
-                        <span class="sr-only">Microphone</span>
-                      </PromptInputButton>
-
-                      <PromptInputButton
-                        :variant="useWebSearch ? 'default' : 'ghost'"
-                        @click="toggleWebSearch"
-                      >
-                        <SearchRound class="w-4 h-4" />
-                        <span>Search</span>
-                      </PromptInputButton>
+                        <DropdownMenuContent
+                          align="start"
+                          class="min-w-[320px] w-[320px] p-2"
+                        >
+                          <DropdownMenuLabel
+                            class="px-3 py-2 text-sm font-semibold text-foreground"
+                          >
+                            对话模式
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator class="my-1" />
+                          <DropdownMenuRadioGroup
+                            v-model="selectedMode"
+                            class="flex flex-col gap-1"
+                          >
+                            <DropdownMenuRadioItem
+                              v-for="mode in conversationModes"
+                              :key="mode.value"
+                              :value="mode.value"
+                              :class="[
+                                'flex! flex-col! items-start! gap-1! py-3! px-3! pl-3! rounded-sm! [&>span.absolute]:hidden',
+                                selectedMode === mode.value ? 'bg-accent' : '',
+                              ]"
+                            >
+                              <div class="flex flex-col gap-1 w-full">
+                                <span class="font-medium text-sm">{{ mode.label }}</span>
+                                <span
+                                  class="text-xs text-muted-foreground leading-relaxed"
+                                >
+                                  {{ mode.description }}
+                                </span>
+                              </div>
+                            </DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
 
                       <ModelSelector v-model:open="modelSelectorOpen">
                         <ModelSelectorTrigger as-child>
@@ -1025,10 +1105,29 @@ function handleTagClick(data: { id: string; label: string; icon?: string; data?:
                       </ModelSelector>
                     </PromptInputTools>
 
-                    <PromptInputSubmit
-                      :disabled="status === 'streaming'"
-                      :status="status"
-                    />
+                    <div class="flex items-center gap-2">
+                      <FileUploadButton />
+
+                      <PromptInputButton
+                        :variant="useMicrophone ? 'default' : 'ghost'"
+                        @click="toggleMicrophone"
+                      >
+                        <MicRound class="w-4 h-4" />
+                        <span class="sr-only">Microphone</span>
+                      </PromptInputButton>
+
+                      <PromptInputButton
+                        :variant="useWebSearch ? 'default' : 'ghost'"
+                        @click="toggleWebSearch"
+                      >
+                        <Globe class="w-4 h-4" />
+                      </PromptInputButton>
+
+                      <PromptInputSubmit
+                        :disabled="status === 'streaming'"
+                        :status="status"
+                      />
+                    </div>
                   </PromptInputFooter>
                 </PromptInput>
               </div>
