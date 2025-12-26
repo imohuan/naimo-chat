@@ -6,6 +6,10 @@
       :class="cn('field-sizing-content max-h-48 min-h-16 px-4', props.class)"
       @paste="handlePaste"
     />
+    <!-- Placeholder overlay -->
+    <span v-if="showPlaceholder" class="prompt-input-placeholder-overlay">
+      {{ props.placeholder }}
+    </span>
     <button
       type="button"
       class="test-tag-button"
@@ -19,7 +23,7 @@
 
 <script setup lang="ts">
 import type { HTMLAttributes } from "vue";
-import { ref, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount, computed } from "vue";
 import { EditorView, type NodeView } from "prosemirror-view";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 import { cn } from "@/lib/utils";
@@ -41,7 +45,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  placeholder: "What would you like to know?",
+  placeholder: "你想知道什么？",
 });
 
 const emit = defineEmits<{
@@ -62,6 +66,28 @@ const isComposing = ref(false);
 const isUpdating = ref(false);
 let editorView: EditorView | null = null;
 const schema = createSchema();
+const isEmpty = ref(true);
+
+/**
+ * 检查编辑器是否为空（没有文本和标签）
+ */
+const showPlaceholder = computed(() => {
+  return isEmpty.value;
+});
+
+/**
+ * 更新编辑器空状态
+ */
+function updateEmptyState() {
+  if (!editorView) {
+    isEmpty.value = true;
+    return;
+  }
+  const content = getEditorContent(editorView.state);
+  const hasText = content.text.trim().length > 0;
+  const hasTags = content.tags.length > 0;
+  isEmpty.value = !hasText && !hasTags;
+}
 
 /**
  * 处理标签点击事件
@@ -82,7 +108,6 @@ function initEditor() {
   if (!editorContainer.value) return;
 
   const initialState = createEditorState(schema, textInput.value || "", {
-    placeholder: props.placeholder,
     onTagDelete: (_tagId: string, _position: number) => {
       // 标签删除时的回调
       // 可以在这里添加额外的处理逻辑
@@ -96,6 +121,9 @@ function initEditor() {
 
       const newState = editorView.state.apply(tr);
       editorView.updateState(newState);
+
+      // 更新空状态
+      updateEmptyState();
 
       // 发出更新事件
       if (!isUpdating.value) {
@@ -126,6 +154,9 @@ function initEditor() {
     plugins: [...editorView.state.plugins, dragPlugin],
   });
   editorView.updateState(newState);
+
+  // 初始化空状态
+  updateEmptyState();
 
   // 添加键盘事件处理
   editorView.dom.addEventListener("keydown", handleKeyDown);
@@ -384,19 +415,21 @@ watch(
   (newValue) => {
     if (!editorView || isUpdating.value) return;
 
-    const currentContent = getEditorTextContent(editorView.state);
-    if (currentContent !== newValue) {
-      isUpdating.value = true;
-      const newState = setEditorContent(
-        editorView.state,
-        schema,
-        newValue || ""
-      );
-      editorView.updateState(newState);
-      isUpdating.value = false;
+      const currentContent = getEditorTextContent(editorView.state);
+      if (currentContent !== newValue) {
+        isUpdating.value = true;
+        const newState = setEditorContent(
+          editorView.state,
+          schema,
+          newValue || ""
+        );
+        editorView.updateState(newState);
+        // 更新空状态
+        updateEmptyState();
+        isUpdating.value = false;
+      }
     }
-  }
-);
+  );
 
 /**
  * 插入标签
@@ -447,6 +480,18 @@ defineExpose({
 
 .prompt-input-editor {
   width: 100%;
+}
+
+.prompt-input-placeholder-overlay {
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  pointer-events: none;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.5;
+  z-index: 1;
+  opacity: 0.5;
+  user-select: none;
 }
 
 :deep(.prompt-input-prosemirror) {
@@ -570,11 +615,6 @@ defineExpose({
 :deep(.prompt-tag.tag-selected .prompt-tag-label),
 :deep(.prompt-tag.tag-selected .prompt-tag-delete) {
   color: HighlightText !important;
-}
-
-:deep(.prosemirror-placeholder) {
-  pointer-events: none;
-  color: hsl(var(--muted-foreground));
 }
 
 /* 确保标签和文本正确显示 */

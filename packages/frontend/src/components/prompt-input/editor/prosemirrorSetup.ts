@@ -133,54 +133,6 @@ function createDocFromText(schema: Schema, content: string): ProseMirrorNode {
   return docType.create(null, nodes);
 }
 
-/**
- * 创建占位符插件
- */
-function createPlaceholderPlugin(placeholder: string): Plugin {
-  return new Plugin({
-    key: new PluginKey("placeholder"),
-    state: {
-      init() {
-        return DecorationSet.empty;
-      },
-      apply(tr) {
-        const doc = tr.doc;
-
-        // 检查文档是否有实际内容：有文本内容或标签
-        let hasContent = false;
-        doc.descendants((node: ProseMirrorNode) => {
-          if (node.isText && node.textContent.trim().length > 0) {
-            hasContent = true;
-            return false; // 停止遍历
-          }
-          if (node.type.name === "tag") {
-            hasContent = true;
-            return false; // 停止遍历
-          }
-        });
-
-        // 只有在没有任何内容（文本或标签）时才显示占位符
-        if (!hasContent) {
-          const placeholderDecoration = Decoration.widget(1, () => {
-            const span = document.createElement("span");
-            span.className = "prosemirror-placeholder";
-            span.textContent = placeholder;
-            span.style.cssText =
-              "pointer-events: none; color: hsl(var(--muted-foreground)); position: absolute;";
-            return span;
-          });
-          return DecorationSet.create(doc, [placeholderDecoration]);
-        }
-        return DecorationSet.empty;
-      },
-    },
-    props: {
-      decorations(state) {
-        return this.getState(state);
-      },
-    },
-  });
-}
 
 /**
  * 创建编辑器状态
@@ -189,7 +141,6 @@ export function createEditorState(
   schema: Schema,
   initialContent: string = "",
   options?: {
-    placeholder?: string;
     onTagDelete?: (tagId: string, position: number) => void;
   }
 ): EditorState {
@@ -223,15 +174,9 @@ export function createEditorState(
     keymap(keyBindings),
     // 标签删除插件
     createTagDeletePlugin(options?.onTagDelete),
+    // 添加选中样式插件
+    createSelectionPlugin(),
   ];
-
-  // 如果提供了占位符，添加占位符插件
-  if (options?.placeholder) {
-    plugins.push(createPlaceholderPlugin(options.placeholder));
-  }
-
-  // 添加选中样式插件
-  plugins.push(createSelectionPlugin());
 
   return EditorState.create({
     doc,
