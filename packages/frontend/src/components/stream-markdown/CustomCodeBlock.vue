@@ -361,6 +361,8 @@ function guessExtension(lang?: string) {
   border-radius: 0 0 16px 16px;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  --sd-font-size-base: 16px !important;
+  line-height: 1.4 !important;
 }
 
 .custom-code-block__body :deep(pre::-webkit-scrollbar) {

@@ -217,7 +217,7 @@ export function useCodeHistory(initialCode: string = "") {
 
   /**
    * 获取完整的历史版本数据（用于保存）
-   * 注意：不包含 records 字段，只保存版本的基本信息
+   * 包含完整的 records 字段，用于保存代码内容
    */
   function getHistory() {
     return {
@@ -225,8 +225,13 @@ export function useCodeHistory(initialCode: string = "") {
         id: v.id,
         timestamp: v.timestamp,
         label: v.label,
+        records: v.records.map((r) => ({
+          id: r.id,
+          code: r.code,
+          diffTarget: r.diffTarget,
+          timestamp: r.timestamp,
+        })),
         currentIndex: v.currentIndex,
-        // 不包含 records 字段
       })),
       currentVersionIndex: currentVersionIndex.value,
     };

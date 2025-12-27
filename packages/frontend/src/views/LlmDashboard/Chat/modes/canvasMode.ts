@@ -1,7 +1,7 @@
 import type { ChatMessage, ChatMessageContentPart } from "@/interface";
 import type { ConversationModeHandler, ModeContext } from "./types";
 import { getCanvasModeSystemPrompt } from "@/prompts/modes/canvasMode";
-import { extractHtmlCode } from "./utils/streamParser";
+import { extractHtmlCodeIncremental } from "./utils/streamParser";
 
 /**
  * Canvas 模式处理器
@@ -74,17 +74,28 @@ export const canvasModeHandler: ConversationModeHandler = {
   },
 
   handleStreamResponse(chunk: string, context: ModeContext): string {
-    // 解析 HTML 代码块并更新编辑器
-    const htmlCode = extractHtmlCode(chunk);
-    if (htmlCode && context.immersiveCodeRef) {
-      try {
-        context.immersiveCodeRef.streamWrite(htmlCode);
-        // 检测到 HTML 代码后，显示编辑器
-        if (context.onShowCanvasChange) {
-          context.onShowCanvasChange(true);
+    // 使用增量提取方法，支持不完整的代码块（流式写入）
+    const htmlCode = extractHtmlCodeIncremental(chunk);
+
+    if (htmlCode) {
+      console.log("🌊 [Canvas Mode] Extracted HTML code:", {
+        length: htmlCode.length,
+        preview: htmlCode.substring(0, 100),
+        hasImmersiveCodeRef: !!context.immersiveCodeRef,
+      });
+
+      if (context.immersiveCodeRef) {
+        try {
+          context.immersiveCodeRef.streamWrite(htmlCode);
+          // 检测到 HTML 代码后，显示编辑器
+          if (context.onShowCanvasChange) {
+            context.onShowCanvasChange(true);
+          }
+        } catch (error) {
+          console.error("Canvas mode: Failed to stream write code:", error);
         }
-      } catch (error) {
-        console.error("Canvas mode: Failed to stream write code:", error);
+      } else {
+        console.warn("⚠️ [Canvas Mode] immersiveCodeRef is not available");
       }
     }
 
@@ -93,9 +104,27 @@ export const canvasModeHandler: ConversationModeHandler = {
   },
 
   async onBeforeSubmit(context: ModeContext): Promise<void> {
+    // 设置编辑器为只读模式
+    if (context.onReadonlyChange) {
+      context.onReadonlyChange(true);
+    }
+
     // 开始流式写入模式
     if (context.immersiveCodeRef) {
       try {
+        // 获取当前代码，作为起始点
+        const currentCode = context.immersiveCodeRef.getCurrentCode() || "";
+
+        // 添加一个空白版本作为起始点（如果代码为空，使用空字符串；否则使用当前代码）
+        if (context.immersiveCodeRef.addMajorVersion) {
+          const timestamp = new Date().toLocaleTimeString();
+          context.immersiveCodeRef.addMajorVersion(
+            currentCode,
+            `Canvas Start ${timestamp}`
+          );
+        }
+
+        // 开始流式写入模式
         context.immersiveCodeRef.startStreaming();
       } catch (error) {
         console.error("Canvas mode: Failed to start streaming:", error);
@@ -103,42 +132,23 @@ export const canvasModeHandler: ConversationModeHandler = {
     }
   },
 
-  async onAfterSubmit(context: ModeContext, fullResponse: string): Promise<void> {
+  async onAfterSubmit(context: ModeContext, _fullResponse: string): Promise<void> {
     // 结束流式写入模式
+    // endStreaming() 会自动调用 record() 将最终状态记录到历史记录中
     if (context.immersiveCodeRef) {
       try {
         context.immersiveCodeRef.endStreaming();
-
-        // 检查流式写入是否包含 HTML 代码
-        const htmlCode = extractHtmlCode(fullResponse);
-        if (htmlCode && context.immersiveCodeRef.addMajorVersion) {
-          const currentCode = context.immersiveCodeRef.getCurrentCode();
-          if (currentCode && currentCode.trim()) {
-            // 获取上一个版本的代码
-            const previousVersionCode = context.immersiveCodeRef.getPreviousVersionCode
-              ? context.immersiveCodeRef.getPreviousVersionCode()
-              : "";
-
-            // 比较当前代码和之前版本的代码是否一致
-            // 去除首尾空白后比较
-            const currentCodeTrimmed = currentCode.trim();
-            const previousCodeTrimmed = previousVersionCode.trim();
-
-            // 如果不一致，才添加主要版本
-            if (currentCodeTrimmed !== previousCodeTrimmed) {
-              const timestamp = new Date().toLocaleTimeString();
-              context.immersiveCodeRef.addMajorVersion(
-                currentCode,
-                `Canvas Version ${timestamp}`
-              );
-            } else {
-              console.log("Canvas mode: Code unchanged, skipping major version creation");
-            }
-          }
-        }
+        // endStreaming() 已经自动调用了 record()，所以不需要手动添加 major version
+        // 流式写入的最终状态会自动记录到当前 major version 的 records 中
+        console.log("🌊 [Canvas Mode] Streaming ended, final state recorded automatically");
       } catch (error) {
-        console.error("Canvas mode: Failed to end streaming or add version:", error);
+        console.error("Canvas mode: Failed to end streaming:", error);
       }
+    }
+
+    // 恢复编辑器为可编辑模式
+    if (context.onReadonlyChange) {
+      context.onReadonlyChange(false);
     }
   },
 

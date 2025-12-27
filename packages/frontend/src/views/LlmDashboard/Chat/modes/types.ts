@@ -55,6 +55,8 @@ export interface ModeContext {
   files?: Array<{ url?: string; filename?: string; mediaType?: string }>;
   /** 更新 showCanvas 的回调函数 */
   onShowCanvasChange?: (show: boolean) => void;
+  /** 更新只读状态的回调函数 */
+  onReadonlyChange?: (readonly: boolean) => void;
 }
 
 /**

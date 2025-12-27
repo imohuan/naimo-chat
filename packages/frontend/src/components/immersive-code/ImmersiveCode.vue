@@ -222,6 +222,13 @@ function streamWrite(code: string) {
     );
     return;
   }
+
+  console.log("🌊 [ImmersiveCode] streamWrite called:", {
+    codeLength: code.length,
+    mode: mode.value,
+    hasCodeEditorRef: !!codeEditorRef.value,
+  });
+
   // 直接更新编辑器值，不记录历史
   editorValue.value = code;
 
@@ -230,8 +237,21 @@ function streamWrite(code: string) {
   nextTick(() => {
     if (mode.value === "code" && codeEditorRef.value) {
       const editor = codeEditorRef.value.getEditor();
-      if (editor && editor.getValue() !== code) {
-        editor.setValue(code);
+      if (editor) {
+        const currentValue = editor.getValue();
+        if (currentValue !== code) {
+          console.log("🌊 [ImmersiveCode] Updating editor value:", {
+            currentLength: currentValue.length,
+            newLength: code.length,
+          });
+          editor.setValue(code);
+        } else {
+          console.log(
+            "🌊 [ImmersiveCode] Editor value unchanged, skipping update"
+          );
+        }
+      } else {
+        console.warn("⚠️ [ImmersiveCode] Editor not available");
       }
     } else if (mode.value === "diff" && diffEditorRef.value) {
       // 在 diff 模式下，流式写入应该更新右侧（modified side）
@@ -244,6 +264,12 @@ function streamWrite(code: string) {
           modifiedModel.setValue(code);
         }
       }
+    } else {
+      console.warn("⚠️ [ImmersiveCode] Cannot update editor:", {
+        mode: mode.value,
+        hasCodeEditorRef: !!codeEditorRef.value,
+        hasDiffEditorRef: !!diffEditorRef.value,
+      });
     }
   });
 }

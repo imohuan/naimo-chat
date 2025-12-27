@@ -82,7 +82,7 @@ import {
   Infinity as InfinityIcon,
   X,
 } from "lucide-vue-next";
-import { computed, ref, watch, defineComponent, h } from "vue";
+import { computed, ref, watch, defineComponent, h, onBeforeUnmount } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
@@ -143,6 +143,7 @@ const useMicrophone = ref(false);
 const selectedMode = ref<string>("chat");
 const status = ref<ChatStatus>("ready");
 const showCanvas = ref(true);
+const isCanvasReadonly = ref(false);
 const liked = ref<Record<string, boolean>>({});
 const disliked = ref<Record<string, boolean>>({});
 const copied = ref<Record<string, boolean>>({});
@@ -624,7 +625,7 @@ watch(
 
 // 定期保存代码历史到对话（防抖保存）
 let codeHistorySaveTimer: ReturnType<typeof setTimeout> | null = null;
-function saveCodeHistory() {
+function saveCodeHistory(immediate = false) {
   if (!activeConversationId.value || selectedMode.value !== "canvas") return;
   if (!immersiveCodeRef.value) return;
 
@@ -634,16 +635,25 @@ function saveCodeHistory() {
       // 清除之前的定时器
       if (codeHistorySaveTimer) {
         clearTimeout(codeHistorySaveTimer);
+        codeHistorySaveTimer = null;
       }
-      // 防抖保存（1秒后保存）
-      codeHistorySaveTimer = setTimeout(() => {
+
+      const save = () => {
         updateConversationCodeHistory(
           activeConversationId.value!,
           history
         ).catch((err) => {
           console.error("保存代码历史失败:", err);
         });
-      }, 1000);
+      };
+
+      if (immediate) {
+        // 立即保存（用于组件卸载或对话切换时）
+        save();
+      } else {
+        // 防抖保存（1秒后保存）
+        codeHistorySaveTimer = setTimeout(save, 1000);
+      }
     }
   } catch (error) {
     console.error("获取代码历史失败:", error);
@@ -660,6 +670,85 @@ watch(
   },
   { deep: true }
 );
+
+// 监听版本历史变化（通过定期检查 getHistory 的返回值）
+// 这样可以捕获版本切换、添加新版本等操作
+let historyCheckInterval: ReturnType<typeof setInterval> | null = null;
+let lastHistorySnapshot: string | null = null;
+
+function startHistoryWatcher() {
+  if (historyCheckInterval) return;
+
+  historyCheckInterval = setInterval(() => {
+    if (!activeConversationId.value || selectedMode.value !== "canvas") return;
+    if (!immersiveCodeRef.value) return;
+
+    try {
+      const history = immersiveCodeRef.value.getHistory();
+      if (history && history.versions.length > 0) {
+        // 序列化历史数据用于比较
+        const historySnapshot = JSON.stringify({
+          versionCount: history.versions.length,
+          currentVersionIndex: history.currentVersionIndex,
+          versionIds: history.versions.map((v) => v.id),
+          versionLabels: history.versions.map((v) => v.label),
+          recordCounts: history.versions.map((v) => v.records?.length || 0),
+        });
+
+        // 如果历史发生变化，触发保存
+        if (lastHistorySnapshot !== historySnapshot) {
+          lastHistorySnapshot = historySnapshot;
+          saveCodeHistory();
+        }
+      }
+    } catch (error) {
+      console.error("检查代码历史失败:", error);
+    }
+  }, 500); // 每 500ms 检查一次
+}
+
+function stopHistoryWatcher() {
+  if (historyCheckInterval) {
+    clearInterval(historyCheckInterval);
+    historyCheckInterval = null;
+  }
+  lastHistorySnapshot = null;
+}
+
+// 在 canvas 模式下启动历史监听
+watch(
+  () => selectedMode.value === "canvas" && showCanvas.value,
+  (isCanvasMode) => {
+    if (isCanvasMode) {
+      startHistoryWatcher();
+    } else {
+      stopHistoryWatcher();
+    }
+  },
+  { immediate: true }
+);
+
+// 组件卸载时立即保存并清理
+onBeforeUnmount(() => {
+  stopHistoryWatcher();
+  if (codeHistorySaveTimer) {
+    clearTimeout(codeHistorySaveTimer);
+    codeHistorySaveTimer = null;
+  }
+  // 立即保存当前代码历史
+  saveCodeHistory(true);
+});
+
+// 对话切换时立即保存当前对话的代码历史
+watch(activeConversationId, (newId, oldId) => {
+  // 切换对话前，立即保存旧对话的代码历史
+  if (oldId && selectedMode.value === "canvas") {
+    saveCodeHistory(true);
+  }
+  // 停止旧对话的监听，新对话会在 watch showCanvas 时自动启动
+  stopHistoryWatcher();
+  lastHistorySnapshot = null;
+});
 
 // 初始化消息的默认版本索引
 watch(
@@ -757,6 +846,9 @@ function buildModeContext(
     files: userFiles,
     onShowCanvasChange: (show: boolean) => {
       showCanvas.value = show;
+    },
+    onReadonlyChange: (readonly: boolean) => {
+      isCanvasReadonly.value = readonly;
     },
   };
 }
@@ -1365,7 +1457,7 @@ const FileUploadButton = defineComponent({
                           />
                         </Reasoning>
 
-                        <MessageContent class="max-w-full">
+                        <MessageContent class="max-w-full w-full">
                           <MessageAttachments
                             v-if="version.files?.length"
                             class="mb-2"
@@ -1668,7 +1760,7 @@ const FileUploadButton = defineComponent({
               <ImmersiveCode
                 ref="immersiveCodeRef"
                 :enable-share="false"
-                :readonly="false"
+                :readonly="isCanvasReadonly"
                 @error="handleImmersiveError"
                 @element-selected="handleElementSelected"
                 @ctrl-i-pressed="handleCtrlIPressed"
