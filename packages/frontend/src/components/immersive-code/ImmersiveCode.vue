@@ -22,6 +22,7 @@ import PreviewFrame from "./components/PreviewFrame.vue";
 import ConsolePanel, { type LogEntry } from "./components/ConsolePanel.vue";
 import ImmersiveDiffEditor from "./components/ImmersiveDiffEditor.vue"; // Import Component
 import CodeEditor from "../code/CodeEditor.vue";
+import LoadingProgressBar from "./components/LoadingProgressBar.vue";
 import {
   Select,
   SelectContent,
@@ -86,6 +87,8 @@ let navigationTimer: ReturnType<typeof setTimeout> | null = null; // 导航保�
 const isRefreshing = ref(false); // 标志：是否正在刷新预览
 const isElementSelectorActive = ref(false); // 标志：元素选择器是否激活
 const isStreaming = ref(false); // 标志：是否正在流式写入
+const isLoadingPreview = ref(false); // 标志：预览是否正在加载
+const previewLoadError = ref(false); // 标志：预览加载是否失败
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -605,16 +608,54 @@ function handleToggleElementSelector(enabled: boolean) {
 
 function refreshPreview() {
   isRefreshing.value = true;
+  isLoadingPreview.value = true;
+  previewLoadError.value = false;
   previewKey.value++;
   clearConsole();
-  // 等待 iframe 加载完成，使用 nextTick 和延迟来确保加载完成
-  nextTick(() => {
-    // 给 iframe 一些时间加载内容
-    setTimeout(() => {
-      isRefreshing.value = false;
-    }, 300);
-  });
+  // 等待 PreviewFrame 的 load-complete 或 load-error 事件来更新状态
 }
+
+function handlePreviewLoadComplete() {
+  isRefreshing.value = false;
+  isLoadingPreview.value = false;
+  previewLoadError.value = false;
+}
+
+function handlePreviewLoadError() {
+  isRefreshing.value = false;
+  isLoadingPreview.value = false;
+  previewLoadError.value = true;
+  // 2秒后清除错误状态，以便下次加载时可以重新显示
+  setTimeout(() => {
+    previewLoadError.value = false;
+  }, 2000);
+}
+
+// 监听代码变化，当处于预览模式时启动加载状态
+watch(
+  () => currentCode.value,
+  () => {
+    if (mode.value === "preview") {
+      isLoadingPreview.value = true;
+      previewLoadError.value = false;
+    }
+  }
+);
+
+// 监听模式变化，当切换到预览模式时启动加载状态
+watch(
+  () => mode.value,
+  (newMode) => {
+    if (newMode === "preview") {
+      isLoadingPreview.value = true;
+      previewLoadError.value = false;
+    } else {
+      // 离开预览模式时重置状态
+      isLoadingPreview.value = false;
+      previewLoadError.value = false;
+    }
+  }
+);
 
 // 处理 DiffEditor 字体大小变化
 function handleFontSizeChange(size: number) {
@@ -941,6 +982,13 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- Progress Bar -->
+    <LoadingProgressBar
+      v-if="mode === 'preview'"
+      :is-loading="isLoadingPreview"
+      :is-error="previewLoadError"
+    />
+
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden relative">
       <!-- Code Editor Area -->
@@ -989,6 +1037,8 @@ onBeforeUnmount(() => {
             @element-selected="handleElementSelected"
             @toggle-console="handleToggleConsole"
             @toggle-element-selector="handleToggleElementSelector"
+            @load-complete="handlePreviewLoadComplete"
+            @load-error="handlePreviewLoadError"
           />
         </div>
       </div>

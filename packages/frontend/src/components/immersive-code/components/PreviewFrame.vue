@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import LOG_SCRIPT from "./preload/log.js?raw";
 import ELEMENT_SELECTOR_SCRIPT from "./preload/element-selector.js?raw";
 import SHORTCUTS_SCRIPT from "./preload/shortcuts.js?raw";
@@ -14,9 +14,13 @@ const emit = defineEmits<{
   (e: "element-selected", selector: string, data?: any): void;
   (e: "toggle-console"): void;
   (e: "toggle-element-selector", enabled: boolean): void;
+  (e: "load-complete"): void;
+  (e: "load-error"): void;
 }>();
 
 const iframeRef = ref<HTMLIFrameElement>();
+const loadTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
+const hasLoaded = ref(false);
 
 // Console interception script to inject
 const INJECTED_SCRIPT = "<script>" + LOG_SCRIPT + "<\/script>";
@@ -37,6 +41,16 @@ const srcDoc = computed(() => {
   );
 });
 
+// 监听代码变化，重置加载状态并启动超时
+watch(
+  () => props.code,
+  () => {
+    hasLoaded.value = false;
+    startLoadTimeout();
+  },
+  { immediate: false }
+);
+
 function handleMessage(event: MessageEvent) {
   const data = event.data;
   if (data && data.type === "console-log") {
@@ -53,6 +67,25 @@ function handleMessage(event: MessageEvent) {
   } else if (data && data.type === "toggle-element-selector") {
     emit("toggle-element-selector", data.enabled || false);
   }
+}
+
+function clearLoadTimeout() {
+  if (loadTimeout.value) {
+    clearTimeout(loadTimeout.value);
+    loadTimeout.value = null;
+  }
+}
+
+function startLoadTimeout() {
+  clearLoadTimeout();
+  hasLoaded.value = false;
+  // 设置超时时间为 10 秒，如果在这个时间内没有加载完成，认为加载失败
+  loadTimeout.value = setTimeout(() => {
+    if (!hasLoaded.value) {
+      hasLoaded.value = true;
+      emit("load-error");
+    }
+  }, 10000);
 }
 
 // Re-expose refresh if needed, though srcdoc updates reactive
@@ -112,8 +145,24 @@ watch(
   { immediate: true }
 );
 
+// Handle iframe error
+function handleIframeError() {
+  clearLoadTimeout();
+  if (!hasLoaded.value) {
+    hasLoaded.value = true;
+    emit("load-error");
+  }
+}
+
 // Listen for iframe load to initialize selector state
 function handleIframeLoad() {
+  // 清除超时
+  clearLoadTimeout();
+  if (!hasLoaded.value) {
+    hasLoaded.value = true;
+    emit("load-complete");
+  }
+
   if (props.enableElementSelector && iframeRef.value?.contentWindow) {
     toggleElementSelector(true);
   }
@@ -128,6 +177,21 @@ defineExpose({
 if (typeof window !== "undefined") {
   window.addEventListener("message", handleMessage);
 }
+
+// 监听代码变化，重置加载状态并启动超时
+watch(
+  () => props.code,
+  () => {
+    hasLoaded.value = false;
+    startLoadTimeout();
+  },
+  { immediate: true }
+);
+
+// 清理
+onBeforeUnmount(() => {
+  clearLoadTimeout();
+});
 </script>
 
 <template>
@@ -139,6 +203,7 @@ if (typeof window !== "undefined") {
       allow="xr-spatial-tracking; web-share"
       sandbox="allow-pointer-lock allow-popups allow-forms allow-popups-to-escape-sandbox allow-downloads allow-scripts allow-same-origin"
       @load="handleIframeLoad"
+      @error="handleIframeError"
     ></iframe>
   </div>
 </template>
