@@ -34,6 +34,10 @@ export type ChatMessageContentPart =
     text: string;
   }
   | {
+    role: "user" | "assistant";
+    content: ChatMessageContentPart[];
+  }
+  | {
     type: "image_url";
     image_url: {
       url: string;

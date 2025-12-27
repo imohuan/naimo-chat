@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import type { ChatStatus } from "ai";
-import type { LlmProvider } from "@/interface";
+import type { LlmProvider, ChatMessage } from "@/interface";
 import {
   Conversation,
   ConversationContent,
@@ -333,7 +333,7 @@ const initialMessages: MessageType[] = [
     ],
   },
 ];
-const { sendMessageStream, tempApiKey, endpoint } = useLlmApi();
+const { sendMessage, sendMessageStream, tempApiKey, endpoint } = useLlmApi();
 
 const {
   conversations,
@@ -615,29 +615,40 @@ async function requestConversationTitleIfFirstMessage(
   if (!selectedModelData.value) return;
 
   let titleDraft = "";
-  const titleHistory = [
+  const titleHistory: ChatMessage[] = [
     {
-      role: "system" as const,
+      role: "system",
       type: "system",
-      content: `
-你是标题助手。请根据【素材内容】生成 1 个中文概括标题，最多 10 个字。
-只输出标题本身一行，不要引号、书名号、序号、前缀或任何说明文字。`,
+      content: [
+        {
+          type: "text" as const,
+          text: "You are Claude Code, Anthropic's official CLI for Claude.",
+        },
+        {
+          type: "text" as const,
+          text: "Summarize this coding conversation in under 50 characters.\nCapture the main task, key files, problems addressed, and current status.",
+        },
+      ],
     },
     {
-      role: "user" as const,
-      content: `【素材内容】：\n\`\`\`text\n${firstUserContent}\n\`\`\`\n请生成 1 个中文概括标题，直接输出标题本身。`,
+      role: "user",
+      // content: `【素材内容】：\n\`\`\`text\n${firstUserContent}\n\`\`\`\n请生成 1 个中文概括标题，直接输出标题本身。`,
+      content: [
+        {
+          type: "text" as const,
+          text: `Please write a 5-10 word title for the following conversation; Reply in Chinese:\n\nUser: ${firstUserContent}\n\nRespond with the title for the conversation and nothing else.`,
+        },
+      ],
     },
   ];
 
   try {
-    await sendMessageStream(
+    const response = await sendMessage(
       titleHistory,
       selectedModelData.value.id,
-      tempApiKey.value || undefined,
-      (chunk: string) => {
-        if (chunk) titleDraft += chunk;
-      }
+      tempApiKey.value || undefined
     );
+    titleDraft = typeof response.content === "string" ? response.content : "";
     // 基础清洗：去掉换行与首尾空白
     let normalized = titleDraft.replace(/\r?\n/g, "").trim();
 
