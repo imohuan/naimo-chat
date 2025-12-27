@@ -650,6 +650,8 @@ function addAssistantVersion(messageKey: string) {
   };
   target.versions = [...target.versions, nextVersion];
   messages.value = [...messages.value];
+  // 更新当前版本索引到最新版本，确保复制等功能使用最新版本
+  currentVersionIndex.value[messageKey] = target.versions.length - 1;
   return newId;
 }
 
@@ -1173,18 +1175,37 @@ const FileUploadButton = defineComponent({
 
                   <!-- 统一的工具栏：多个版本时显示完整工具栏（包含分支选择器和操作按钮） -->
                   <MessageToolbar
-                    v-if="
-                      message.from === 'assistant' &&
-                      message.versions.length > 1 &&
-                      isAssistantMessageReady(message)
-                    "
                     class="sticky bottom-0 z-10 backdrop-blur-md -mx-4 md:-mx-6 px-4 md:px-6"
                   >
-                    <MessageBranchSelector :from="message.from">
+                    <MessageBranchSelector
+                      v-if="
+                        message.from === 'assistant' &&
+                        message.versions.length > 1 &&
+                        isAssistantMessageReady(message)
+                      "
+                      :from="message.from"
+                    >
                       <MessageBranchPrevious />
                       <MessageBranchPage />
                       <MessageBranchNext />
                     </MessageBranchSelector>
+
+                    <MessageBranchSelector
+                      v-else-if="
+                        message.versions.length > 1 &&
+                        !(
+                          message.from === 'assistant' &&
+                          isAssistantMessageReady(message)
+                        )
+                      "
+                      :from="message.from"
+                    >
+                      <MessageBranchPrevious />
+                      <MessageBranchPage />
+                      <MessageBranchNext />
+                    </MessageBranchSelector>
+
+                    <div v-else></div>
 
                     <MessageActions>
                       <MessageAction
@@ -1227,71 +1248,6 @@ const FileUploadButton = defineComponent({
                       </MessageAction>
                     </MessageActions>
                   </MessageToolbar>
-
-                  <!-- 只有分支选择器，没有操作按钮（多个版本但消息未准备好） -->
-                  <MessageBranchSelector
-                    v-else-if="
-                      message.versions.length > 1 &&
-                      !(
-                        message.from === 'assistant' &&
-                        isAssistantMessageReady(message)
-                      )
-                    "
-                    :from="message.from"
-                  >
-                    <MessageBranchPrevious />
-                    <MessageBranchPage />
-                    <MessageBranchNext />
-                  </MessageBranchSelector>
-
-                  <!-- 只有一个版本时的操作按钮 -->
-                  <MessageActions
-                    v-else-if="
-                      message.from === 'assistant' &&
-                      message.versions.length === 1 &&
-                      isAssistantMessageReady(message)
-                    "
-                    class="pt-2 ml-auto"
-                  >
-                    <MessageAction
-                      label="Retry"
-                      tooltip="重新生成回复"
-                      @click="handleRetry(message.key)"
-                    >
-                      <RefreshCcwIcon class="size-4" />
-                    </MessageAction>
-                    <!-- <MessageAction
-                      label="Like"
-                      tooltip="点赞"
-                      @click="toggleLike(message.key)"
-                    >
-                      <ThumbsUpIcon
-                        class="size-4"
-                        :fill="liked[message.key] ? 'currentColor' : 'none'"
-                      />
-                    </MessageAction>
-                    <MessageAction
-                      label="Dislike"
-                      tooltip="点踩"
-                      @click="toggleDislike(message.key)"
-                    >
-                      <ThumbsDownIcon
-                        class="size-4"
-                        :fill="disliked[message.key] ? 'currentColor' : 'none'"
-                      />
-                    </MessageAction> -->
-                    <MessageAction
-                      label="Copy"
-                      tooltip="复制内容"
-                      @click="handleCopy(message.key)"
-                    >
-                      <CheckIcon
-                        v-if="copied[message.key]"
-                        class="size-4 text-emerald-500"
-                      />
-                      <CopyIcon v-else class="size-4" />
-                    </MessageAction>
-                  </MessageActions>
                 </MessageBranch>
               </ConversationContent>
               <ConversationScrollButton />
