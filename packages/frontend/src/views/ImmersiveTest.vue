@@ -19,7 +19,10 @@ function handleElementSelected(selector: string, data?: any) {
   if (data) {
     console.log("标签名 (Tag):", data.tagName);
     console.log("ID:", data.id || "(无)");
-    console.log("类名 (Classes):", data.classList.length > 0 ? data.classList : "(无)");
+    console.log(
+      "类名 (Classes):",
+      data.classList.length > 0 ? data.classList : "(无)"
+    );
     console.log("文本内容 (Text):", data.textContent || "(无)");
     console.log("位置信息 (Position):", data.position);
     console.log("样式信息 (Styles):", data.styles);
@@ -65,7 +68,7 @@ function handleGetCode() {
 function handleApplyDiff() {
   if (immersiveRef.value) {
     const diffContent = `------- SEARCH
-<p class="font-mono text-sm">Hello World</p>
+<h1 class="text-3xl font-bold text-gray-900 mb-2">测试UI</h1>
 =======
 <p class="font-mono text-sm">Hello Immersive World</p>
 <p class="text-xs text-gray-300 mt-2">Power by Naimo</p>
@@ -150,9 +153,10 @@ async function handleStreamWriteAI() {
   if (!immersiveRef.value) return;
 
   const editor = immersiveRef.value;
-  const template = `<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>AI 生成的页面<\/title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n<\/head>\n<body class="bg-gradient-to-br from-purple-400 to-pink-400 min-h-screen flex items-center justify-center">\n  <div class="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full">\n    <h1 class="text-3xl font-bold text-gray-800 mb-4">欢迎使用<\/h1>\n    <p class="text-gray-600 mb-6">这是一个由 AI 流式生成的页面<\/p>\n    <button class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition">\n      开始体验<\/button>  <\/div>\n<\/body>\n<\/html>`
-    .trim()
-    .replace(/\n/g, "");
+  const template =
+    `<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>AI 生成的页面<\/title>\n  <script src="https://cdn.tailwindcss.com"><\/script>\n<\/head>\n<body class="bg-gradient-to-br from-purple-400 to-pink-400 min-h-screen flex items-center justify-center">\n  <div class="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full">\n    <h1 class="text-3xl font-bold text-gray-800 mb-4">欢迎使用<\/h1>\n    <p class="text-gray-600 mb-6">这是一个由 AI 流式生成的页面<\/p>\n    <button class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition">\n      开始体验<\/button>  <\/div>\n<\/body>\n<\/html>`
+      .trim()
+      .replace(/\n/g, "");
 
   pushToast("开始 AI 流式生成代码...", "info");
 
@@ -220,109 +224,128 @@ async function handleStreamWriteIncremental() {
 </script>
 
 <template>
-  <div class="w-full h-screen p-8 bg-slate-100 flex flex-col items-center">
-    <div class="w-full max-w-7xl">
-      <div class="mb-4 flex items-end justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-slate-800">Immersive Code Component Test</h1>
-          <p class="text-slate-500">
+  <div class="w-full h-screen bg-slate-100 flex flex-col overflow-hidden">
+    <div class="w-full max-w-[100vw] flex-1 flex flex-col min-h-0 px-4 py-4">
+      <!-- Header Section -->
+      <div class="mb-4 shrink-0">
+        <div class="mb-3">
+          <h1 class="text-2xl font-bold text-slate-800">
+            Immersive Code Component Test
+          </h1>
+          <p class="text-slate-500 text-sm">
             Testing the history, preview, and console integration.
           </p>
         </div>
 
-        <!-- Test Controls -->
-        <div
-          class="flex items-center space-x-4 bg-white p-2 rounded-lg border border-slate-200"
-        >
-          <label
-            class="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer"
+        <!-- Test Controls - 使用網格布局，響應式設計 -->
+        <div class="space-y-3">
+          <!-- 第一行：基本設置 -->
+          <div
+            class="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm"
           >
-            <input
-              type="checkbox"
-              v-model="enableShare"
-              class="rounded text-purple-600 focus:ring-purple-500"
-            />
-            <span>Enable Share</span>
-          </label>
+            <label
+              class="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+            >
+              <input
+                type="checkbox"
+                v-model="enableShare"
+                class="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+              />
+              <span>Enable Share</span>
+            </label>
 
-          <label
-            class="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer"
+            <label
+              class="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap"
+            >
+              <input
+                type="checkbox"
+                v-model="readonly"
+                class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+              />
+              <span>只读模式</span>
+            </label>
+
+            <div class="h-4 w-px bg-slate-200"></div>
+
+            <button
+              @click="handleAddMajorVersion"
+              class="px-3 py-1.5 text-sm bg-purple-50 text-purple-600 rounded hover:bg-purple-100 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              Add Major Version
+            </button>
+
+            <button
+              @click="handleGetCode"
+              class="px-3 py-1.5 text-sm bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              Get Current Code
+            </button>
+          </div>
+
+          <!-- 第二行：Diff 測試 -->
+          <div
+            class="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm"
           >
-            <input
-              type="checkbox"
-              v-model="readonly"
-              class="rounded text-blue-600 focus:ring-blue-500"
-            />
-            <span>只读模式</span>
-          </label>
+            <span class="text-sm font-semibold text-slate-700 whitespace-nowrap"
+              >Diff 測試：</span
+            >
+            <button
+              @click="handleApplyDiff"
+              class="px-3 py-1.5 text-sm bg-green-50 text-green-600 rounded hover:bg-green-100 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              应用单处 Diff
+            </button>
 
-          <div class="h-4 w-px bg-slate-200"></div>
+            <button
+              @click="handleApplyMultipleDiff"
+              class="px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              应用多处 Diff
+            </button>
+          </div>
 
-          <button
-            @click="handleAddMajorVersion"
-            class="px-3 py-1 text-sm bg-purple-50 text-purple-600 rounded hover:bg-purple-100 transition font-medium"
+          <!-- 第三行：流式写入测试 -->
+          <div
+            class="flex flex-wrap items-center gap-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm"
           >
-            Add Major Version
-          </button>
+            <span class="text-sm font-semibold text-slate-700 whitespace-nowrap"
+              >流式写入测试：</span
+            >
 
-          <button
-            @click="handleGetCode"
-            class="px-3 py-1 text-sm bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition font-medium"
-          >
-            Get Current Code
-          </button>
+            <button
+              @click="handleStreamWrite"
+              class="px-3 py-1.5 text-sm bg-cyan-50 text-cyan-600 rounded hover:bg-cyan-100 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              基础流式写入
+            </button>
 
-          <button
-            @click="handleApplyDiff"
-            class="px-3 py-1 text-sm bg-green-50 text-green-600 rounded hover:bg-green-100 transition font-medium"
-          >
-            应用单处 Diff
-          </button>
+            <button
+              @click="handleStreamWriteAI"
+              class="px-3 py-1.5 text-sm bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              AI 流式生成
+            </button>
 
-          <button
-            @click="handleApplyMultipleDiff"
-            class="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition font-medium"
-          >
-            应用多处 Diff
-          </button>
-        </div>
-
-        <!-- 流式写入测试区域 -->
-        <div
-          class="mt-4 flex items-center space-x-4 bg-white p-3 rounded-lg border border-slate-200"
-        >
-          <span class="text-sm font-semibold text-slate-700">流式写入测试：</span>
-
-          <button
-            @click="handleStreamWrite"
-            class="px-3 py-1 text-sm bg-cyan-50 text-cyan-600 rounded hover:bg-cyan-100 transition font-medium"
-          >
-            基础流式写入
-          </button>
-
-          <button
-            @click="handleStreamWriteAI"
-            class="px-3 py-1 text-sm bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 transition font-medium"
-          >
-            AI 流式生成
-          </button>
-
-          <button
-            @click="handleStreamWriteIncremental"
-            class="px-3 py-1 text-sm bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition font-medium"
-          >
-            增量流式写入
-          </button>
+            <button
+              @click="handleStreamWriteIncremental"
+              class="px-3 py-1.5 text-sm bg-teal-50 text-teal-600 rounded hover:bg-teal-100 transition font-medium whitespace-nowrap min-w-fit"
+            >
+              增量流式写入
+            </button>
+          </div>
         </div>
       </div>
 
-      <ImmersiveCode
-        ref="immersiveRef"
-        :enable-share="enableShare"
-        :readonly="readonly"
-        @error="handleError"
-        @element-selected="handleElementSelected"
-      />
+      <!-- ImmersiveCode Component - 使用 flex-1 確保佔滿剩餘空間 -->
+      <div class="flex-1 min-h-0">
+        <ImmersiveCode
+          ref="immersiveRef"
+          :enable-share="enableShare"
+          :readonly="readonly"
+          @error="handleError"
+          @element-selected="handleElementSelected"
+        />
+      </div>
     </div>
   </div>
 </template>

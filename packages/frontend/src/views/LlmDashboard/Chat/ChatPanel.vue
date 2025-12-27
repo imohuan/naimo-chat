@@ -578,6 +578,7 @@ watch(
           conversation?.codeHistory?.versions &&
           conversation.codeHistory.versions.length > 0;
         showCanvas.value = hasCodeHistory || false;
+        refreshImmersiveCode.value = true;
       } else {
         showCanvas.value = true;
       }
@@ -658,10 +659,12 @@ watch(
     } else if (!hasCodeHistory) {
       // 如果不是 canvas 模式，清空代码历史显示状态
       showCanvas.value = false;
-      refreshImmersiveCode.value = false;
-      setTimeout(() => {
-        refreshImmersiveCode.value = true;
-      }, 100);
+      if (isConversationSwitched) {
+        refreshImmersiveCode.value = false;
+        setTimeout(() => {
+          refreshImmersiveCode.value = true;
+        }, 100);
+      }
     }
   },
   { immediate: true }
@@ -858,6 +861,11 @@ function buildModeContext(
               ? (code?: string, label?: string) =>
                   immersiveCodeRef.value!.addMajorVersion!(code, label)
               : undefined,
+          diff:
+            typeof immersiveCodeRef.value.diff === "function"
+              ? (diffContent: string, originalContent?: string) =>
+                  immersiveCodeRef.value!.diff!(diffContent, originalContent)
+              : undefined,
         }
       : null;
 
@@ -942,27 +950,27 @@ async function requestAssistantReply(
     await handler.onAfterSubmit(modeContext, fullResponse);
 
     // 如果是 canvas 模式，检查是否有代码历史，有则显示编辑器并保存代码历史
-    if (handler.shouldShowCanvas() && selectedMode.value === "canvas") {
-      const currentCode = immersiveCodeRef.value?.getCurrentCode();
-      // 如果有代码，保存代码历史
-      if (currentCode && currentCode.trim()) {
-        // 先检查 ImmersiveCode 组件中的代码历史是否有 versions
-        const history = immersiveCodeRef.value?.getHistory();
-        const hasCodeHistory = history?.versions && history.versions.length > 0;
+    // if (handler.shouldShowCanvas() && selectedMode.value === "canvas") {
+    //   const currentCode = immersiveCodeRef.value?.getCurrentCode();
+    //   // 如果有代码，保存代码历史
+    //   if (currentCode && currentCode.trim()) {
+    //     // 先检查 ImmersiveCode 组件中的代码历史是否有 versions
+    //     const history = immersiveCodeRef.value?.getHistory();
+    //     const hasCodeHistory = history?.versions && history.versions.length > 0;
 
-        if (hasCodeHistory) {
-          // 有代码历史，保存并显示编辑器
-          saveCodeHistory();
-          showCanvas.value = true;
-        } else {
-          // 没有代码历史版本，不显示编辑器
-          showCanvas.value = false;
-        }
-      } else {
-        // 没有代码，不显示编辑器
-        showCanvas.value = false;
-      }
-    }
+    //     if (hasCodeHistory) {
+    //       // 有代码历史，保存并显示编辑器
+    //       saveCodeHistory();
+    //       showCanvas.value = true;
+    //     } else {
+    //       // 没有代码历史版本，不显示编辑器
+    //       showCanvas.value = false;
+    //     }
+    //   } else {
+    //     // 没有代码，不显示编辑器
+    //     showCanvas.value = false;
+    //   }
+    // }
   } catch (err) {
     updateMessageContent(assistantVersionId, formatErrorMessage(err));
   } finally {

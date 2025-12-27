@@ -49,13 +49,14 @@ export function useCodeDiff() {
     let currentSection: "search" | "replace" | null = null;
 
     for (const line of lines) {
-      if (/-------\s*SEARCH/.test(line)) {
+      // 支持 3 个或更多减号 + SEARCH
+      if (/[-]{3,}\s*SEARCH/i.test(line)) {
         currentSection = "search";
         continue;
-      } else if (/=======/.test(line)) {
+      } else if (/[=]{3,}/.test(line)) {
         currentSection = "replace";
         continue;
-      } else if (/\+\+\+\+\+\+\+\s*REPLACE/.test(line)) {
+      } else if (/[+]{3,}\s*REPLACE/i.test(line)) {
         break;
       } else if (currentSection) {
         if (currentSection === "search") {
@@ -77,7 +78,7 @@ export function useCodeDiff() {
     const diffBlocks: DiffContent[] = [];
     // Split by the start of SEARCH block, keeping the delimiter if possible or just processing parts
     // The previous implementation used split with lookahead
-    const blocks = content.split(/(?=-------\s*SEARCH)/);
+    const blocks = content.split(/(?=[-]{3,}\s*SEARCH)/);
 
     for (const block of blocks) {
       if (block.trim()) {
@@ -99,31 +100,97 @@ export function useCodeDiff() {
   ): string => {
     let modified = originalContent;
 
+    // 1. Try exact string match first
     if (originalContent.includes(searchContent)) {
       modified = originalContent.replace(searchContent, replaceContent);
-    } else {
-      // Line-based matching fallback
-      const originalLines = originalContent.split("\n");
-      const searchLines = searchContent.split("\n");
-      const replaceLines = replaceContent.split("\n");
+      return modified;
+    }
 
-      if (searchLines.length > 0) {
-        // Try strict line matching
-        for (
-          let i = 0;
-          i < originalLines.length - searchLines.length + 1;
-          i++
-        ) {
-          const slice = originalLines.slice(i, i + searchLines.length);
-          // Simple join comparison
-          if (slice.join("\n") === searchLines.join("\n")) {
-            originalLines.splice(i, searchLines.length, ...replaceLines);
-            modified = originalLines.join("\n");
-            break;
-          }
-          // Fallback: Trimmed comparison if exact match fails (optional robustness for trailing spaces)
-          // For now keeping it strict as per original reference
+    // 2. Line-based matching with multiple strategies
+    const originalLines = originalContent.split("\n");
+    const searchLines = searchContent.split("\n");
+    const replaceLines = replaceContent.split("\n");
+
+    if (searchLines.length === 0) {
+      return modified;
+    }
+
+    // Strategy 1: Exact line matching (including indentation)
+    for (
+      let i = 0;
+      i < originalLines.length - searchLines.length + 1;
+      i++
+    ) {
+      const slice = originalLines.slice(i, i + searchLines.length);
+      if (slice.join("\n") === searchLines.join("\n")) {
+        originalLines.splice(i, searchLines.length, ...replaceLines);
+        modified = originalLines.join("\n");
+        return modified;
+      }
+    }
+
+    // Strategy 2: Match ignoring leading whitespace (but preserve original indentation)
+    // This handles cases where search content doesn't include indentation
+    for (
+      let i = 0;
+      i < originalLines.length - searchLines.length + 1;
+      i++
+    ) {
+      const slice = originalLines.slice(i, i + searchLines.length);
+
+      // Compare lines ignoring leading whitespace
+      let matches = true;
+      let firstNonEmptyIndex = -1;
+      let baseIndent = "";
+
+      for (let j = 0; j < searchLines.length; j++) {
+        const searchLine = searchLines[j];
+        const originalLine = slice[j];
+
+        // For empty lines, both must be empty (after trimming trailing whitespace)
+        if (searchLine.trimEnd() === "" && originalLine.trimEnd() === "") {
+          continue;
         }
+
+        // For non-empty lines, compare content ignoring leading whitespace
+        if (searchLine.trim() !== originalLine.trim()) {
+          matches = false;
+          break;
+        }
+
+        // Record the first non-empty line's indentation as base indent
+        if (firstNonEmptyIndex === -1 && searchLine.trim() !== "") {
+          firstNonEmptyIndex = j;
+          baseIndent = originalLine.match(/^(\s*)/)?.[1] || "";
+        }
+      }
+
+      if (matches && firstNonEmptyIndex >= 0) {
+        // Found a match! Now we need to preserve the indentation from the original
+        // and apply it to the replace content
+        // Apply the base indentation to replace lines
+        const indentedReplaceLines = replaceLines.map((line, idx) => {
+          // For empty lines, preserve as-is
+          if (line.trimEnd() === "") {
+            return line;
+          }
+
+          // Get the indentation of the corresponding search line
+          const searchLine = searchLines[idx];
+          const searchIndent = searchLine.match(/^(\s*)/)?.[1] || "";
+
+          // Calculate the relative indentation difference
+          const replaceIndent = line.match(/^(\s*)/)?.[1] || "";
+          const indentDiff = replaceIndent.length - searchIndent.length;
+
+          // Apply the base indent plus the relative difference
+          const newIndentLength = Math.max(0, baseIndent.length + indentDiff);
+          return " ".repeat(newIndentLength) + line.trimStart();
+        });
+
+        originalLines.splice(i, searchLines.length, ...indentedReplaceLines);
+        modified = originalLines.join("\n");
+        return modified;
       }
     }
 
@@ -138,10 +205,10 @@ export function useCodeDiff() {
 
     // Check for multiple blocks
     const multipleDiffRegex =
-      /-------\s*SEARCH[\s\S]*?\+\+\+\+\+\+\+\s*REPLACE[\s\S]*?-------\s*SEARCH/;
+      /[-]{3,}\s*SEARCH[\s\S]*?[+]{3,}\s*REPLACE[\s\S]*?[-]{3,}\s*SEARCH/;
     const isMultipleDiff =
       multipleDiffRegex.test(normalizedDiffInput) ||
-      (normalizedDiffInput.match(/-------\s*SEARCH/g) || []).length > 1;
+      (normalizedDiffInput.match(/[-]{3,}\s*SEARCH/g) || []).length > 1;
 
     let modifiedContent = normalizedCurrentCode;
     let appliedCount = 0;

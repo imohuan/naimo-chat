@@ -90,9 +90,9 @@ const runHighlight = async () => {
       typeof props.code === "string" ? props.code : String(props.code ?? "");
 
     // 如果是在 .model-canvas 内，只渲染最后 3 行
-    if (isInModelCanvas()) {
-      code = limitCodeToLastLines(code, 3);
-    }
+    // if (isInModelCanvas()) {
+    //   code = limitCodeToLastLines(code, 3);
+    // }
 
     // 对超大代码块做降级，避免严重卡顿
     if (code.length > 200_000) {

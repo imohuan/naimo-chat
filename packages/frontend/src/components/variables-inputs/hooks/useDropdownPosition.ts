@@ -28,6 +28,7 @@ export function useDropdownPosition(
   });
 
   let resizeObserver: ResizeObserver | null = null;
+  let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * 更新下拉面板位置
@@ -64,7 +65,7 @@ export function useDropdownPosition(
   }
 
   /**
-   * 设置 ResizeObserver
+   * 设置 ResizeObserver（使用防抖优化，避免 ResizeObserver 循环警告）
    */
   function setupResizeObserver() {
     if (resizeObserver) {
@@ -75,9 +76,15 @@ export function useDropdownPosition(
     if (triggerRef.value) {
       resizeObserver = new ResizeObserver(() => {
         if (isVisible.value) {
-          requestAnimationFrame(() => {
-            updatePosition();
-          });
+          // 使用防抖，避免频繁触发导致 ResizeObserver 循环警告
+          if (resizeTimer) {
+            clearTimeout(resizeTimer);
+          }
+          resizeTimer = setTimeout(() => {
+            requestAnimationFrame(() => {
+              updatePosition();
+            });
+          }, 16); // 约 60fps 的间隔
         }
       });
       resizeObserver.observe(triggerRef.value);
@@ -114,6 +121,11 @@ export function useDropdownPosition(
     if (resizeObserver) {
       resizeObserver.disconnect();
       resizeObserver = null;
+    }
+
+    if (resizeTimer) {
+      clearTimeout(resizeTimer);
+      resizeTimer = null;
     }
 
     window.removeEventListener("scroll", handleScroll, true);

@@ -129,8 +129,13 @@ export function extractCssCode(content: string): string | null {
  */
 export function hasDiffFormat(content: string): boolean {
   // 检查是否包含 diff 格式的标记
-  const diffPattern = /-------\s*SEARCH[\s\S]*?=======[\s\S]*?\+\+\+\+\+\+\+\s*REPLACE/;
-  return diffPattern.test(content);
+  // 在流式传输中，可能只有 SEARCH 和分隔符，还没有 REPLACE 部分
+  // 所以只要检测到 SEARCH 和分隔符就认为是 diff 格式
+  const hasSearch = /[-]{3,}\s*SEARCH/i.test(content);
+  const hasSeparator = /[=]{3,}/i.test(content);
+  const hasReplace = /[+]{3,}/i.test(content);
+  // 如果有 SEARCH 和分隔符，或者完整的 diff 格式，都认为是 diff
+  return (hasSearch && hasSeparator) || (hasSearch && hasReplace);
 }
 
 /**
@@ -139,30 +144,89 @@ export function hasDiffFormat(content: string): boolean {
  * @returns 所有 diff 代码块的内容，合并为一个字符串（多个 diff 块之间用换行分隔）
  */
 export function extractDiffBlocks(content: string): string | null {
+  // 首先检查整个内容是否包含 diff 格式（可能不在代码块中）
+  if (!hasDiffFormat(content)) {
+    return null;
+  }
+
   // 获取所有代码块（包括没有语言标识符的）
   const allBlocks = parseCodeBlocks(content);
 
-  // 筛选出包含 diff 格式的代码块（通常是没有语言标识符或语言标识符不是 'html' 的代码块）
+  // 筛选出包含 diff 格式的代码块
   const diffBlocks: string[] = [];
 
   for (const block of allBlocks) {
-    // 跳过明确的 HTML 代码块（这些是完整 HTML，不是 diff）
-    if (block.language === 'html') {
-      continue;
-    }
-
     // 检查代码块内容是否包含 diff 格式（SEARCH/REPLACE）
+    // 注意：即使是 html 代码块，如果包含 diff 格式，也应该提取
     if (hasDiffFormat(block.code)) {
       diffBlocks.push(block.code);
     }
   }
 
-  if (diffBlocks.length === 0) {
+  // 如果从代码块中找到了 diff，返回合并后的内容
+  if (diffBlocks.length > 0) {
+    return diffBlocks.join('\n');
+  }
+
+  // 如果没有在代码块中找到，尝试直接从整个内容中提取 diff 部分
+  // 查找 SEARCH 标记的位置（支持 3 个或更多减号）
+  const searchMatch = content.match(/[-]{3,}\s*SEARCH/i);
+  if (!searchMatch) {
     return null;
   }
 
-  // 合并所有 diff 块，多个块之间用换行分隔
-  // 每个块应该保持其原始格式，包括 SEARCH/REPLACE 标记
-  return diffBlocks.join('\n');
+  const searchStartIndex = searchMatch.index!;
+  const remainingContent = content.substring(searchStartIndex);
+
+  // 尝试找到 REPLACE 标记（支持 3 个或更多加号），如果找到，提取到 REPLACE 行结束
+  const replaceMatch = remainingContent.match(/[+]{3,}\s*REPLACE/i);
+  if (replaceMatch) {
+    // 找到 REPLACE 后，提取从 SEARCH 到 REPLACE 行结束的内容
+    // REPLACE 标记通常在最后一行，所以提取到 REPLACE 行结束即可
+    const replaceLineEnd = remainingContent.indexOf('\n', replaceMatch.index! + replaceMatch[0].length);
+    const endIndex = replaceLineEnd !== -1 ? replaceLineEnd : remainingContent.length;
+    // 提取内容，保留 REPLACE 行（不 trim，因为 REPLACE 行是必需的）
+    let extracted = remainingContent.substring(0, endIndex);
+    // 只移除末尾的空白行，但保留 REPLACE 行本身
+    extracted = extracted.replace(/\s+$/, '');
+    console.log("🔍 [extractDiffBlocks] Extracted diff from non-code-block:", {
+      length: extracted.length,
+      preview: extracted.substring(0, 200),
+      fullContent: extracted,
+    });
+    return extracted;
+  }
+
+  // 如果没有找到 REPLACE，查找分隔符后的内容
+  const separatorMatch = remainingContent.match(/[=]{3,}/);
+  if (separatorMatch) {
+    // 提取从 SEARCH 到分隔符后的内容，直到下一个代码块开始、双换行或字符串末尾
+    const afterSeparator = remainingContent.substring(separatorMatch.index! + separatorMatch[0].length);
+    const endMatch = afterSeparator.match(/[\s\S]*?(?=\n\n|\n```|$)/);
+    if (endMatch) {
+      const endIndex = separatorMatch.index! + separatorMatch[0].length + endMatch[0].length;
+      const extracted = remainingContent.substring(0, endIndex).trim();
+      console.log("🔍 [extractDiffBlocks] Extracted diff (no REPLACE marker):", {
+        length: extracted.length,
+        preview: extracted.substring(0, 200),
+      });
+      return extracted;
+    }
+    // 如果没有找到结束标记，返回从 SEARCH 到字符串末尾的内容
+    const extracted = remainingContent.trim();
+    console.log("🔍 [extractDiffBlocks] Extracted diff (to end):", {
+      length: extracted.length,
+      preview: extracted.substring(0, 200),
+    });
+    return extracted;
+  }
+
+  // 如果连分隔符都没找到，至少返回从 SEARCH 开始的内容（可能是不完整的 diff）
+  const extracted = remainingContent.trim();
+  console.log("🔍 [extractDiffBlocks] Extracted diff (incomplete):", {
+    length: extracted.length,
+    preview: extracted.substring(0, 200),
+  });
+  return extracted;
 }
 

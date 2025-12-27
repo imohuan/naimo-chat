@@ -187,15 +187,36 @@ watch(
       return;
     }
 
+    console.log("🔄 [ImmersiveCode] Applying diff:", {
+      currentCodeLength: currentCode.value.length,
+      diffTargetLength: currentDiffTarget.value.length,
+      diffTargetPreview: currentDiffTarget.value.substring(0, 200),
+      fullDiffTarget: currentDiffTarget.value,
+    });
+
     // 执行一次 diff 应用
     const result = applyDiff(currentCode.value, currentDiffTarget.value);
     diffResult.value = result;
+
+    console.log("📊 [ImmersiveCode] Diff application result:", {
+      success: result.success,
+      message: result.message,
+      appliedCount: result.appliedCount,
+      failedBlocks: result.failedBlocks,
+      resultContentLength: result.content.length,
+      resultContentPreview: result.content.substring(0, 200),
+    });
 
     // 如果应用失败，自动退出 diff 模式
     if (!result.success) {
       console.warn(
         "⚠️ [ImmersiveCode] Failed to apply stored diff to current code:",
-        result.message
+        result.message,
+        {
+          currentCode: currentCode.value.substring(0, 200),
+          diffTarget: currentDiffTarget.value,
+          failedBlocks: result.failedBlocks,
+        }
       );
       // 自动退出 diff 模式
       exitDiffMode();

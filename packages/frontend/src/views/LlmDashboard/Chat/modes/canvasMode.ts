@@ -3,6 +3,20 @@ import type { ConversationModeHandler, ModeContext } from "./types";
 import { getCanvasModeSystemPrompt } from "@/prompts/modes/canvasMode";
 import { extractHtmlCodeIncremental, extractDiffBlocks, hasDiffFormat } from "./utils/streamParser";
 
+
+
+const closeEndStreaming = (context: ModeContext) => {
+  // 检测到 diff 格式后，显示编辑器
+  if (context.onShowCanvasChange) {
+    context.onShowCanvasChange(true);
+  }
+
+  // 如果已经开始流式写入，停止它（因为我们将使用 diff 模式）
+  if (context.immersiveCodeRef?.endStreaming) {
+    context.immersiveCodeRef.endStreaming();
+  }
+}
+
 /**
  * Canvas 模式处理器
  * Canvas 模式用于创建和编辑可视化内容，支持 HTML/CSS/JavaScript 代码生成
@@ -79,26 +93,18 @@ export const canvasModeHandler: ConversationModeHandler = {
   handleStreamResponse(chunk: string, context: ModeContext): string {
     // 检查是否包含 diff 格式，如果是则不在流式阶段处理（等待完整响应）
     if (hasDiffFormat(chunk)) {
-      console.log("🔄 [Canvas Mode] Detected diff format in stream, will process after completion");
-      // 检测到 diff 格式后，显示编辑器
-      if (context.onShowCanvasChange) {
-        context.onShowCanvasChange(true);
-      }
-      // 如果已经开始流式写入，停止它（因为我们将使用 diff 模式）
-      if (context.immersiveCodeRef?.endStreaming) {
-        try {
-          context.immersiveCodeRef.endStreaming();
-          console.log("🔄 [Canvas Mode] Stopped streaming due to diff format detection");
-        } catch (error) {
-          console.error("Canvas mode: Failed to stop streaming:", error);
-        }
-      }
+      console.log("😍 [Canvas Mode] Detected diff format in stream, will process after completion");
+      closeEndStreaming(context);
       // 返回 chunk 用于消息显示，但不执行流式写入
       return chunk;
     }
 
     // 使用增量提取方法，支持不完整的代码块（流式写入）
     const htmlCode = extractHtmlCodeIncremental(chunk);
+    if (htmlCode && htmlCode?.startsWith("-")) {
+      closeEndStreaming(context);
+      return chunk;
+    }
 
     if (htmlCode) {
       console.log("🌊 [Canvas Mode] Extracted HTML code:", {
@@ -157,6 +163,11 @@ export const canvasModeHandler: ConversationModeHandler = {
 
   async onAfterSubmit(context: ModeContext, fullResponse: string): Promise<void> {
     // 检查完整响应中是否包含 diff 格式
+    console.log("🔍 [Canvas Mode] Checking for diff format in fullResponse:", {
+      responseLength: fullResponse.length,
+      hasDiffFormat: hasDiffFormat(fullResponse),
+      preview: fullResponse.substring(0, 500),
+    });
     const diffContent = extractDiffBlocks(fullResponse);
 
     if (diffContent && context.immersiveCodeRef) {
@@ -165,6 +176,7 @@ export const canvasModeHandler: ConversationModeHandler = {
         console.log("🔄 [Canvas Mode] Applying diff blocks:", {
           diffLength: diffContent.length,
           preview: diffContent.substring(0, 200),
+          fullDiff: diffContent,
         });
 
         // 结束流式写入模式（如果之前有开始）
@@ -189,6 +201,7 @@ export const canvasModeHandler: ConversationModeHandler = {
     } else {
       // 如果没有 diff 格式，正常结束流式写入模式
       // endStreaming() 会自动调用 record() 将最终状态记录到历史记录中
+      console.log("ℹ️ [Canvas Mode] No diff format found, ending streaming normally");
       if (context.immersiveCodeRef) {
         try {
           context.immersiveCodeRef.endStreaming();
