@@ -82,7 +82,15 @@ import {
   Infinity as InfinityIcon,
   X,
 } from "lucide-vue-next";
-import { computed, ref, watch, defineComponent, h, onBeforeUnmount } from "vue";
+import {
+  computed,
+  ref,
+  watch,
+  defineComponent,
+  h,
+  onBeforeUnmount,
+  nextTick,
+} from "vue";
 import { useElementSize } from "@vueuse/core";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
@@ -558,15 +566,17 @@ watch(
 // 监听模式变化，自动应用 UI 状态并保存到对话
 watch(
   selectedMode,
-  (newMode) => {
+  async (newMode) => {
     const handler = getModeHandler(newMode);
     // 根据模式决定是否显示画布
     if (handler.shouldShowCanvas()) {
-      // Canvas 模式：只有存在代码版本时才显示编辑器
+      // Canvas 模式：只有当 codeHistory 有 versions 时才显示编辑器
       if (newMode === "canvas") {
-        const currentCode = immersiveCodeRef.value?.getCurrentCode();
-        // 检查代码是否非空（存在版本）
-        showCanvas.value = !!(currentCode && currentCode.trim());
+        const conversation = activeConversation.value;
+        const hasCodeHistory =
+          conversation?.codeHistory?.versions &&
+          conversation.codeHistory.versions.length > 0;
+        showCanvas.value = hasCodeHistory || false;
       } else {
         showCanvas.value = true;
       }
@@ -588,33 +598,57 @@ watch(
 
 // 监听对话切换，恢复模式和代码历史
 watch(
-  activeConversationId,
-  (newId) => {
+  [activeConversationId, () => activeConversation.value],
+  async ([newId, conversation]) => {
     if (!newId) return;
+    if (!conversation) {
+      // 如果对话数据还没加载，等待一下再重试
+      await nextTick();
+      const retryConversation = activeConversation.value;
+      if (!retryConversation) return;
+      conversation = retryConversation;
+    }
 
-    const conversation = activeConversation.value;
-    if (!conversation) return;
-
-    // 恢复模式
+    // 恢复模式（先设置模式，让组件开始创建）
     if (conversation.mode && conversation.mode !== selectedMode.value) {
       selectedMode.value = conversation.mode;
+      // 等待 Vue 完成响应式更新和组件创建
+      await nextTick();
+      await nextTick();
     }
 
     // 恢复代码历史（仅在 canvas 模式下）
-    if (
-      conversation.mode === "canvas" &&
-      conversation.codeHistory &&
-      immersiveCodeRef.value
-    ) {
-      try {
-        immersiveCodeRef.value.setHistory(conversation.codeHistory);
-        // 恢复后检查是否有代码，如果有则显示编辑器
-        const currentCode = immersiveCodeRef.value.getCurrentCode();
-        if (currentCode && currentCode.trim()) {
-          showCanvas.value = true;
+    if (conversation.mode === "canvas") {
+      // 检查 codeHistory 是否有 versions
+      const hasCodeHistory =
+        conversation.codeHistory?.versions &&
+        conversation.codeHistory.versions.length > 0;
+
+      if (hasCodeHistory) {
+        // 只有当有代码历史时才显示编辑器
+        showCanvas.value = true;
+
+        // 等待组件挂载（使用轮询确保组件完全挂载）
+        let attempts = 0;
+        const maxAttempts = 50; // 最多尝试 50 次，每次 50ms，总共 2.5 秒
+        while (attempts < maxAttempts && !immersiveCodeRef.value) {
+          await nextTick();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          attempts++;
         }
-      } catch (error) {
-        console.error("恢复代码历史失败:", error);
+
+        // 组件挂载后，恢复代码历史
+        if (immersiveCodeRef.value && conversation.codeHistory) {
+          try {
+            immersiveCodeRef.value.setHistory(conversation.codeHistory);
+            await nextTick();
+          } catch (error) {
+            console.error("恢复代码历史失败:", error);
+          }
+        }
+      } else {
+        // 没有代码历史，不显示编辑器
+        showCanvas.value = false;
       }
     } else if (conversation.mode !== "canvas") {
       // 如果不是 canvas 模式，清空代码历史显示状态
@@ -622,6 +656,42 @@ watch(
     }
   },
   { immediate: true }
+);
+
+// 监听 ImmersiveCode 组件挂载，如果当前对话是 canvas 模式且有代码历史，自动恢复
+watch(
+  immersiveCodeRef,
+  async (newRef, oldRef) => {
+    // 只在组件从 null 变为非 null 时执行（组件刚挂载）
+    if (!newRef || oldRef !== null) return;
+    if (selectedMode.value !== "canvas") return;
+    if (!activeConversationId.value) return;
+
+    const conversation = activeConversation.value;
+    if (!conversation || !conversation.codeHistory) return;
+
+    // 检查 codeHistory 是否有 versions
+    const hasCodeHistory =
+      conversation.codeHistory.versions &&
+      conversation.codeHistory.versions.length > 0;
+    if (!hasCodeHistory) {
+      // 没有代码历史，不显示编辑器
+      showCanvas.value = false;
+      return;
+    }
+
+    // 组件挂载后，恢复代码历史
+    try {
+      await nextTick();
+      newRef.setHistory(conversation.codeHistory);
+      await nextTick();
+      // 确保显示编辑器
+      showCanvas.value = true;
+    } catch (error) {
+      console.error("恢复代码历史失败:", error);
+    }
+  },
+  { immediate: false }
 );
 
 // 保存代码历史到对话（只保存流式写入产生的记录）
@@ -825,11 +895,9 @@ async function requestAssistantReply(
 
     // 更新 UI 状态（例如 showCanvas）
     if (handler.shouldShowCanvas()) {
-      // Canvas 模式：只有存在代码版本时才显示编辑器
+      // Canvas 模式：默认显示编辑器（即使代码为空）
       if (selectedMode.value === "canvas") {
-        const currentCode = immersiveCodeRef.value?.getCurrentCode();
-        // 检查代码是否非空（存在版本）
-        showCanvas.value = !!(currentCode && currentCode.trim());
+        showCanvas.value = true;
       } else {
         showCanvas.value = true;
       }
@@ -864,13 +932,26 @@ async function requestAssistantReply(
     // 调用 onAfterSubmit 钩子
     await handler.onAfterSubmit(modeContext, fullResponse);
 
-    // 如果是 canvas 模式，检查是否有代码版本，如果有则显示编辑器并保存代码历史
+    // 如果是 canvas 模式，检查是否有代码历史，有则显示编辑器并保存代码历史
     if (handler.shouldShowCanvas() && selectedMode.value === "canvas") {
       const currentCode = immersiveCodeRef.value?.getCurrentCode();
+      // 如果有代码，保存代码历史
       if (currentCode && currentCode.trim()) {
-        showCanvas.value = true;
-        // 保存代码历史
-        saveCodeHistory();
+        // 先检查 ImmersiveCode 组件中的代码历史是否有 versions
+        const history = immersiveCodeRef.value?.getHistory();
+        const hasCodeHistory = history?.versions && history.versions.length > 0;
+
+        if (hasCodeHistory) {
+          // 有代码历史，保存并显示编辑器
+          saveCodeHistory();
+          showCanvas.value = true;
+        } else {
+          // 没有代码历史版本，不显示编辑器
+          showCanvas.value = false;
+        }
+      } else {
+        // 没有代码，不显示编辑器
+        showCanvas.value = false;
       }
     }
   } catch (err) {
