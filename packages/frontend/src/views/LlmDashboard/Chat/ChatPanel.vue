@@ -636,6 +636,7 @@ watch(
 
     if (hasCodeHistory && isConversationSwitched) {
       // 只有当有代码历史时才显示编辑器
+
       showCanvas.value = true;
 
       // 等待组件挂载（使用轮询确保组件完全挂载）
@@ -686,6 +687,7 @@ watch(
     const hasCodeHistory =
       conversation.codeHistory.versions &&
       conversation.codeHistory.versions.length > 0;
+
     if (!hasCodeHistory) {
       // 没有代码历史，不显示编辑器
       showCanvas.value = false;
@@ -913,10 +915,14 @@ async function requestAssistantReply(
     // 更新 UI 状态（例如 showCanvas）
     if (handler.shouldShowCanvas()) {
       // Canvas 模式：默认显示编辑器（即使代码为空）
-      if (selectedMode.value === "canvas") {
-        showCanvas.value = true;
-      } else {
-        showCanvas.value = true;
+      const conversation = activeConversation.value;
+      if (conversation && conversation.codeHistory) {
+        const hasCodeHistory =
+          conversation.codeHistory.versions &&
+          conversation.codeHistory.versions.length > 0;
+        if (selectedMode.value === "canvas" && hasCodeHistory) {
+          showCanvas.value = true;
+        }
       }
     }
 
@@ -1152,6 +1158,7 @@ async function requestConversationTitleIfFirstMessage(
     }
 
     const finalTitle = normalized.slice(0, 10);
+
     if (finalTitle) {
       renameConversation(activeId, finalTitle);
     }
@@ -1822,7 +1829,7 @@ const FileUploadButton = defineComponent({
         <template v-if="selectedMode === 'canvas' && refreshImmersiveCode">
           <!-- 右侧 ImmersiveCode 区域 -->
           <div
-            v-show="showCanvas"
+            v-show="true || showCanvas"
             class="shrink-0 w-2/3 h-full flex flex-col overflow-hidden p-2"
           >
             <div class="h-full w-full">

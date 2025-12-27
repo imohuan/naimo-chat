@@ -38,8 +38,9 @@ export const canvasModeHandler: ConversationModeHandler = {
     // 如果有编辑器代码，作为上下文添加到消息中
     // 优先从编辑器引用获取当前代码（实时），如果无法获取则使用 editorCode（构建时的快照）
     const currentEditorCode = context.editorCode || "";
+    const hasExistingCode = currentEditorCode && currentEditorCode.trim();
 
-    if (currentEditorCode && currentEditorCode.trim()) {
+    if (hasExistingCode) {
       messages.push({
         role: "user",
         content: `文件 index.html 的代码：\n\`\`\`html\n${currentEditorCode}\n\`\`\``,
@@ -50,18 +51,42 @@ export const canvasModeHandler: ConversationModeHandler = {
     if (context.currentUserInput || context.files?.length) {
       const hasFiles = context.files && context.files.length > 0;
 
+      const userInput = `<format_selection>
+⚠️ 格式选择提示：你看到上面有现有代码（文件 index.html 的代码）。请根据用户输入智能判断应该使用哪种格式：
+
+**判断规则：**
+1. 如果用户输入包含"修改"、"更新"、"改变"、"编辑"、"改进"、"调整"、"添加"、"删除"、"替换"、"将"、"改成"等关键词 → 使用 **Format B (Diff Blocks)**
+   - 只修改用户指定的部分
+   - 使用 SEARCH/REPLACE 格式
+   - 不要返回完整的 HTML 文件
+
+**Format B 示例：**
+\`\`\`
+------- SEARCH
+[要查找的精确代码，必须与现有代码完全一致]
+=======
+[替换后的代码]
++++++++ REPLACE
+\`\`\`
+
+每个修改使用一个独立的代码块。
+
+2. 如果用户输入包含"重构"、"重写"、"全部"、"整体"、"完全"、"新建"、"创建新"、"从头"等关键词 → 使用 **Format A (完整 HTML)**
+   - 提供完整的 HTML 文件会更快捷高效
+   - 返回完整的单文件 HTML 代码
+
+
+</format_selection>
+
+用户输入：${context.currentUserInput}`
+
       if (!hasFiles) {
-        if (context.currentUserInput) {
-          messages.push({
-            role: "user",
-            content: context.currentUserInput,
-          });
-        }
+        if (context.currentUserInput) messages.push({ role: "user", content: userInput, });
       } else {
         const contentParts: ChatMessageContentPart[] = [];
 
         if (context.currentUserInput) {
-          contentParts.push({ type: "text", text: context.currentUserInput });
+          contentParts.push({ type: "text", text: userInput });
         }
 
         context.files?.forEach((file) => {
