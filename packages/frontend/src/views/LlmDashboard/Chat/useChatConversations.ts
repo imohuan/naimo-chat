@@ -91,7 +91,9 @@ async function apiCall<T>(
       ((data as unknown) as { message?: string; error?: string })?.error ||
       ((data as unknown) as { message?: string; error?: string })?.message ||
       "请求失败";
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number };
+    error.status = res.status;
+    throw error;
   }
   return data;
 }
@@ -162,6 +164,8 @@ export function useChatConversations(
   );
   const loading = ref<boolean>(false);
   const error = ref<string | null>(null);
+  // 跟踪正在创建的对话 ID，防止重复创建
+  const creatingConversations = new Set<string>();
 
   const activeConversation = computed<Conversation | undefined>(() =>
     conversations.value.find((c) => c.id === activeConversationId.value)
@@ -210,7 +214,7 @@ export function useChatConversations(
 
   /**
    * 保存对话到服务器
-   * 如果对话不存在，PUT 接口会自动创建
+   * 如果对话是 pending 状态，先确保在服务器上创建对话，然后再更新
    */
   async function saveConversation(id: string) {
     const conversation = conversations.value.find((c) => c.id === id);
@@ -219,6 +223,26 @@ export function useChatConversations(
     if (conversation?.pending) {
       try {
         await ensureConversationCreated(id);
+        // 创建后重新获取对话数据（pending 状态已更新）
+        const updatedConversation = conversations.value.find((c) => c.id === id);
+        if (updatedConversation && !updatedConversation.pending) {
+          // 对话已创建，使用更新后的数据
+          const conversationData = updatedConversation;
+          try {
+            await updateConversationApi(baseUrl, id, {
+              title: conversationData.title,
+              messages: conversationData.messages,
+              createdAt: conversationData.createdAt,
+              pending: conversationData.pending,
+              mode: conversationData.mode,
+              codeHistory: conversationData.codeHistory,
+            });
+          } catch (err) {
+            console.error("更新对话失败:", err);
+            throw err;
+          }
+          return;
+        }
       } catch (err) {
         console.error("创建对话失败:", err);
         // 即使创建失败，也继续尝试保存（PUT 接口可能会自动创建）
@@ -405,9 +429,51 @@ export function useChatConversations(
       return; // 对话已存在或不是 pending 状态
     }
 
+    // 如果正在创建中，等待现有的创建完成
+    if (creatingConversations.has(id)) {
+      // 等待最多 5 秒，直到创建完成
+      let attempts = 0;
+      while (creatingConversations.has(id) && attempts < 50) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        attempts++;
+        // 再次检查对话状态，可能已经被其他调用创建完成
+        const updatedConversation = conversations.value.find((c) => c.id === id);
+        if (updatedConversation && !updatedConversation.pending) {
+          return; // 对话已被创建
+        }
+      }
+      // 如果超时后仍在创建中，可能是死锁，直接返回
+      if (creatingConversations.has(id)) {
+        console.warn(`对话 ${id} 创建超时，可能存在并发问题`);
+        return;
+      }
+    }
+
+    // 标记为正在创建
+    creatingConversations.add(id);
+
     try {
+      // 再次检查对话状态（可能在等待期间已被其他调用创建）
+      const currentConversation = conversations.value.find((c) => c.id === id);
+      if (!currentConversation || !currentConversation.pending) {
+        return; // 对话已被创建
+      }
+
       // 调用 API 创建对话
-      await createConversationApi(baseUrl, conversation);
+      try {
+        await createConversationApi(baseUrl, currentConversation);
+      } catch (err) {
+        // 如果返回 409 Conflict，表示对话已存在，这是正常情况，视为成功
+        if (err instanceof Error && (err as Error & { status?: number }).status === 409) {
+          // 对话已存在，更新本地状态即可
+          conversations.value = conversations.value.map((c) =>
+            c.id === id ? { ...c, pending: false } : c
+          );
+          return; // 成功返回，不抛出错误
+        }
+        // 其他错误继续抛出
+        throw err;
+      }
       // 更新本地状态，移除 pending 标记
       conversations.value = conversations.value.map((c) =>
         c.id === id ? { ...c, pending: false } : c
@@ -416,6 +482,9 @@ export function useChatConversations(
       console.error("创建对话失败:", err);
       error.value = err instanceof Error ? err.message : "创建对话失败";
       throw err;
+    } finally {
+      // 移除创建标记
+      creatingConversations.delete(id);
     }
   }
 

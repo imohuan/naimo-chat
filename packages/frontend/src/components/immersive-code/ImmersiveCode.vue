@@ -70,7 +70,7 @@ const {
   switchVersion,
   getHistory,
   setHistory,
-} = useCodeHistory(props.initialCode || DEFAULT_CODE);
+} = useCodeHistory(props.initialCode ?? DEFAULT_CODE);
 
 const { applyDiff } = useCodeDiff();
 

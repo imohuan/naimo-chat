@@ -46,7 +46,6 @@ export function extractHtmlCodeIncremental(content: string): string | null {
   // 如果没有完整的代码块，尝试提取不完整的代码块
   // 查找所有 ```html 或 ``` 开头的代码块（包括未闭合的）
   // 使用全局匹配找到最后一个
-  const allCodeBlockMatches: Array<{ start: number; code: string }> = [];
 
   // 匹配 ```html 或 ``` 开头的代码块
   const codeBlockStartRegex = /```(?:html)?\s*\n/g;
@@ -121,5 +120,49 @@ export function extractCssCode(content: string): string | null {
     return null;
   }
   return cssBlocks[cssBlocks.length - 1]?.code || null;
+}
+
+/**
+ * 检查内容是否包含 diff 代码块格式
+ * @param content 代码内容
+ * @returns 是否包含 diff 格式（包含 SEARCH/REPLACE 标记）
+ */
+export function hasDiffFormat(content: string): boolean {
+  // 检查是否包含 diff 格式的标记
+  const diffPattern = /-------\s*SEARCH[\s\S]*?=======[\s\S]*?\+\+\+\+\+\+\+\s*REPLACE/;
+  return diffPattern.test(content);
+}
+
+/**
+ * 从 markdown 内容中提取所有 diff 代码块（SEARCH/REPLACE 格式）
+ * @param content markdown 内容
+ * @returns 所有 diff 代码块的内容，合并为一个字符串（多个 diff 块之间用换行分隔）
+ */
+export function extractDiffBlocks(content: string): string | null {
+  // 获取所有代码块（包括没有语言标识符的）
+  const allBlocks = parseCodeBlocks(content);
+
+  // 筛选出包含 diff 格式的代码块（通常是没有语言标识符或语言标识符不是 'html' 的代码块）
+  const diffBlocks: string[] = [];
+
+  for (const block of allBlocks) {
+    // 跳过明确的 HTML 代码块（这些是完整 HTML，不是 diff）
+    if (block.language === 'html') {
+      continue;
+    }
+
+    // 检查代码块内容是否包含 diff 格式（SEARCH/REPLACE）
+    if (hasDiffFormat(block.code)) {
+      diffBlocks.push(block.code);
+    }
+  }
+
+  if (diffBlocks.length === 0) {
+    return null;
+  }
+
+  // 合并所有 diff 块，多个块之间用换行分隔
+  // 每个块应该保持其原始格式，包括 SEARCH/REPLACE 标记
+  return diffBlocks.join('\n');
 }
 

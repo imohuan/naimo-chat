@@ -156,6 +156,7 @@ const liked = ref<Record<string, boolean>>({});
 const disliked = ref<Record<string, boolean>>({});
 const copied = ref<Record<string, boolean>>({});
 const copyTimers = new Map<string, number>();
+const refreshImmersiveCode = ref(true);
 // 跟踪每个消息的当前选中版本索引
 const currentVersionIndex = ref<Record<string, number>>({});
 
@@ -657,6 +658,10 @@ watch(
     } else if (!hasCodeHistory) {
       // 如果不是 canvas 模式，清空代码历史显示状态
       showCanvas.value = false;
+      refreshImmersiveCode.value = false;
+      setTimeout(() => {
+        refreshImmersiveCode.value = true;
+      }, 100);
     }
   },
   { immediate: true }
@@ -1090,9 +1095,18 @@ async function requestConversationTitleIfFirstMessage(
   }
 
   // 如果对话是 pending 状态，先确保在服务器上创建对话
+  // 注意：saveConversation 可能已经创建了对话，所以这里需要再次检查
   if (currentConversation.pending) {
     try {
       await ensureConversationCreated(activeId);
+      // 创建后重新获取对话数据
+      const updatedConversation = conversations.value.find(
+        (c) => c.id === activeId
+      );
+      if (!updatedConversation || updatedConversation.pending) {
+        // 如果还是 pending，说明创建失败，但继续尝试生成标题
+        console.warn("对话创建可能失败，但继续生成标题");
+      }
     } catch (err) {
       console.error("创建对话失败:", err);
       // 即使创建失败，也继续尝试生成标题
@@ -1797,7 +1811,7 @@ const FileUploadButton = defineComponent({
           </div>
         </div>
 
-        <template v-if="selectedMode === 'canvas'">
+        <template v-if="selectedMode === 'canvas' && refreshImmersiveCode">
           <!-- 右侧 ImmersiveCode 区域 -->
           <div
             v-show="showCanvas"
@@ -1808,6 +1822,7 @@ const FileUploadButton = defineComponent({
                 ref="immersiveCodeRef"
                 :enable-share="false"
                 :readonly="isCanvasReadonly"
+                :initial-code="''"
                 @error="handleImmersiveError"
                 @element-selected="handleElementSelected"
                 @ctrl-i-pressed="handleCtrlIPressed"

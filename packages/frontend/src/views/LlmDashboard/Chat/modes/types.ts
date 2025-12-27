@@ -34,6 +34,8 @@ export interface ImmersiveCodeRef {
   selectElementInPreview?: (selector: string) => void;
   /** 添加主要版本 */
   addMajorVersion?: (code?: string, label?: string) => void;
+  /** 执行 diff 操作 */
+  diff?: (diffContent: string, originalContent?: string) => { success: boolean; message?: string };
 }
 
 /**
