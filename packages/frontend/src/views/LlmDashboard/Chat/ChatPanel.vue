@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import type { ChatStatus } from "ai";
-import type { LlmProvider, ChatMessage } from "@/interface";
+import type { LlmProvider } from "@/interface";
 import {
   Conversation,
   ConversationContent,
@@ -87,6 +87,7 @@ import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
 import ChatSidebar from "./components/ChatSidebar.vue";
 import { useChatConversations, type MessageType } from "./useChatConversations";
+import { createTitleGenerationPrompt } from "@/prompts/titleGeneration";
 import { ImmersiveCode } from "@/components/immersive-code";
 import { useToasts } from "@/hooks/useToasts";
 import {
@@ -615,32 +616,7 @@ async function requestConversationTitleIfFirstMessage(
   if (!selectedModelData.value) return;
 
   let titleDraft = "";
-  const titleHistory: ChatMessage[] = [
-    {
-      role: "system",
-      type: "system",
-      content: [
-        {
-          type: "text" as const,
-          text: "You are Claude Code, Anthropic's official CLI for Claude.",
-        },
-        {
-          type: "text" as const,
-          text: "Summarize this coding conversation in under 50 characters.\nCapture the main task, key files, problems addressed, and current status.",
-        },
-      ],
-    },
-    {
-      role: "user",
-      // content: `【素材内容】：\n\`\`\`text\n${firstUserContent}\n\`\`\`\n请生成 1 个中文概括标题，直接输出标题本身。`,
-      content: [
-        {
-          type: "text" as const,
-          text: `Please write a 5-10 word title for the following conversation; Reply in Chinese:\n\nUser: ${firstUserContent}\n\nRespond with the title for the conversation and nothing else.`,
-        },
-      ],
-    },
-  ];
+  const titleHistory = createTitleGenerationPrompt(firstUserContent);
 
   try {
     const response = await sendMessage(
