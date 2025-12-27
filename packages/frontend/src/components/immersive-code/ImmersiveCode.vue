@@ -211,10 +211,14 @@ function endStreaming() {
   console.log("🌊 [ImmersiveCode] Ending streaming mode");
   isStreaming.value = false;
   // 流式写入结束后，记录一次最终状态，并标记为流式写入记录
+  // 无论当前模式如何，都应该记录最新的代码
   if (mode.value === "code") {
     record(editorValue.value, undefined, true);
   } else if (mode.value === "diff") {
     record(editorValue.value, currentDiffTarget.value, true);
+  } else if (mode.value === "preview") {
+    // 预览模式下也需要记录代码
+    record(editorValue.value, undefined, true);
   }
 }
 
@@ -232,7 +236,8 @@ function streamWrite(code: string) {
     hasCodeEditorRef: !!codeEditorRef.value,
   });
 
-  // 直接更新编辑器值，不记录历史
+  // 直接更新编辑器值，不记录历史（历史记录在 endStreaming 时统一记录）
+  // 这样可以避免在流式写入过程中频繁记录历史
   editorValue.value = code;
 
   // 确保代码编辑器也同步更新（如果编辑器已初始化）
@@ -267,6 +272,10 @@ function streamWrite(code: string) {
           modifiedModel.setValue(code);
         }
       }
+    } else if (mode.value === "preview") {
+      // 预览模式下不需要更新编辑器，editorValue 已经更新
+      // 历史记录会在 endStreaming 时统一记录
+      console.log("🌊 [ImmersiveCode] Preview mode: editorValue updated");
     } else {
       console.warn("⚠️ [ImmersiveCode] Cannot update editor:", {
         mode: mode.value,
@@ -452,9 +461,12 @@ function getPreviousVersionCode(): string {
 
 // Expose methods for parent control
 defineExpose({
-  addMajorVersion: (code?: string, label?: string) =>
-    addMajorVersion(code || currentCode.value, label),
-  getCurrentCode: () => currentCode.value,
+  addMajorVersion: (code?: string, label?: string) => {
+    // 优先使用传入的代码，否则使用 editorValue（最新的编辑器值），最后才使用 currentCode
+    const codeToUse = code || editorValue.value || currentCode.value;
+    return addMajorVersion(codeToUse, label);
+  },
+  getCurrentCode: () => editorValue.value || currentCode.value,
   getPreviousVersionCode,
   /**
    * Enter Diff/Contrast Mode
@@ -1024,7 +1036,7 @@ onBeforeUnmount(() => {
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden relative">
       <!-- Code Editor Area -->
-      <div v-if="mode === 'code'" class="flex-1 overflow-hidden relative z-0">
+      <div v-show="mode === 'code'" class="flex-1 overflow-hidden relative z-0">
         <CodeEditor
           ref="codeEditorRef"
           v-model="editorValue"
@@ -1038,7 +1050,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Diff Editor Area -->
-      <div v-if="mode === 'diff'" class="flex-1 overflow-hidden relative z-0">
+      <div v-show="mode === 'diff'" class="flex-1 overflow-hidden relative z-0">
         <ImmersiveDiffEditor
           ref="diffEditorRef"
           :original="currentCode"
