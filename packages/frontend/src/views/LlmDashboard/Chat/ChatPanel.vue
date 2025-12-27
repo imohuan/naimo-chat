@@ -1079,7 +1079,7 @@ const FileUploadButton = defineComponent({
                     (index) => handleBranchChange(message.key, index)
                   "
                 >
-                  <MessageBranchContent class="overflow-hidden">
+                  <MessageBranchContent>
                     <Message
                       v-for="version in message.versions"
                       :key="`${message.key}-${version.id}`"
@@ -1171,13 +1171,14 @@ const FileUploadButton = defineComponent({
                     </Message>
                   </MessageBranchContent>
 
+                  <!-- 统一的工具栏：多个版本时显示完整工具栏（包含分支选择器和操作按钮） -->
                   <MessageToolbar
                     v-if="
                       message.from === 'assistant' &&
                       message.versions.length > 1 &&
                       isAssistantMessageReady(message)
                     "
-                    class="sticky bottom-0 z-10 backdrop-blur-md"
+                    class="sticky bottom-0 z-10 backdrop-blur-md -mx-4 md:-mx-6 px-4 md:px-6"
                   >
                     <MessageBranchSelector :from="message.from">
                       <MessageBranchPrevious />
@@ -1194,25 +1195,25 @@ const FileUploadButton = defineComponent({
                         <RefreshCcwIcon class="size-4" />
                       </MessageAction>
                       <!-- <MessageAction
-                      label="Like"
-                      tooltip="点赞"
-                      @click="toggleLike(message.key)"
-                    >
-                      <ThumbsUpIcon
-                        class="size-4"
-                        :fill="liked[message.key] ? 'currentColor' : 'none'"
-                      />
-                    </MessageAction>
-                    <MessageAction
-                      label="Dislike"
-                      tooltip="点踩"
-                      @click="toggleDislike(message.key)"
-                    >
-                      <ThumbsDownIcon
-                        class="size-4"
-                        :fill="disliked[message.key] ? 'currentColor' : 'none'"
-                      />
-                    </MessageAction> -->
+                        label="Like"
+                        tooltip="点赞"
+                        @click="toggleLike(message.key)"
+                      >
+                        <ThumbsUpIcon
+                          class="size-4"
+                          :fill="liked[message.key] ? 'currentColor' : 'none'"
+                        />
+                      </MessageAction>
+                      <MessageAction
+                        label="Dislike"
+                        tooltip="点踩"
+                        @click="toggleDislike(message.key)"
+                      >
+                        <ThumbsDownIcon
+                          class="size-4"
+                          :fill="disliked[message.key] ? 'currentColor' : 'none'"
+                        />
+                      </MessageAction> -->
                       <MessageAction
                         label="Copy"
                         tooltip="复制内容"
@@ -1227,17 +1228,27 @@ const FileUploadButton = defineComponent({
                     </MessageActions>
                   </MessageToolbar>
 
+                  <!-- 只有分支选择器，没有操作按钮（多个版本但消息未准备好） -->
                   <MessageBranchSelector
-                    v-else-if="message.versions.length > 1"
+                    v-else-if="
+                      message.versions.length > 1 &&
+                      !(
+                        message.from === 'assistant' &&
+                        isAssistantMessageReady(message)
+                      )
+                    "
                     :from="message.from"
                   >
                     <MessageBranchPrevious />
                     <MessageBranchPage />
                     <MessageBranchNext />
                   </MessageBranchSelector>
+
+                  <!-- 只有一个版本时的操作按钮 -->
                   <MessageActions
                     v-else-if="
                       message.from === 'assistant' &&
+                      message.versions.length === 1 &&
                       isAssistantMessageReady(message)
                     "
                     class="pt-2 ml-auto"
