@@ -581,7 +581,7 @@ watch(
         showCanvas.value = true;
       }
     } else {
-      showCanvas.value = false;
+      // showCanvas.value = false;
     }
 
     // 保存模式到当前对话
@@ -626,39 +626,35 @@ watch(
 
     // 恢复代码历史（仅在 canvas 模式下，且只有在切换对话时才恢复）
     // 关键：如果只是同一个对话内更新消息（如 addUserMessage），不应该恢复代码历史
-    if (conversation.mode === "canvas" && isConversationSwitched) {
-      // 检查 codeHistory 是否有 versions
-      const hasCodeHistory =
-        conversation.codeHistory?.versions &&
-        conversation.codeHistory.versions.length > 0;
 
-      if (hasCodeHistory) {
-        // 只有当有代码历史时才显示编辑器
-        showCanvas.value = true;
+    // 检查 codeHistory 是否有 versions
+    const hasCodeHistory =
+      conversation.codeHistory?.versions &&
+      conversation.codeHistory.versions.length > 0;
 
-        // 等待组件挂载（使用轮询确保组件完全挂载）
-        let attempts = 0;
-        const maxAttempts = 50; // 最多尝试 50 次，每次 50ms，总共 2.5 秒
-        while (attempts < maxAttempts && !immersiveCodeRef.value) {
-          await nextTick();
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          attempts++;
-        }
+    if (hasCodeHistory && isConversationSwitched) {
+      // 只有当有代码历史时才显示编辑器
+      showCanvas.value = true;
 
-        // 组件挂载后，恢复代码历史（只在切换对话时）
-        if (immersiveCodeRef.value && conversation.codeHistory) {
-          try {
-            immersiveCodeRef.value.setHistory(conversation.codeHistory);
-            await nextTick();
-          } catch (error) {
-            console.error("恢复代码历史失败:", error);
-          }
-        }
-      } else {
-        // 没有代码历史，不显示编辑器
-        showCanvas.value = false;
+      // 等待组件挂载（使用轮询确保组件完全挂载）
+      let attempts = 0;
+      const maxAttempts = 50; // 最多尝试 50 次，每次 50ms，总共 2.5 秒
+      while (attempts < maxAttempts && !immersiveCodeRef.value) {
+        await nextTick();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        attempts++;
       }
-    } else if (conversation.mode !== "canvas") {
+
+      // 组件挂载后，恢复代码历史（只在切换对话时）
+      if (immersiveCodeRef.value && conversation.codeHistory) {
+        try {
+          immersiveCodeRef.value.setHistory(conversation.codeHistory);
+          await nextTick();
+        } catch (error) {
+          console.error("恢复代码历史失败:", error);
+        }
+      }
+    } else if (!hasCodeHistory) {
       // 如果不是 canvas 模式，清空代码历史显示状态
       showCanvas.value = false;
     }
@@ -1397,7 +1393,10 @@ const FileUploadButton = defineComponent({
         <div
           ref="conversationContainerRef"
           class="flex h-full w-full py-4 md:py-6 overflow-hidden"
-          :class="hasMessages ? 'flex-col' : 'items-center justify-center'"
+          :class="[
+            hasMessages ? 'flex-col' : 'items-center justify-center',
+            `model-${selectedMode}`,
+          ]"
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
@@ -1505,7 +1504,7 @@ const FileUploadButton = defineComponent({
                           />
                         </Reasoning>
 
-                        <MessageContent class="max-w-full w-full">
+                        <MessageContent class="max-w-full">
                           <MessageAttachments
                             v-if="version.files?.length"
                             class="mb-2"
@@ -1841,5 +1840,22 @@ const FileUploadButton = defineComponent({
 /* 防止长内容撑出屏幕 */
 .conversation-content :deep(p) {
   overflow-wrap: anywhere;
+}
+
+.model-canvas :deep(.custom-code-block__body) {
+  max-height: 100px;
+  overflow-y: auto;
+  padding: 10px;
+  padding-bottom: 0;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.model-canvas :deep(.custom-code-block__body pre) {
+  padding: 0;
+  border: none;
+  padding-bottom: 10px;
 }
 </style>

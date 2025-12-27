@@ -89,6 +89,9 @@ const isElementSelectorActive = ref(false); // 标志：元素选择器是否激
 const isStreaming = ref(false); // 标志：是否正在流式写入
 const isLoadingPreview = ref(false); // 标志：预览是否正在加载
 const previewLoadError = ref(false); // 标志：预览加载是否失败
+const throttledPreviewCode = ref(""); // 节流后的预览代码（用于流式写入期间）
+let throttleTimer: ReturnType<typeof setTimeout> | null = null; // 节流计时器
+let isThrottling = false; // 标志：是否正在节流期间内
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
@@ -107,11 +110,11 @@ const mode = computed<"code" | "preview" | "diff">(() => {
   return uiMode.value;
 });
 
-// 预览代码：流式写入期间使用 editorValue，否则使用 currentCode
+// 预览代码：流式写入期间使用节流后的 editorValue，否则使用 currentCode
 const previewCode = computed(() => {
-  // 流式写入期间，使用最新的 editorValue
+  // 流式写入期间，使用节流后的代码（每500ms更新一次）
   if (isStreaming.value) {
-    return editorValue.value;
+    return throttledPreviewCode.value || editorValue.value;
   }
   // 否则使用历史记录中的 currentCode
   return currentCode.value;
@@ -215,11 +218,27 @@ const diffSuccess = ref(false);
 function startStreaming() {
   console.log("🌊 [ImmersiveCode] Starting streaming mode");
   isStreaming.value = true;
+  // 重置节流状态
+  isThrottling = false;
+  if (throttleTimer) {
+    clearTimeout(throttleTimer);
+    throttleTimer = null;
+  }
+  // 初始化节流后的预览代码
+  throttledPreviewCode.value = editorValue.value;
 }
 
 function endStreaming() {
   console.log("🌊 [ImmersiveCode] Ending streaming mode");
   isStreaming.value = false;
+  // 清除节流状态
+  isThrottling = false;
+  if (throttleTimer) {
+    clearTimeout(throttleTimer);
+    throttleTimer = null;
+  }
+  // 立即更新节流后的预览代码为最终值
+  throttledPreviewCode.value = editorValue.value;
   // 流式写入结束后，记录一次最终状态，并标记为流式写入记录
   // 无论当前模式如何，都应该记录最新的代码
   if (mode.value === "code") {
@@ -565,6 +584,24 @@ watch(editorValue, (val) => {
   if (mode.value === "code") {
     debouncedRecord(val);
   }
+  // 在流式写入期间，使用节流更新预览代码（每500ms更新一次）
+  if (isStreaming.value) {
+    // 如果不在节流期间内，立即更新并开始节流
+    if (!isThrottling) {
+      throttledPreviewCode.value = val;
+      isThrottling = true;
+      // 设置定时器，500ms后清除节流标志，允许下一次更新
+      throttleTimer = setTimeout(() => {
+        isThrottling = false;
+        throttleTimer = null;
+        // 节流期间结束后，立即更新到最新的值（如果有变化）
+        if (editorValue.value !== throttledPreviewCode.value) {
+          throttledPreviewCode.value = editorValue.value;
+        }
+      }, 500);
+    }
+    // 如果正在节流期间内，忽略本次触发（不更新）
+  }
 });
 
 // Sync History -> Editor
@@ -886,6 +923,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleKeyDown);
+  // 清理节流计时器
+  if (throttleTimer) {
+    clearTimeout(throttleTimer);
+    throttleTimer = null;
+  }
 });
 </script>
 

@@ -31,14 +31,18 @@
         </button>
       </div>
     </div>
-
-    <div v-show="!collapsed" class="custom-code-block__body" v-html="html" />
+    <div
+      ref="element"
+      v-show="!collapsed"
+      class="custom-code-block__body"
+      v-html="html"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useShikiHighlighter } from "streamdown-vue";
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { Check, Copy, Download, Eye } from "lucide-vue-next";
 import { useMessageBranchWidth } from "@/components/ai-elements/message/context";
 
@@ -60,13 +64,35 @@ const collapsed = ref(false);
 
 const highlighterPromise = useShikiHighlighter();
 let highlightTimer: number | null = null;
+const element = ref<HTMLDivElement>();
+
+// 检测是否在 .model-canvas 容器内
+const isInModelCanvas = (): boolean => {
+  if (!element.value) return false;
+  return element.value.closest(".model-canvas") !== null;
+};
+
+// 只保留代码的最后 4 行
+const limitCodeToLastLines = (code: string, lines: number = 4): string => {
+  const codeLines = code.split(/\n/);
+  if (codeLines.length <= lines) return code;
+  return codeLines.slice(-lines).join("\n");
+};
 
 const runHighlight = async () => {
   try {
+    // 确保 DOM 已挂载后再检测
+    await nextTick();
+
     const highlighter = await highlighterPromise;
     const lang = (props.language || "text").toLowerCase();
-    const code =
+    let code =
       typeof props.code === "string" ? props.code : String(props.code ?? "");
+
+    // 如果是在 .model-canvas 内，只渲染最后 3 行
+    if (isInModelCanvas()) {
+      code = limitCodeToLastLines(code, 3);
+    }
 
     // 对超大代码块做降级，避免严重卡顿
     if (code.length > 200_000) {
@@ -254,6 +280,7 @@ function guessExtension(lang?: string) {
   border-bottom-right-radius: 16px;
   color: #0f172a;
   max-width: 900px;
+  margin-top: 10px;
 }
 
 .custom-code-block__header {
@@ -263,7 +290,7 @@ function guessExtension(lang?: string) {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   background: #f5f5f5;
   border: 1px solid #e2e8f0;
   border-bottom: 1px solid #e9eef5;
@@ -274,11 +301,11 @@ function guessExtension(lang?: string) {
 .collapse-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
   color: #475569;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
@@ -293,7 +320,7 @@ function guessExtension(lang?: string) {
 
 .chevron {
   display: inline-block;
-  font-size: 15px;
+  font-size: 13px;
   color: #64748b;
   transition: transform 150ms ease;
 }
@@ -304,10 +331,10 @@ function guessExtension(lang?: string) {
 
 .custom-code-block__lang {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 1px 6px;
   color: #4338ca;
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: 4px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -327,20 +354,20 @@ function guessExtension(lang?: string) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   background: transparent;
-  border-radius: 10px;
+  border-radius: 8px;
   color: #64748b;
   cursor: pointer;
   transition: color 120ms ease, background-color 120ms ease;
 }
 
 .icon-btn__icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .icon-btn__icon--success {
