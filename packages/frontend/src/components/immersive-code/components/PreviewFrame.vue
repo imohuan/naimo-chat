@@ -73,6 +73,19 @@ function toggleElementSelector(enabled: boolean) {
   }
 }
 
+// Select and highlight element by selector
+function selectElementBySelector(selector: string) {
+  if (iframeRef.value?.contentWindow) {
+    iframeRef.value.contentWindow.postMessage(
+      {
+        type: "select-element-by-selector",
+        selector: selector,
+      },
+      "*"
+    );
+  }
+}
+
 // Watch for element selector prop changes
 watch(
   () => props.enableElementSelector,
@@ -106,7 +119,10 @@ function handleIframeLoad() {
   }
 }
 
-defineExpose({ refresh });
+defineExpose({
+  refresh,
+  selectElementBySelector,
+});
 
 // Listen to messages
 if (typeof window !== "undefined") {

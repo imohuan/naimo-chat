@@ -5,19 +5,12 @@
       class="prompt-input-editor"
       :class="cn('field-sizing-content max-h-48 min-h-16 px-4', props.class)"
       @paste="handlePaste"
+      @click="handleClick"
     />
     <!-- Placeholder overlay -->
     <span v-if="showPlaceholder" class="prompt-input-placeholder-overlay">
       {{ props.placeholder }}
     </span>
-    <button
-      type="button"
-      class="test-tag-button"
-      @click="handleTestTagClick"
-      title="测试添加标签 (Test Tag)"
-    >
-      + Tag
-    </button>
   </div>
 </template>
 
@@ -99,6 +92,13 @@ function handleTagClick(data: {
   data?: Record<string, any>;
 }) {
   emit("tag-click", data);
+}
+
+/**
+ * 处理点击事件
+ */
+function handleClick() {
+  editorView?.focus();
 }
 
 /**
@@ -200,7 +200,8 @@ class TagNodeView implements NodeView {
     this.getPos = getPos;
     this.onTagClick = onTagClick;
     this.dom = document.createElement("span");
-    this.dom.className = "prompt-tag";
+    const tagType = node.attrs.tagType || "";
+    this.dom.className = tagType ? `prompt-tag tag-${tagType}` : "prompt-tag";
     this.dom.setAttribute("data-tag-id", node.attrs.id);
     this.dom.setAttribute("draggable", "true");
     this.dom.contentEditable = "false";
@@ -304,6 +305,12 @@ class TagNodeView implements NodeView {
     if (node.attrs.id !== this.node.attrs.id) return false;
 
     this.node = node;
+    // 更新类名（如果 tagType 发生变化）
+    const tagType = node.attrs.tagType || "";
+    const newClassName = tagType ? `prompt-tag tag-${tagType}` : "prompt-tag";
+    if (this.dom.className !== newClassName) {
+      this.dom.className = newClassName;
+    }
     this.render();
     return true;
   }
@@ -365,28 +372,6 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 /**
- * 处理测试标签按钮点击
- */
-function handleTestTagClick() {
-  if (!editorView) return;
-
-  const testTagAttrs: TagNodeAttributes = {
-    id: `test-tag-${Date.now()}`,
-    label: `测试标签 ${Math.floor(Math.random() * 100)}`,
-    icon: "🏷️",
-    data: {
-      test: true,
-      timestamp: Date.now(),
-    },
-  };
-
-  insertTagAtCursor(testTagAttrs);
-
-  // 聚焦到编辑器
-  editorView.focus();
-}
-
-/**
  * 处理粘贴事件
  */
 function handlePaste(e: ClipboardEvent) {
@@ -415,21 +400,21 @@ watch(
   (newValue) => {
     if (!editorView || isUpdating.value) return;
 
-      const currentContent = getEditorTextContent(editorView.state);
-      if (currentContent !== newValue) {
-        isUpdating.value = true;
-        const newState = setEditorContent(
-          editorView.state,
-          schema,
-          newValue || ""
-        );
-        editorView.updateState(newState);
-        // 更新空状态
-        updateEmptyState();
-        isUpdating.value = false;
-      }
+    const currentContent = getEditorTextContent(editorView.state);
+    if (currentContent !== newValue) {
+      isUpdating.value = true;
+      const newState = setEditorContent(
+        editorView.state,
+        schema,
+        newValue || ""
+      );
+      editorView.updateState(newState);
+      // 更新空状态
+      updateEmptyState();
+      isUpdating.value = false;
     }
-  );
+  }
+);
 
 /**
  * 插入标签
@@ -510,19 +495,19 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0 0.5rem;
+  padding: 0 0.4rem;
   margin: 0 0.125rem;
   background-color: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 0.2rem;
   font-size: 0.875rem;
-  line-height: 1.25rem;
+  line-height: 1;
   height: 1.25rem;
   cursor: pointer;
   user-select: none;
   position: relative;
   transition: background-color 0.15s, border-color 0.15s;
-  vertical-align: baseline;
+  vertical-align: middle;
 }
 
 :deep(.prompt-tag:hover) {
@@ -530,26 +515,84 @@ defineExpose({
   border-color: rgba(0, 0, 0, 0.15);
 }
 
+/* 浏览器选择的标签样式 */
+:deep(.prompt-tag.tag-browser) {
+  background-color: #e3f2fd;
+  border: none;
+  color: #1976d2;
+}
+
+:deep(.prompt-tag.tag-browser:hover) {
+  background-color: #bbdefb;
+}
+
+:deep(.prompt-tag.tag-browser .prompt-tag-label) {
+  color: #1976d2;
+}
+
+:deep(.prompt-tag.tag-browser .prompt-tag-icon svg) {
+  color: #1976d2;
+}
+
+:deep(.prompt-tag.tag-browser .prompt-tag-icon svg path) {
+  fill: #1976d2;
+}
+
+/* 浏览器标签选中时的样式 - 使用高亮颜色 */
+:deep(.prompt-tag.tag-browser.tag-selected) {
+  background-color: Highlight !important;
+  color: HighlightText !important;
+  border: none !important;
+}
+
+:deep(.prompt-tag.tag-browser.tag-selected .prompt-tag-label) {
+  color: HighlightText !important;
+}
+
+:deep(.prompt-tag.tag-browser.tag-selected .prompt-tag-icon svg path) {
+  fill: HighlightText !important;
+}
+
+/* 选中时不显示 hover 效果 */
+:deep(.prompt-tag.tag-browser.tag-selected:hover) {
+  background-color: Highlight !important;
+  color: HighlightText !important;
+}
+
+:deep(.prompt-tag.tag-browser.ProseMirror-selectednode) {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
 :deep(.prompt-tag-icon-wrapper) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1rem;
-  height: 1rem;
+  width: 16px;
+  height: 16px;
   position: relative;
   flex-shrink: 0;
   cursor: pointer;
+  line-height: 0;
+  vertical-align: middle;
 }
 
 :deep(.prompt-tag-icon) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  line-height: 1;
+  font-size: 0.875rem;
+  line-height: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   transition: opacity 0.15s;
+}
+
+:deep(.prompt-tag-icon svg) {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 :deep(.prompt-tag-delete) {
@@ -585,6 +628,24 @@ defineExpose({
   font-weight: 500;
   color: hsl(var(--foreground));
   position: relative;
+  font-family: var(
+    --font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace
+  );
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  line-height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
 }
 
 :deep(.prompt-tag.ProseMirror-selectednode) {
@@ -633,32 +694,6 @@ defineExpose({
   margin: 0;
   padding: 0;
   display: inline;
-}
-
-.test-tag-button {
-  position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1;
-  background-color: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-  border: 1px solid hsl(var(--border));
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: background-color 0.15s, opacity 0.15s;
-  opacity: 0.7;
-  z-index: 10;
-}
-
-.test-tag-button:hover {
-  opacity: 1;
-  background-color: hsl(var(--accent) / 0.9);
-}
-
-.test-tag-button:active {
-  background-color: hsl(var(--accent) / 0.8);
 }
 
 :deep(.prosemirror-drop-target) {

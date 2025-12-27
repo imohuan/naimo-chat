@@ -23,6 +23,7 @@ export interface TagNodeAttributes {
   label: string;
   icon?: string;
   data?: Record<string, any>;
+  tagType?: string; // 标签类型，用于自定义样式（如 'browser'）
 }
 
 /**
@@ -55,14 +56,19 @@ export function createSchema(): Schema {
           label: { default: "" },
           icon: { default: "" },
           data: { default: null },
+          tagType: { default: "" },
         },
         selectable: false,
         atom: true, // 标签作为原子节点，不能被部分选中
         toDOM(node): DOMOutputSpec {
+          const tagType = node.attrs.tagType || "";
+          const className = tagType
+            ? `prompt-tag tag-${tagType}`
+            : "prompt-tag";
           return [
             "span",
             {
-              class: "prompt-tag",
+              class: className,
               "data-tag-id": node.attrs.id,
               "data-label": node.attrs.label,
             },
@@ -132,7 +138,6 @@ function createDocFromText(schema: Schema, content: string): ProseMirrorNode {
 
   return docType.create(null, nodes);
 }
-
 
 /**
  * 创建编辑器状态
@@ -540,7 +545,8 @@ class TagDragView {
 }
 
 /**
- * 获取编辑器的纯文本内容（不包含标签）
+ * 获取编辑器的纯文本内容
+ * 标签节点会返回其 id 属性作为文本内容
  */
 export function getEditorTextContent(state: EditorState): string {
   let content = "";
@@ -550,8 +556,8 @@ export function getEditorTextContent(state: EditorState): string {
     } else if (node.type.name === "hard_break") {
       content += "\n";
     } else if (node.type.name === "tag") {
-      // 标签可以用特殊标记表示，或者跳过
-      // 这里我们跳过标签，只返回文本
+      // 返回标签的 id 属性作为文本内容
+      content += node.attrs.data.text || "";
     }
   });
   return content;

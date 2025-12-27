@@ -51,7 +51,11 @@ import {
   PromptInputTools,
   usePromptInput,
 } from "@/components/ai-elements/prompt-input";
-import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 import {
   Source,
   Sources,
@@ -60,8 +64,24 @@ import {
 } from "@/components/ai-elements/sources";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { MicRound, CheckCircleRound, PersonRound, SmartToyRound } from "@vicons/material";
-import { CheckIcon, CopyIcon, RefreshCcwIcon, ThumbsDownIcon, ThumbsUpIcon, ChevronDown, Globe, ImageIcon, Infinity as InfinityIcon, X } from "lucide-vue-next";
+import {
+  MicRound,
+  CheckCircleRound,
+  PersonRound,
+  SmartToyRound,
+} from "@vicons/material";
+import {
+  CheckIcon,
+  CopyIcon,
+  RefreshCcwIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
+  ChevronDown,
+  Globe,
+  ImageIcon,
+  Infinity as InfinityIcon,
+  X,
+} from "lucide-vue-next";
 import { computed, ref, watch, defineComponent, h } from "vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
@@ -78,6 +98,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// SVG图标字符串
+const browserIconSvg = `<svg t="1766773646500" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15057"><path d="M693.302681 34.952265c68.210189-34.105094 170.11621-57.637609 242.07796 0 71.961749 57.637609 46.723979 186.350235 30.762795 204.630566 9.071955-27.897967 27.352286-128.576206-41.471795-181.711943-63.162635-48.702075-176.459758-27.284075-247.466564 29.193961a409.329342 409.329342 0 0 1 283.276913 459.532041L666.018606 546.52868l0.06821-0.682102a34.241515 34.241515 0 0 1-6.821019 0.682102h-238.73566v13.642037A122.77834 122.77834 0 0 0 653.19509 614.738868h289.552251a409.397552 409.397552 0 0 1-472.833027 263.632379c-72.3028 76.668252-302.580397 199.173751-376.997713 25.30598-24.964929-58.387921-13.573828-209.337069 54.636361-323.043453 30.421744-50.68017 70.392915-103.543066 115.002378-155.51923 55.045622-74.553736 115.88911-137.37532 182.598675-188.532962 9.344796-8.730904 18.689592-17.257178 27.829757-25.64703L488.808536 205.477736c-129.735779 43.24526-259.403347 132.327766-336.958332 214.793884a409.261132 409.261132 0 0 1 481.495722-344.120401C661.380313 54.73322 682.525472 40.40908 693.302681 34.952265zM188.069814 655.869612l-1.773465 2.933038c-33.150152 56.205195-62.821584 182.121204-38.675177 244.874577 44.200202 114.797747 227.139928 38.879808 314.31255-27.284075A409.943234 409.943234 0 0 1 188.001604 655.937822zM543.240266 273.687925a122.77834 122.77834 0 0 0-122.369078 112.683232l-0.409261 10.095108V410.108302h238.73566c2.387357 0 4.706503 0.272841 6.889229 0.682102V396.466265a122.77834 122.77834 0 0 0-112.751442-122.369079L543.240266 273.687925z" fill="currentColor" p-id="15058"></path></svg>`;
+const htmlIconSvg = `<svg t="1766772789014"  viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5023"><path d="M89.088 59.392l62.464 803.84c1.024 12.288 9.216 22.528 20.48 25.6L502.784 993.28c6.144 2.048 12.288 2.048 18.432 0l330.752-104.448c11.264-4.096 19.456-14.336 20.48-25.6l62.464-803.84c1.024-17.408-12.288-31.744-29.696-31.744H118.784c-17.408 0-31.744 14.336-29.696 31.744z" fill="#FC490B" p-id="5024"></path><path d="M774.144 309.248h-409.6l12.288 113.664h388.096l-25.6 325.632-227.328 71.68-227.328-71.68-13.312-169.984h118.784v82.944l124.928 33.792 123.904-33.792 10.24-132.096H267.264L241.664 204.8h540.672z" fill="#FFFFFF" p-id="5025"></path></svg>`;
 
 const props = defineProps<{
   providers?: LlmProvider[];
@@ -123,6 +147,10 @@ const copyTimers = new Map<string, number>();
 // ImmersiveCode ref (保留用于将来可能的 API 调用，如 diff、streamWrite 等)
 // 在模板中使用，但 TypeScript 可能无法识别
 const immersiveCodeRef = ref<InstanceType<typeof ImmersiveCode> | null>(null);
+// PromptInputEditor ref (用于插入标签)
+const promptInputEditorRef = ref<InstanceType<typeof PromptInputEditor> | null>(
+  null
+);
 const { pushToast } = useToasts();
 
 const initialMessages: MessageType[] = [
@@ -132,7 +160,8 @@ const initialMessages: MessageType[] = [
     versions: [
       {
         id: nanoid(),
-        content: "Can you explain how to use the Vue 3 Composition API effectively?",
+        content:
+          "Can you explain how to use the Vue 3 Composition API effectively?",
       },
     ],
   },
@@ -350,7 +379,10 @@ const availableModels = computed<SelectableModel[]>(() => {
 });
 
 const modelGroups = computed(() => {
-  const groups = new Map<string, { heading: string; models: SelectableModel[] }>();
+  const groups = new Map<
+    string,
+    { heading: string; models: SelectableModel[] }
+  >();
   availableModels.value.forEach((m) => {
     if (!groups.has(m.chef)) {
       groups.set(m.chef, { heading: m.chef, models: [] });
@@ -362,35 +394,36 @@ const modelGroups = computed(() => {
 
 const conversationModes = [
   {
-    value: 'agent',
-    label: '智能',
-    description: 'Agent 可以在执行任务前进行规划。适用于深度研究、复杂任务或协作工作',
+    value: "agent",
+    label: "智能",
+    description:
+      "Agent 可以在执行任务前进行规划。适用于深度研究、复杂任务或协作工作",
   },
   {
-    value: 'chat',
-    label: '对话',
-    description: '直接对话模式。适用于简单问题和快速响应',
+    value: "chat",
+    label: "对话",
+    description: "直接对话模式。适用于简单问题和快速响应",
   },
   {
-    value: 'canvas',
-    label: '画布',
-    description: '可视化工作区模式。用于创建和编辑视觉内容',
+    value: "canvas",
+    label: "画布",
+    description: "可视化工作区模式。用于创建和编辑视觉内容",
   },
   {
-    value: '图片',
-    label: '图片生成',
-    description: '图片处理模式。用于图片分析、编辑和生成',
+    value: "图片",
+    label: "图片生成",
+    description: "图片处理模式。用于图片分析、编辑和生成",
   },
   {
-    value: '视频',
-    label: '视频生成',
-    description: '视频处理模式。用于视频分析、编辑和处理',
+    value: "视频",
+    label: "视频生成",
+    description: "视频处理模式。用于视频分析、编辑和处理",
   },
 ] as const;
 
 const selectedModeLabel = computed(() => {
   const mode = conversationModes.find((m) => m.value === selectedMode.value);
-  return mode?.label || 'Chat';
+  return mode?.label || "Chat";
 });
 
 const selectedModelData = computed(() =>
@@ -562,13 +595,20 @@ function handleCopy(key: string, content: string) {
   copyTimers.set(key, timerId);
 }
 
-async function requestConversationTitleIfFirstMessage(firstUserContent: string) {
+async function requestConversationTitleIfFirstMessage(
+  firstUserContent: string
+) {
   const activeId = activeConversationId.value;
   if (!activeId) return;
 
-  const currentConversation = conversations.value.find((c) => c.id === activeId);
+  const currentConversation = conversations.value.find(
+    (c) => c.id === activeId
+  );
   if (!currentConversation) return;
-  if (currentConversation.messages.length > 0 && currentConversation.title !== "新对话") {
+  if (
+    currentConversation.messages.length > 0 &&
+    currentConversation.title !== "新对话"
+  ) {
     return;
   }
 
@@ -604,7 +644,11 @@ async function requestConversationTitleIfFirstMessage(firstUserContent: string) 
     // 额外防御：处理模型偶尔输出的“前两个字重复”情况，例如“一则一则笑话”
     // 只在字符串开头检测，避免误伤正常句子
     const maxUnitLen = 4;
-    for (let len = 1; len <= maxUnitLen && len * 2 <= normalized.length; len++) {
+    for (
+      let len = 1;
+      len <= maxUnitLen && len * 2 <= normalized.length;
+      len++
+    ) {
       const unit = normalized.slice(0, len);
       if (normalized.startsWith(unit.repeat(2))) {
         normalized = unit + normalized.slice(len * 2);
@@ -684,7 +728,10 @@ function handleElementSelected(selector: string, data?: any) {
   if (data) {
     console.log("标签名 (Tag):", data.tagName);
     console.log("ID:", data.id || "(无)");
-    console.log("类名 (Classes):", data.classList.length > 0 ? data.classList : "(无)");
+    console.log(
+      "类名 (Classes):",
+      data.classList.length > 0 ? data.classList : "(无)"
+    );
     console.log("文本内容 (Text):", data.textContent || "(无)");
     console.log("位置信息 (Position):", data.position);
     console.log("样式信息 (Styles):", data.styles);
@@ -692,21 +739,77 @@ function handleElementSelected(selector: string, data?: any) {
     console.log("完整数据对象:", data);
   }
   console.log("===================");
+
+  // 插入元素选择器标签到输入框
+  if (promptInputEditorRef.value?.insertTag) {
+    promptInputEditorRef.value.insertTag({
+      id: `element-ref-${Date.now()}`,
+      label: data?.tagName || "Element",
+      icon: browserIconSvg,
+      tagType: "browser", // 浏览器选择的标签类型
+      data: {
+        text: selector,
+        selector: selector,
+        tagName: data?.tagName,
+        id: data?.id,
+        classList: data?.classList,
+        textContent: data?.textContent,
+        position: data?.position,
+        styles: data?.styles,
+        attributes: data?.attributes,
+      },
+    });
+  }
+
   // 访问 ref 以确保 TypeScript 识别其使用
   if (immersiveCodeRef.value) {
     // ref 已挂载，可用于将来的 API 调用
   }
 }
 
-function handleCtrlIPressed(data: { code: string; startLine: number; endLine: number }) {
+function handleCtrlIPressed(data: {
+  code: string;
+  startLine: number;
+  endLine: number;
+  fileName?: string;
+}) {
   console.log("=== Ctrl+I 按下 ===");
   console.log("开始行 (Start Line):", data.startLine);
   console.log("结束行 (End Line):", data.endLine);
   console.log("代码内容长度:", data.code.length, "字符");
   console.log("===================");
+
+  // 插入代码引用标签到输入框
+  if (promptInputEditorRef.value?.insertTag) {
+    const fileName = data.fileName || "index.html";
+    // 生成标签文本: @文件名(开始行-结束行) 或 @文件名(行号)
+    const lineInfo =
+      data.startLine === data.endLine
+        ? `${data.startLine}`
+        : `${data.startLine}-${data.endLine}`;
+    const tagText = `@${fileName}(${lineInfo})`;
+
+    promptInputEditorRef.value.insertTag({
+      id: `code-ref-${Date.now()}`,
+      label: tagText.slice(1),
+      icon: htmlIconSvg,
+      data: {
+        text: tagText,
+        code: data.code,
+        startLine: data.startLine,
+        endLine: data.endLine,
+        fileName: fileName,
+      },
+    });
+  }
 }
 
-function handleTagClick(data: { id: string; label: string; icon?: string; data?: Record<string, any> }) {
+function handleTagClick(data: {
+  id: string;
+  label: string;
+  icon?: string;
+  data?: Record<string, any>;
+}) {
   console.log("=== 标签点击信息 ===");
   console.log("标签 ID:", data.id);
   console.log("标签文本:", data.label);
@@ -714,6 +817,55 @@ function handleTagClick(data: { id: string; label: string; icon?: string; data?:
   console.log("标签数据:", data.data || "(无)");
   console.log("完整标签对象:", data);
   console.log("===================");
+
+  // 如果是代码标签，处理代码跳转
+  if (data.data?.code && data.data?.startLine && data.data?.endLine) {
+    const { code, startLine, endLine } = data.data;
+
+    // 确保 ImmersiveCode 组件可见
+    if (!showCanvas.value) {
+      showCanvas.value = true;
+    }
+
+    // 调用 ImmersiveCode 的方法来设置代码、选中行并滚动
+    if (immersiveCodeRef.value?.setCodeAndSelectLines) {
+      immersiveCodeRef.value.setCodeAndSelectLines(code, startLine, endLine);
+    } else {
+      console.warn(
+        "⚠️ [ChatPanel] ImmersiveCode ref not ready or method not available"
+      );
+    }
+  }
+
+  // 如果是浏览器标签（元素选择器标签），处理预览跳转
+  // 检测条件：有 selector 字段，或者 icon 包含浏览器相关的标识
+  if (
+    data.data?.selector ||
+    (data.icon &&
+      typeof data.icon === "string" &&
+      data.icon.includes("browser"))
+  ) {
+    const selector = data.data?.selector || data.data?.text || data.label;
+
+    if (!selector) {
+      console.warn("⚠️ [ChatPanel] No selector found in browser tag data");
+      return;
+    }
+
+    // 确保 ImmersiveCode 组件可见
+    if (!showCanvas.value) {
+      showCanvas.value = true;
+    }
+
+    // 调用 ImmersiveCode 的方法来切换到预览模式并选中元素
+    if (immersiveCodeRef.value?.selectElementInPreview) {
+      immersiveCodeRef.value.selectElementInPreview(selector);
+    } else {
+      console.warn(
+        "⚠️ [ChatPanel] ImmersiveCode ref not ready or method not available"
+      );
+    }
+  }
 }
 
 // 文件上传按钮组件（必须在 PromptInput 内部使用）
@@ -721,14 +873,18 @@ const FileUploadButton = defineComponent({
   setup() {
     const { openFileDialog } = usePromptInput();
     return () =>
-      h(PromptInputButton, {
-        onClick: openFileDialog,
-      }, {
-        default: () => [
-          h(ImageIcon, { class: "w-4 h-4" }),
-          h("span", { class: "sr-only" }, "上传文件"),
-        ],
-      });
+      h(
+        PromptInputButton,
+        {
+          onClick: openFileDialog,
+        },
+        {
+          default: () => [
+            h(ImageIcon, { class: "w-4 h-4" }),
+            h("span", { class: "sr-only" }, "上传文件"),
+          ],
+        }
+      );
   },
 });
 </script>
@@ -762,9 +918,14 @@ const FileUploadButton = defineComponent({
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
+            :class="
+              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
+            "
           >
-            <Conversation v-if="hasMessages" class="conversation-content border-none">
+            <Conversation
+              v-if="hasMessages"
+              class="conversation-content border-none"
+            >
               <ConversationContent
                 class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl px-4 select-text"
               >
@@ -784,7 +945,9 @@ const FileUploadButton = defineComponent({
                       <div
                         class="flex flex-col items-center gap-1.5 shrink-0"
                         :class="
-                          message.from === 'user' ? 'order-last pl-1' : 'order-first pr-1'
+                          message.from === 'user'
+                            ? 'order-last pl-1'
+                            : 'order-first pr-1'
                         "
                       >
                         <div
@@ -794,7 +957,10 @@ const FileUploadButton = defineComponent({
                             roleStyles[message.from].ring,
                           ]"
                         >
-                          <PersonRound v-if="message.from === 'user'" class="w-5 h-5" />
+                          <PersonRound
+                            v-if="message.from === 'user'"
+                            class="w-5 h-5"
+                          />
                           <SmartToyRound v-else class="w-5 h-5" />
                         </div>
                       </div>
@@ -803,7 +969,9 @@ const FileUploadButton = defineComponent({
                         <span
                           class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
                           :class="
-                            message.from === 'user' ? 'text-right pr-1' : 'text-left pl-1'
+                            message.from === 'user'
+                              ? 'text-right pr-1'
+                              : 'text-left pl-1'
                           "
                         >
                           {{ roleStyles[message.from].label }}
@@ -826,11 +994,16 @@ const FileUploadButton = defineComponent({
                           :duration="message.reasoning.duration"
                         >
                           <ReasoningTrigger />
-                          <ReasoningContent :content="message.reasoning.content" />
+                          <ReasoningContent
+                            :content="message.reasoning.content"
+                          />
                         </Reasoning>
 
                         <MessageContent class="max-w-full">
-                          <MessageAttachments v-if="version.files?.length" class="mb-2">
+                          <MessageAttachments
+                            v-if="version.files?.length"
+                            class="mb-2"
+                          >
                             <MessageAttachment
                               v-for="(file, fileIndex) in version.files"
                               :key="file.url || file.filename || fileIndex"
@@ -925,7 +1098,8 @@ const FileUploadButton = defineComponent({
                   </MessageBranchSelector>
                   <MessageActions
                     v-else-if="
-                      message.from === 'assistant' && isAssistantMessageReady(message)
+                      message.from === 'assistant' &&
+                      isAssistantMessageReady(message)
                     "
                     class="pt-2"
                   >
@@ -962,7 +1136,8 @@ const FileUploadButton = defineComponent({
                       @click="
                         handleCopy(
                           message.key,
-                          message.versions?.[message.versions.length - 1]?.content || ''
+                          message.versions?.[message.versions.length - 1]
+                            ?.content || ''
                         )
                       "
                     >
@@ -997,9 +1172,14 @@ const FileUploadButton = defineComponent({
 
               <div
                 class="w-full px-4"
-                :class="hasMessages ? 'pb-4 md:px-6 md:pb-6' : 'pb-0'"
+                :class="hasMessages ? 'md:px-6' : 'pb-0'"
               >
-                <PromptInput class="w-full" multiple global-drop @submit="handleSubmit">
+                <PromptInput
+                  class="w-full"
+                  multiple
+                  global-drop
+                  @submit="handleSubmit"
+                >
                   <PromptInputHeader>
                     <PromptInputAttachments>
                       <template #default="{ file }">
@@ -1009,7 +1189,10 @@ const FileUploadButton = defineComponent({
                   </PromptInputHeader>
 
                   <PromptInputBody>
-                    <PromptInputEditor @tag-click="handleTagClick" />
+                    <PromptInputEditor
+                      ref="promptInputEditorRef"
+                      @tag-click="handleTagClick"
+                    />
                   </PromptInputBody>
 
                   <PromptInputFooter>
@@ -1020,7 +1203,9 @@ const FileUploadButton = defineComponent({
                             class="gap-1.5 bg-gray-200 hover:bg-gray-300"
                           >
                             <InfinityIcon class="w-4 h-4" />
-                            <span class="font-medium">{{ selectedModeLabel }}</span>
+                            <span class="font-medium">{{
+                              selectedModeLabel
+                            }}</span>
                             <ChevronDown class="w-3.5 h-3.5 opacity-50" />
                           </PromptInputButton>
                         </DropdownMenuTrigger>
@@ -1049,7 +1234,9 @@ const FileUploadButton = defineComponent({
                               ]"
                             >
                               <div class="flex flex-col gap-1 w-full">
-                                <span class="font-medium text-sm">{{ mode.label }}</span>
+                                <span class="font-medium text-sm">{{
+                                  mode.label
+                                }}</span>
                                 <span
                                   class="text-xs text-muted-foreground leading-relaxed"
                                 >
@@ -1077,7 +1264,9 @@ const FileUploadButton = defineComponent({
                         <ModelSelectorContent>
                           <ModelSelectorInput placeholder="Search models..." />
                           <ModelSelectorList>
-                            <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+                            <ModelSelectorEmpty
+                              >No models found.</ModelSelectorEmpty
+                            >
 
                             <ModelSelectorGroup
                               v-for="group in modelGroups"
@@ -1094,8 +1283,12 @@ const FileUploadButton = defineComponent({
                                   v-if="m.chefSlug"
                                   :provider="m.chefSlug"
                                 />
-                                <ModelSelectorName>{{ m.name }}</ModelSelectorName>
-                                <ModelSelectorLogoGroup v-if="m.providers?.length">
+                                <ModelSelectorName>{{
+                                  m.name
+                                }}</ModelSelectorName>
+                                <ModelSelectorLogoGroup
+                                  v-if="m.providers?.length"
+                                >
                                   <ModelSelectorLogo
                                     v-for="provider in m.providers"
                                     :key="provider"
@@ -1141,7 +1334,6 @@ const FileUploadButton = defineComponent({
                 </PromptInput>
               </div>
             </div>
-            z
           </div>
         </div>
 

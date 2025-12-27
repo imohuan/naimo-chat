@@ -76,6 +76,7 @@ const isStreaming = ref(false); // 标志：是否正在流式写入
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
 const diffEditorRef = ref<InstanceType<typeof ImmersiveDiffEditor> | null>(null);
+const previewFrameRef = ref<InstanceType<typeof PreviewFrame> | null>(null);
 
 // Computed Mode based on History
 const mode = computed<"code" | "preview" | "diff">(() => {
@@ -205,6 +206,140 @@ function streamWrite(code: string) {
   editorValue.value = code;
 }
 
+/**
+ * 切换到预览模式并选中指定元素
+ * @param selector 元素选择器
+ */
+function selectElementInPreview(selector: string) {
+  console.log("🔍 [ImmersiveCode] Selecting element in preview:", selector);
+
+  // 1. 切换到预览模式
+  uiMode.value = "preview";
+
+  // 2. 等待模式切换和 iframe 加载完成后再选中元素
+  nextTick(() => {
+    // 等待 iframe 加载
+    const trySelect = (retryCount: number = 0) => {
+      const maxRetries = 20;
+
+      if (previewFrameRef.value?.selectElementBySelector) {
+        previewFrameRef.value.selectElementBySelector(selector);
+        console.log("✅ [ImmersiveCode] Element selected in preview");
+      } else {
+        if (retryCount < maxRetries) {
+          setTimeout(() => {
+            trySelect(retryCount + 1);
+          }, 100);
+        } else {
+          console.warn("⚠️ [ImmersiveCode] Failed to select element after max retries");
+        }
+      }
+    };
+
+    trySelect();
+  });
+}
+
+/**
+ * 设置代码并选中指定行区域，滚动到可视区域
+ * @param code 要设置的代码
+ * @param startLine 开始行号（从1开始）
+ * @param endLine 结束行号（从1开始）
+ * @param retryCount 内部重试计数器，外部调用时不需要传递
+ */
+function setCodeAndSelectLines(
+  code: string,
+  startLine: number,
+  endLine: number,
+  retryCount: number = 0
+) {
+  const maxRetries = 10; // 最大重试次数
+
+  console.log("📝 [ImmersiveCode] Setting code and selecting lines:", {
+    codeLength: code.length,
+    startLine,
+    endLine,
+    retryCount,
+  });
+
+  // 1. 切换到代码模式
+  uiMode.value = "code";
+
+  // 2. 等待模式切换完成后再设置代码和选中
+  nextTick(() => {
+    // 3. 标记正在导航，避免触发自动历史记录
+    isNavigatingHistory.value = true;
+
+    // 4. 直接记录到历史（作为新版本），然后设置代码
+    record(code);
+    editorValue.value = code;
+
+    // 5. 等待编辑器更新完成后再选中和滚动
+    nextTick(() => {
+      const editor = codeEditorRef.value?.getEditor();
+      const monaco = codeEditorRef.value?.getMonaco();
+
+      if (editor && monaco) {
+        // 确保行号有效
+        const model = editor.getModel();
+        if (!model) {
+          // 清除导航标记
+          setTimeout(() => {
+            isNavigatingHistory.value = false;
+          }, 100);
+          return;
+        }
+
+        const totalLines = model.getLineCount();
+        const safeStartLine = Math.max(1, Math.min(startLine, totalLines));
+        const safeEndLine = Math.max(safeStartLine, Math.min(endLine, totalLines));
+
+        // 6. 设置选中区域
+        editor.setSelection({
+          startLineNumber: safeStartLine,
+          startColumn: 1,
+          endLineNumber: safeEndLine,
+          endColumn: model.getLineMaxColumn(safeEndLine),
+        });
+
+        // 7. 滚动到选中区域，使其在可视区域中心
+        editor.revealLineInCenter(safeStartLine);
+
+        // 如果选中多行，也确保结束行可见
+        if (safeEndLine !== safeStartLine) {
+          editor.revealLineInCenter(safeEndLine);
+        }
+
+        // 清除导航标记
+        setTimeout(() => {
+          isNavigatingHistory.value = false;
+        }, 100);
+
+        console.log("✅ [ImmersiveCode] Code set and lines selected:", {
+          safeStartLine,
+          safeEndLine,
+        });
+      } else {
+        if (retryCount < maxRetries) {
+          console.warn(
+            `⚠️ [ImmersiveCode] Editor not ready yet, retrying... (${retryCount + 1}/${maxRetries})`
+          );
+          // 如果编辑器还没准备好，延迟重试
+          setTimeout(() => {
+            setCodeAndSelectLines(code, startLine, endLine, retryCount + 1);
+          }, 100);
+        } else {
+          console.error("❌ [ImmersiveCode] Failed to set code after max retries");
+          // 清除导航标记
+          setTimeout(() => {
+            isNavigatingHistory.value = false;
+          }, 100);
+        }
+      }
+    });
+  });
+}
+
 // Expose methods for parent control
 defineExpose({
   addMajorVersion: (code?: string, label?: string) =>
@@ -248,6 +383,10 @@ defineExpose({
   startStreaming,
   endStreaming,
   streamWrite,
+  // 设置代码并选中行
+  setCodeAndSelectLines,
+  // 在预览模式中选中元素
+  selectElementInPreview,
 });
 
 // Sync Editor -> History (Debounced)
@@ -717,6 +856,7 @@ onBeforeUnmount(() => {
       >
         <div class="w-full h-full bg-white overflow-hidden relative ring-4">
           <PreviewFrame
+            ref="previewFrameRef"
             :key="previewKey"
             :code="currentCode"
             :enable-element-selector="isElementSelectorActive"
