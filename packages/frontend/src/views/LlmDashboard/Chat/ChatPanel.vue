@@ -99,6 +99,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getModeHandler } from "./modes";
+import type { ModeContext, ImmersiveCodeRef } from "./modes/types";
 
 // SVG图标字符串
 const browserIconSvg = `<svg t="1766773646500" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15057"><path d="M693.302681 34.952265c68.210189-34.105094 170.11621-57.637609 242.07796 0 71.961749 57.637609 46.723979 186.350235 30.762795 204.630566 9.071955-27.897967 27.352286-128.576206-41.471795-181.711943-63.162635-48.702075-176.459758-27.284075-247.466564 29.193961a409.329342 409.329342 0 0 1 283.276913 459.532041L666.018606 546.52868l0.06821-0.682102a34.241515 34.241515 0 0 1-6.821019 0.682102h-238.73566v13.642037A122.77834 122.77834 0 0 0 653.19509 614.738868h289.552251a409.397552 409.397552 0 0 1-472.833027 263.632379c-72.3028 76.668252-302.580397 199.173751-376.997713 25.30598-24.964929-58.387921-13.573828-209.337069 54.636361-323.043453 30.421744-50.68017 70.392915-103.543066 115.002378-155.51923 55.045622-74.553736 115.88911-137.37532 182.598675-188.532962 9.344796-8.730904 18.689592-17.257178 27.829757-25.64703L488.808536 205.477736c-129.735779 43.24526-259.403347 132.327766-336.958332 214.793884a409.261132 409.261132 0 0 1 481.495722-344.120401C661.380313 54.73322 682.525472 40.40908 693.302681 34.952265zM188.069814 655.869612l-1.773465 2.933038c-33.150152 56.205195-62.821584 182.121204-38.675177 244.874577 44.200202 114.797747 227.139928 38.879808 314.31255-27.284075A409.943234 409.943234 0 0 1 188.001604 655.937822zM543.240266 273.687925a122.77834 122.77834 0 0 0-122.369078 112.683232l-0.409261 10.095108V410.108302h238.73566c2.387357 0 4.706503 0.272841 6.889229 0.682102V396.466265a122.77834 122.77834 0 0 0-112.751442-122.369079L543.240266 273.687925z" fill="currentColor" p-id="15058"></path></svg>`;
@@ -144,6 +146,11 @@ const liked = ref<Record<string, boolean>>({});
 const disliked = ref<Record<string, boolean>>({});
 const copied = ref<Record<string, boolean>>({});
 const copyTimers = new Map<string, number>();
+// 跟踪每个消息的当前选中版本索引
+const currentVersionIndex = ref<Record<string, number>>({});
+
+// 当前模式处理器
+const currentModeHandler = computed(() => getModeHandler(selectedMode.value));
 
 // ImmersiveCode ref (保留用于将来可能的 API 调用，如 diff、streamWrite 等)
 // 在模板中使用，但 TypeScript 可能无法识别
@@ -351,7 +358,6 @@ const {
   addUserMessage,
   addAssistantPlaceholder,
   clearActiveConversation,
-  buildHistory,
 } = useChatConversations(initialMessages, endpoint.value);
 
 const availableModels = computed<SelectableModel[]>(() => {
@@ -474,6 +480,35 @@ watch(
   { immediate: true }
 );
 
+// 监听模式变化，自动应用 UI 状态
+watch(
+  selectedMode,
+  (newMode) => {
+    const handler = getModeHandler(newMode);
+    // 根据模式决定是否显示画布
+    showCanvas.value = handler.shouldShowCanvas();
+  },
+  { immediate: true }
+);
+
+// 初始化消息的默认版本索引
+watch(
+  messages,
+  (newMessages) => {
+    newMessages.forEach((message) => {
+      if (
+        message.from === "assistant" &&
+        message.versions.length > 0 &&
+        !(message.key in currentVersionIndex.value)
+      ) {
+        // 初始化默认版本索引为最后一个版本
+        currentVersionIndex.value[message.key] = message.versions.length - 1;
+      }
+    });
+  },
+  { immediate: true, deep: true }
+);
+
 function formatErrorMessage(err: unknown) {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
@@ -494,12 +529,66 @@ function formatErrorMessage(err: unknown) {
   return "请求失败";
 }
 
+/**
+ * 构建模式上下文
+ */
+function buildModeContext(
+  currentUserInput: string,
+  userFiles?: Array<{ url?: string; filename?: string; mediaType?: string }>
+): ModeContext {
+  // 获取当前编辑器代码
+  const editorCode = immersiveCodeRef.value?.getCurrentCode() || undefined;
+
+  // 构建 ImmersiveCodeRef 接口
+  const immersiveCodeRefAdapter: ImmersiveCodeRef | null =
+    immersiveCodeRef.value
+      ? {
+          getCurrentCode: () => immersiveCodeRef.value!.getCurrentCode(),
+          startStreaming: () => immersiveCodeRef.value!.startStreaming(),
+          streamWrite: (code: string) =>
+            immersiveCodeRef.value!.streamWrite(code),
+          endStreaming: () => immersiveCodeRef.value!.endStreaming(),
+          setCodeAndSelectLines:
+            typeof immersiveCodeRef.value.setCodeAndSelectLines === "function"
+              ? (code: string, startLine: number, endLine: number) =>
+                  immersiveCodeRef.value!.setCodeAndSelectLines!(
+                    code,
+                    startLine,
+                    endLine
+                  )
+              : undefined,
+          selectElementInPreview:
+            typeof immersiveCodeRef.value.selectElementInPreview === "function"
+              ? (selector: string) =>
+                  immersiveCodeRef.value!.selectElementInPreview!(selector)
+              : undefined,
+        }
+      : null;
+
+  return {
+    messages: messages.value,
+    currentUserInput,
+    editorCode,
+    uiState: {
+      showCanvas: showCanvas.value,
+      useWebSearch: useWebSearch.value,
+      useMicrophone: useMicrophone.value,
+    },
+    immersiveCodeRef: immersiveCodeRefAdapter,
+    files: userFiles,
+  };
+}
+
 async function requestAssistantReply(
   existingAssistantId?: string,
-  presetHistory?: ReturnType<typeof buildHistory>
+  currentUserInput?: string,
+  userFiles?: Array<{ url?: string; filename?: string; mediaType?: string }>
 ) {
   const assistantVersionId = existingAssistantId ?? addAssistantPlaceholder();
-  const historyBeforeAssistant = presetHistory ?? buildHistory();
+  const handler = currentModeHandler.value;
+
+  // 构建模式上下文
+  const modeContext = buildModeContext(currentUserInput || "", userFiles);
 
   if (!selectedModelData.value) {
     updateMessageContent(assistantVersionId, "未选择模型，无法发送请求");
@@ -508,15 +597,32 @@ async function requestAssistantReply(
   }
 
   try {
+    // 调用 onBeforeSubmit 钩子
+    await handler.onBeforeSubmit(modeContext);
+
+    // 更新 UI 状态（例如 showCanvas）
+    if (handler.shouldShowCanvas()) {
+      showCanvas.value = true;
+    }
+
+    // 使用模式处理器构建消息
+    const messagesToSend = handler.buildMessages(modeContext);
+
     status.value = "streaming";
+    let fullResponse = "";
+
     await sendMessageStream(
-      historyBeforeAssistant,
+      messagesToSend,
       selectedModelData.value.id,
       tempApiKey.value || undefined,
       (chunk: string) => {
-        updateMessageContent(assistantVersionId, chunk || "");
+        fullResponse = chunk;
+        // 使用模式处理器处理流式响应
+        const displayContent = handler.handleStreamResponse(chunk, modeContext);
+        updateMessageContent(assistantVersionId, displayContent || "");
       }
     );
+
     // 流式完成后，确保最终内容已更新
     const finalMessage = messages.value
       .find((msg) => msg.versions.some((v) => v.id === assistantVersionId))
@@ -524,6 +630,9 @@ async function requestAssistantReply(
     if (!finalMessage?.content) {
       updateMessageContent(assistantVersionId, "（空响应）");
     }
+
+    // 调用 onAfterSubmit 钩子
+    await handler.onAfterSubmit(modeContext, fullResponse);
   } catch (err) {
     updateMessageContent(assistantVersionId, formatErrorMessage(err));
   } finally {
@@ -546,11 +655,25 @@ function addAssistantVersion(messageKey: string) {
 
 function handleRetry(messageKey: string) {
   if (!messageKey) return;
-  const historyBeforeAssistant = buildHistory();
+  // 找到要重试的用户消息
+  const targetMessage = messages.value.find((msg) => msg.key === messageKey);
+  if (!targetMessage) return;
+  const latestVersion =
+    targetMessage.versions[targetMessage.versions.length - 1];
+  if (!latestVersion) return;
+
   const assistantVersionId = addAssistantVersion(messageKey);
   if (!assistantVersionId) return;
   status.value = "submitted";
-  requestAssistantReply(assistantVersionId, historyBeforeAssistant);
+
+  // 获取用户消息的内容和文件
+  const userFiles = latestVersion.files?.map((f) => ({
+    url: f.url,
+    filename: f.filename,
+    mediaType: f.mediaType,
+  }));
+
+  requestAssistantReply(assistantVersionId, latestVersion.content, userFiles);
 }
 
 function toggleLike(key: string) {
@@ -579,7 +702,33 @@ function resetCopied(key: string) {
   }
 }
 
-function handleCopy(key: string, content: string) {
+function handleBranchChange(messageKey: string, branchIndex: number) {
+  const message = messages.value.find((msg) => msg.key === messageKey);
+  if (!message || message.versions.length === 0) return;
+
+  // 确保索引在有效范围内
+  const validIndex = Math.max(
+    0,
+    Math.min(branchIndex, message.versions.length - 1)
+  );
+  currentVersionIndex.value[messageKey] = validIndex;
+}
+
+function handleCopy(messageKey: string) {
+  const message = messages.value.find((msg) => msg.key === messageKey);
+  if (!message || message.versions.length === 0) return;
+
+  // 获取当前选中的版本索引，如果没有则使用最后一个版本
+  let selectedIndex =
+    currentVersionIndex.value[messageKey] ?? message.versions.length - 1;
+  // 确保索引在有效范围内
+  selectedIndex = Math.max(
+    0,
+    Math.min(selectedIndex, message.versions.length - 1)
+  );
+  const version = message.versions[selectedIndex];
+  const content = version?.content || "";
+
   if (!content) return;
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     navigator.clipboard.writeText(content).catch(() => {
@@ -588,12 +737,12 @@ function handleCopy(key: string, content: string) {
   }
   copied.value = {
     ...copied.value,
-    [key]: true,
+    [messageKey]: true,
   };
-  const timerId = window.setTimeout(() => resetCopied(key), 2500);
-  const previous = copyTimers.get(key);
+  const timerId = window.setTimeout(() => resetCopied(messageKey), 2500);
+  const previous = copyTimers.get(messageKey);
   if (previous) clearTimeout(previous);
-  copyTimers.set(key, timerId);
+  copyTimers.set(messageKey, timerId);
 }
 
 async function requestConversationTitleIfFirstMessage(
@@ -663,28 +812,33 @@ async function handleSubmit(message: PromptInputMessage) {
 
   const isFirstMessage = messages.value.length === 0;
   const content = hasText ? text : "Sent with attachments";
+
+  // 转换文件格式
+  const userFiles = message.files.map((f) => ({
+    url: f.url,
+    filename: f.filename,
+    mediaType: f.mediaType,
+  }));
+
   if (isFirstMessage) {
     status.value = "submitted";
     await addUserMessage(content, message.files);
-    const historyBeforeAssistant = buildHistory();
     const assistantPlaceholderId = addAssistantPlaceholder();
     await requestConversationTitleIfFirstMessage(content);
-    await requestAssistantReply(assistantPlaceholderId, historyBeforeAssistant);
+    await requestAssistantReply(assistantPlaceholderId, content, userFiles);
   } else {
     status.value = "submitted";
     await addUserMessage(content, message.files);
-    const historyBeforeAssistant = buildHistory();
     const assistantPlaceholderId = addAssistantPlaceholder();
-    requestAssistantReply(assistantPlaceholderId, historyBeforeAssistant);
+    requestAssistantReply(assistantPlaceholderId, content, userFiles);
   }
 }
 
 async function handleSuggestionClick(suggestion: string) {
   status.value = "submitted";
   await addUserMessage(suggestion);
-  const historyBeforeAssistant = buildHistory();
   const assistantPlaceholderId = addAssistantPlaceholder();
-  requestAssistantReply(assistantPlaceholderId, historyBeforeAssistant);
+  requestAssistantReply(assistantPlaceholderId, suggestion);
 }
 
 function handleModelSelect(id: string) {
@@ -921,6 +1075,9 @@ const FileUploadButton = defineComponent({
                   :key="`${message.key}-${message.versions.length}`"
                   :default-branch="Math.max(0, message.versions.length - 1)"
                   class="px-4 pb-6 pt-2 md:px-6"
+                  @branch-change="
+                    (index) => handleBranchChange(message.key, index)
+                  "
                 >
                   <MessageBranchContent class="overflow-hidden">
                     <Message
@@ -1059,12 +1216,7 @@ const FileUploadButton = defineComponent({
                       <MessageAction
                         label="Copy"
                         tooltip="复制内容"
-                        @click="
-                          handleCopy(
-                            message.key,
-                            message.versions?.find((v) => v.id)?.content || ''
-                          )
-                        "
+                        @click="handleCopy(message.key)"
                       >
                         <CheckIcon
                           v-if="copied[message.key]"
@@ -1088,7 +1240,7 @@ const FileUploadButton = defineComponent({
                       message.from === 'assistant' &&
                       isAssistantMessageReady(message)
                     "
-                    class="pt-2"
+                    class="pt-2 ml-auto"
                   >
                     <MessageAction
                       label="Retry"
@@ -1120,13 +1272,7 @@ const FileUploadButton = defineComponent({
                     <MessageAction
                       label="Copy"
                       tooltip="复制内容"
-                      @click="
-                        handleCopy(
-                          message.key,
-                          message.versions?.[message.versions.length - 1]
-                            ?.content || ''
-                        )
-                      "
+                      @click="handleCopy(message.key)"
                     >
                       <CheckIcon
                         v-if="copied[message.key]"
