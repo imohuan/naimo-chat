@@ -83,6 +83,7 @@ import {
   X,
 } from "lucide-vue-next";
 import { computed, ref, watch, defineComponent, h } from "vue";
+import { useElementSize } from "@vueuse/core";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
 import ChatSidebar from "./components/ChatSidebar.vue";
@@ -160,6 +161,75 @@ const promptInputEditorRef = ref<InstanceType<typeof PromptInputEditor> | null>(
   null
 );
 const { pushToast } = useToasts();
+
+// 用于动态判断宽度的 ref（参考外层容器）
+const conversationContainerRef = ref<HTMLElement | null>(null);
+const { width: conversationContainerWidth } = useElementSize(
+  conversationContainerRef
+);
+
+// 根据宽度判断是否是小屏幕（小于 640px 视为小屏幕）
+const isSmallScreen = computed(() => conversationContainerWidth.value < 640);
+
+// 根据宽度动态计算 Message 的最大宽度
+const messageMaxWidth = computed(() => {
+  return isSmallScreen.value ? "max-w-full" : "max-w-[80%]";
+});
+
+// 根据宽度动态计算 Message 的布局方向和对齐方式
+const messageLayout = computed(() => {
+  if (isSmallScreen.value) {
+    // 小屏幕：纵向布局，居中对齐
+    return "flex-col items-center";
+  }
+  // 大屏幕：横向布局，保持原有对齐
+  return "flex-row";
+});
+
+// 根据宽度和消息来源动态计算头像容器的样式
+const getAvatarContainerClass = (from: MessageType["from"]) => {
+  if (isSmallScreen.value) {
+    // 小屏幕：头像和名称横向布局，在顶部
+    // 用户消息：标题在左，头像在右（倒转）
+    // 助手消息：头像在左，标题在右（正常）
+    const flexDirection = from === "user" ? "flex-row-reverse" : "flex-row";
+    return `flex ${flexDirection} items-center gap-2 shrink-0 order-first w-full pb-1`;
+  }
+  // 大屏幕：头像在左侧或右侧
+  return "flex flex-col items-center gap-1.5 shrink-0";
+};
+
+// 根据宽度动态计算头像尺寸
+const avatarSize = computed(() => {
+  return isSmallScreen.value ? "size-8" : "size-11";
+});
+
+// 根据宽度动态计算图标尺寸
+const iconSize = computed(() => {
+  return isSmallScreen.value ? "w-4 h-4" : "w-5 h-5";
+});
+
+// 根据宽度动态计算 MessageBranch 的 padding
+const messageBranchPadding = computed(() => {
+  return isSmallScreen.value ? "px-2 pb-4 pt-2" : "px-4 pb-6 pt-2 md:px-6";
+});
+
+// 根据宽度动态计算 MessageToolbar 的负边距和 padding
+const messageToolbarMargin = computed(() => {
+  const baseClasses = "sticky left-0 z-10 backdrop-blur-md";
+  if (isSmallScreen.value) {
+    return `${baseClasses} -mx-2 px-2`;
+  }
+  return `${baseClasses} -mx-4 md:-mx-6 px-4 md:px-6`;
+});
+
+// 根据宽度动态计算容器的最大宽度
+const containerMaxWidth = computed(() => {
+  if (isSmallScreen.value) {
+    return "max-w-full";
+  }
+  return "max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl";
+});
 
 const initialMessages: MessageType[] = [
   {
@@ -346,6 +416,7 @@ const { sendMessage, sendMessageStream, tempApiKey, endpoint } = useLlmApi();
 const {
   conversations,
   activeConversationId,
+  activeConversation,
   messages,
   sidebarCollapsed,
   createConversation,
@@ -358,6 +429,8 @@ const {
   addUserMessage,
   addAssistantPlaceholder,
   clearActiveConversation,
+  updateConversationMode,
+  updateConversationCodeHistory,
 } = useChatConversations(initialMessages, endpoint.value);
 
 const availableModels = computed<SelectableModel[]>(() => {
@@ -480,15 +553,112 @@ watch(
   { immediate: true }
 );
 
-// 监听模式变化，自动应用 UI 状态
+// 监听模式变化，自动应用 UI 状态并保存到对话
 watch(
   selectedMode,
   (newMode) => {
     const handler = getModeHandler(newMode);
     // 根据模式决定是否显示画布
-    showCanvas.value = handler.shouldShowCanvas();
+    if (handler.shouldShowCanvas()) {
+      // Canvas 模式：只有存在代码版本时才显示编辑器
+      if (newMode === "canvas") {
+        const currentCode = immersiveCodeRef.value?.getCurrentCode();
+        // 检查代码是否非空（存在版本）
+        showCanvas.value = !!(currentCode && currentCode.trim());
+      } else {
+        showCanvas.value = true;
+      }
+    } else {
+      showCanvas.value = false;
+    }
+
+    // 保存模式到当前对话
+    if (activeConversationId.value) {
+      updateConversationMode(activeConversationId.value, newMode).catch(
+        (err) => {
+          console.error("保存对话模式失败:", err);
+        }
+      );
+    }
   },
   { immediate: true }
+);
+
+// 监听对话切换，恢复模式和代码历史
+watch(
+  activeConversationId,
+  (newId) => {
+    if (!newId) return;
+
+    const conversation = activeConversation.value;
+    if (!conversation) return;
+
+    // 恢复模式
+    if (conversation.mode && conversation.mode !== selectedMode.value) {
+      selectedMode.value = conversation.mode;
+    }
+
+    // 恢复代码历史（仅在 canvas 模式下）
+    if (
+      conversation.mode === "canvas" &&
+      conversation.codeHistory &&
+      immersiveCodeRef.value
+    ) {
+      try {
+        immersiveCodeRef.value.setHistory(conversation.codeHistory);
+        // 恢复后检查是否有代码，如果有则显示编辑器
+        const currentCode = immersiveCodeRef.value.getCurrentCode();
+        if (currentCode && currentCode.trim()) {
+          showCanvas.value = true;
+        }
+      } catch (error) {
+        console.error("恢复代码历史失败:", error);
+      }
+    } else if (conversation.mode !== "canvas") {
+      // 如果不是 canvas 模式，清空代码历史显示状态
+      showCanvas.value = false;
+    }
+  },
+  { immediate: true }
+);
+
+// 定期保存代码历史到对话（防抖保存）
+let codeHistorySaveTimer: ReturnType<typeof setTimeout> | null = null;
+function saveCodeHistory() {
+  if (!activeConversationId.value || selectedMode.value !== "canvas") return;
+  if (!immersiveCodeRef.value) return;
+
+  try {
+    const history = immersiveCodeRef.value.getHistory();
+    if (history && history.versions.length > 0) {
+      // 清除之前的定时器
+      if (codeHistorySaveTimer) {
+        clearTimeout(codeHistorySaveTimer);
+      }
+      // 防抖保存（1秒后保存）
+      codeHistorySaveTimer = setTimeout(() => {
+        updateConversationCodeHistory(
+          activeConversationId.value!,
+          history
+        ).catch((err) => {
+          console.error("保存代码历史失败:", err);
+        });
+      }, 1000);
+    }
+  } catch (error) {
+    console.error("获取代码历史失败:", error);
+  }
+}
+
+// 监听代码变化，保存代码历史
+watch(
+  () => immersiveCodeRef.value?.getCurrentCode(),
+  () => {
+    if (selectedMode.value === "canvas") {
+      saveCodeHistory();
+    }
+  },
+  { deep: true }
 );
 
 // 初始化消息的默认版本索引
@@ -544,6 +714,10 @@ function buildModeContext(
     immersiveCodeRef.value
       ? {
           getCurrentCode: () => immersiveCodeRef.value!.getCurrentCode(),
+          getPreviousVersionCode:
+            typeof immersiveCodeRef.value.getPreviousVersionCode === "function"
+              ? () => immersiveCodeRef.value!.getPreviousVersionCode!()
+              : undefined,
           startStreaming: () => immersiveCodeRef.value!.startStreaming(),
           streamWrite: (code: string) =>
             immersiveCodeRef.value!.streamWrite(code),
@@ -562,6 +736,11 @@ function buildModeContext(
               ? (selector: string) =>
                   immersiveCodeRef.value!.selectElementInPreview!(selector)
               : undefined,
+          addMajorVersion:
+            typeof immersiveCodeRef.value.addMajorVersion === "function"
+              ? (code?: string, label?: string) =>
+                  immersiveCodeRef.value!.addMajorVersion!(code, label)
+              : undefined,
         }
       : null;
 
@@ -576,6 +755,9 @@ function buildModeContext(
     },
     immersiveCodeRef: immersiveCodeRefAdapter,
     files: userFiles,
+    onShowCanvasChange: (show: boolean) => {
+      showCanvas.value = show;
+    },
   };
 }
 
@@ -602,7 +784,14 @@ async function requestAssistantReply(
 
     // 更新 UI 状态（例如 showCanvas）
     if (handler.shouldShowCanvas()) {
-      showCanvas.value = true;
+      // Canvas 模式：只有存在代码版本时才显示编辑器
+      if (selectedMode.value === "canvas") {
+        const currentCode = immersiveCodeRef.value?.getCurrentCode();
+        // 检查代码是否非空（存在版本）
+        showCanvas.value = !!(currentCode && currentCode.trim());
+      } else {
+        showCanvas.value = true;
+      }
     }
 
     // 使用模式处理器构建消息
@@ -633,6 +822,16 @@ async function requestAssistantReply(
 
     // 调用 onAfterSubmit 钩子
     await handler.onAfterSubmit(modeContext, fullResponse);
+
+    // 如果是 canvas 模式，检查是否有代码版本，如果有则显示编辑器并保存代码历史
+    if (handler.shouldShowCanvas() && selectedMode.value === "canvas") {
+      const currentCode = immersiveCodeRef.value?.getCurrentCode();
+      if (currentCode && currentCode.trim()) {
+        showCanvas.value = true;
+        // 保存代码历史
+        saveCodeHistory();
+      }
+    }
   } catch (err) {
     updateMessageContent(assistantVersionId, formatErrorMessage(err));
   } finally {
@@ -1056,7 +1255,8 @@ const FileUploadButton = defineComponent({
       <div class="flex h-full w-full flex-1 overflow-hidden">
         <!-- 左侧对话区域 -->
         <div
-          class="flex h-full w-full py-4 md:py-6"
+          ref="conversationContainerRef"
+          class="flex h-full w-full py-4 md:py-6 overflow-hidden"
           :class="hasMessages ? 'flex-col' : 'items-center justify-center'"
         >
           <div
@@ -1070,49 +1270,69 @@ const FileUploadButton = defineComponent({
               class="conversation-content border-none"
             >
               <ConversationContent
-                class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl px-4 select-text"
+                :class="['mx-auto w-full px-4 select-text', containerMaxWidth]"
               >
                 <MessageBranch
                   v-for="message in messages"
                   :key="`${message.key}-${message.versions.length}`"
                   :default-branch="Math.max(0, message.versions.length - 1)"
-                  class="px-4 pb-6 pt-2 md:px-6"
+                  :class="messageBranchPadding"
                   @branch-change="
                     (index) => handleBranchChange(message.key, index)
                   "
                 >
-                  <MessageBranchContent>
+                  <!-- 允许 Grid 子元素缩小到比内容更小的尺寸 Message 的 max-w-[80%] 限制才能生效 -->
+                  <MessageBranchContent class="min-w-0">
                     <Message
                       v-for="version in message.versions"
                       :key="`${message.key}-${version.id}`"
                       :from="message.from"
-                      class="items-start gap-3"
+                      :max-width="messageMaxWidth"
+                      :class="[
+                        'gap-3',
+                        messageLayout,
+                        isSmallScreen ? 'ml-0! justify-center!' : '',
+                      ]"
                     >
                       <div
-                        class="flex flex-col items-center gap-1.5 shrink-0"
-                        :class="
-                          message.from === 'user'
-                            ? 'order-last pl-1'
-                            : 'order-first pr-1'
-                        "
+                        :class="[
+                          getAvatarContainerClass(message.from),
+                          !isSmallScreen &&
+                            (message.from === 'user'
+                              ? 'order-last pl-1'
+                              : 'order-first pr-1'),
+                        ]"
                       >
                         <div
-                          class="size-11 rounded-full flex items-center justify-center text-white shadow-sm ring-2"
                           :class="[
+                            avatarSize,
+                            'rounded-full flex items-center justify-center text-white shadow-sm ring-2',
                             roleStyles[message.from].bg,
                             roleStyles[message.from].ring,
                           ]"
                         >
                           <PersonRound
                             v-if="message.from === 'user'"
-                            class="w-5 h-5"
+                            :class="iconSize"
                           />
-                          <SmartToyRound v-else class="w-5 h-5" />
+                          <SmartToyRound v-else :class="iconSize" />
                         </div>
+                        <span
+                          v-if="isSmallScreen"
+                          class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
+                        >
+                          {{ roleStyles[message.from].label }}
+                        </span>
                       </div>
 
-                      <div class="flex-1 min-w-0 flex flex-col gap-1">
+                      <div
+                        :class="[
+                          'flex flex-col gap-1',
+                          isSmallScreen ? 'w-full min-w-0' : 'flex-1 min-w-0',
+                        ]"
+                      >
                         <span
+                          v-if="!isSmallScreen"
                           class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
                           :class="
                             message.from === 'user'
@@ -1175,11 +1395,11 @@ const FileUploadButton = defineComponent({
 
                   <!-- 统一的工具栏：多个版本时显示完整工具栏（包含分支选择器和操作按钮） -->
                   <MessageToolbar
-                    class="sticky bottom-0 z-10 backdrop-blur-md -mx-4 md:-mx-6 px-4 md:px-6"
+                    v-if="message.from === 'assistant'"
+                    :class="messageToolbarMargin"
                   >
                     <MessageBranchSelector
                       v-if="
-                        message.from === 'assistant' &&
                         message.versions.length > 1 &&
                         isAssistantMessageReady(message)
                       "
@@ -1254,12 +1474,13 @@ const FileUploadButton = defineComponent({
             </Conversation>
 
             <div
-              class="mx-auto w-full max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl"
-              :class="
+              :class="[
+                'mx-auto w-full ',
+                containerMaxWidth,
                 hasMessages
                   ? 'grid shrink-0 gap-4'
-                  : 'flex flex-col items-center justify-center'
-              "
+                  : 'flex flex-col items-center justify-center',
+              ]"
             >
               <Suggestions v-if="hasMessages" class="px-4 md:px-6">
                 <Suggestion
@@ -1437,33 +1658,35 @@ const FileUploadButton = defineComponent({
           </div>
         </div>
 
-        <!-- 右侧 ImmersiveCode 区域 -->
-        <div
-          v-if="showCanvas"
-          class="shrink-0 w-2/3 h-full flex flex-col overflow-hidden p-2"
-        >
-          <div class="h-full w-full">
-            <ImmersiveCode
-              ref="immersiveCodeRef"
-              :enable-share="false"
-              :readonly="false"
-              @error="handleImmersiveError"
-              @element-selected="handleElementSelected"
-              @ctrl-i-pressed="handleCtrlIPressed"
-              class="immersive-code-full-height"
-            >
-              <template #right-actions>
-                <button
-                  @click="showCanvas = false"
-                  class="p-1.5 text-slate-400 hover:text-slate-600 transition rounded"
-                  title="关闭画布"
-                >
-                  <X class="w-4 h-4" />
-                </button>
-              </template>
-            </ImmersiveCode>
+        <template v-if="selectedMode === 'canvas'">
+          <!-- 右侧 ImmersiveCode 区域 -->
+          <div
+            v-show="showCanvas"
+            class="shrink-0 w-2/3 h-full flex flex-col overflow-hidden p-2"
+          >
+            <div class="h-full w-full">
+              <ImmersiveCode
+                ref="immersiveCodeRef"
+                :enable-share="false"
+                :readonly="false"
+                @error="handleImmersiveError"
+                @element-selected="handleElementSelected"
+                @ctrl-i-pressed="handleCtrlIPressed"
+                class="immersive-code-full-height"
+              >
+                <template #right-actions>
+                  <button
+                    @click="showCanvas = false"
+                    class="p-1.5 text-slate-400 hover:text-slate-600 transition rounded"
+                    title="关闭画布"
+                  >
+                    <X class="w-4 h-4" />
+                  </button>
+                </template>
+              </ImmersiveCode>
+            </div>
           </div>
-        </div>
+        </template>
       </div>
     </div>
   </div>

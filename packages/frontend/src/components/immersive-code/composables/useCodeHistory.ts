@@ -215,6 +215,67 @@ export function useCodeHistory(initialCode: string = "") {
     }
   }
 
+  /**
+   * 获取完整的历史版本数据（用于保存）
+   * 注意：不包含 records 字段，只保存版本的基本信息
+   */
+  function getHistory() {
+    return {
+      versions: versions.value.map((v) => ({
+        id: v.id,
+        timestamp: v.timestamp,
+        label: v.label,
+        currentIndex: v.currentIndex,
+        // 不包含 records 字段
+      })),
+      currentVersionIndex: currentVersionIndex.value,
+    };
+  }
+
+  /**
+   * 设置历史版本数据（用于恢复）
+   * 如果版本没有 records 字段，会为每个版本创建一个默认的 record
+   */
+  function setHistory(history: {
+    versions: Array<{
+      id: string;
+      timestamp: number;
+      label: string;
+      currentIndex?: number;
+      records?: HistoryRecord[];
+    }>;
+    currentVersionIndex: number;
+  }) {
+    if (history.versions && history.versions.length > 0) {
+      // 为每个版本创建完整的 MajorVersion 结构
+      versions.value = history.versions.map((v) => ({
+        id: v.id,
+        timestamp: v.timestamp,
+        label: v.label,
+        // 如果有 records，使用它；否则创建一个默认的 record
+        records: v.records && v.records.length > 0
+          ? v.records
+          : [
+            {
+              id: generateId(),
+              code: currentCode.value || "", // 使用当前代码或空字符串
+              timestamp: v.timestamp,
+            },
+          ],
+        currentIndex: v.currentIndex ?? 0,
+      }));
+      const validIndex = Math.max(
+        0,
+        Math.min(history.currentVersionIndex, versions.value.length - 1)
+      );
+      currentVersionIndex.value = validIndex;
+      console.log("📥 [ImmersiveHistory] History restored", {
+        versionCount: versions.value.length,
+        currentIndex: currentVersionIndex.value,
+      });
+    }
+  }
+
   return {
     versions: readonly(versions),
     currentVersionIndex: readonly(currentVersionIndex),
@@ -229,5 +290,7 @@ export function useCodeHistory(initialCode: string = "") {
     undo,
     redo,
     switchVersion,
+    getHistory,
+    setHistory,
   };
 }

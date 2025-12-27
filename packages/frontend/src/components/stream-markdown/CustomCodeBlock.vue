@@ -21,7 +21,12 @@
         <button class="icon-btn" type="button" @click="preview" title="Preview">
           <Eye class="icon-btn__icon" />
         </button>
-        <button class="icon-btn" type="button" @click="download" title="Download">
+        <button
+          class="icon-btn"
+          type="button"
+          @click="download"
+          title="Download"
+        >
           <Download class="icon-btn__icon" />
         </button>
       </div>
@@ -60,7 +65,8 @@ const runHighlight = async () => {
   try {
     const highlighter = await highlighterPromise;
     const lang = (props.language || "text").toLowerCase();
-    const code = typeof props.code === "string" ? props.code : String(props.code ?? "");
+    const code =
+      typeof props.code === "string" ? props.code : String(props.code ?? "");
 
     // 对超大代码块做降级，避免严重卡顿
     if (code.length > 200_000) {
@@ -87,7 +93,8 @@ watch(
     }
 
     // 更小的防抖间隔，兼顾流式体验与性能
-    const delay = typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
+    const delay =
+      typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
 
     highlightTimer = window.setTimeout(() => {
       runHighlight();
@@ -120,7 +127,8 @@ const preview = () => {
     return;
   }
 
-  const code = typeof props.code === "string" ? props.code : String(props.code ?? "");
+  const code =
+    typeof props.code === "string" ? props.code : String(props.code ?? "");
 
   const isFullHtml = /<!doctype html>/i.test(code) || /<html[\s>]/i.test(code);
   const html = isFullHtml
@@ -275,7 +283,8 @@ function guessExtension(lang?: string) {
   letter-spacing: 0.02em;
   cursor: pointer;
   border: none;
-  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  transition: color 120ms ease, border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 .collapse-btn:hover {

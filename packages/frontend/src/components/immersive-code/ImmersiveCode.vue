@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
+import {
+  ref,
+  watch,
+  computed,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+} from "vue";
 import {
   Undo2,
   Redo2,
@@ -27,20 +34,25 @@ import DEFAULT_CODE from "./default-ui.html?raw";
 /**
  * Initial Code Template
  */
-const props = withDefaults(defineProps<{
-  initialCode?: string;
-  enableShare?: boolean;
-  readonly?: boolean;
-  title?: string;
-}>(), {
-  title: 'Fixed Script',
-});
+const props = withDefaults(
+  defineProps<{
+    initialCode?: string;
+    enableShare?: boolean;
+    readonly?: boolean;
+    title?: string;
+  }>(),
+  {
+    title: "Fixed Script",
+  }
+);
 
 // Define emits for error notifications
 const emit = defineEmits<{
   error: [message: string];
   "element-selected": [selector: string, data?: any];
-  "ctrl-i-pressed": [data: { code: string; startLine: number; endLine: number }];
+  "ctrl-i-pressed": [
+    data: { code: string; startLine: number; endLine: number }
+  ];
 }>();
 
 const {
@@ -55,6 +67,8 @@ const {
   undo,
   redo,
   switchVersion,
+  getHistory,
+  setHistory,
 } = useCodeHistory(props.initialCode || DEFAULT_CODE);
 
 const { applyDiff } = useCodeDiff();
@@ -75,7 +89,9 @@ const isStreaming = ref(false); // 标志：是否正在流式写入
 
 // Editor Refs
 const codeEditorRef = ref<InstanceType<typeof CodeEditor> | null>(null);
-const diffEditorRef = ref<InstanceType<typeof ImmersiveDiffEditor> | null>(null);
+const diffEditorRef = ref<InstanceType<typeof ImmersiveDiffEditor> | null>(
+  null
+);
 const previewFrameRef = ref<InstanceType<typeof PreviewFrame> | null>(null);
 
 // Computed Mode based on History
@@ -139,10 +155,12 @@ watch(
 // The "Modified" side is computed by applying the stored DIFF (patch) to the current code.
 // This makes the history the single source of truth for the Diff state.
 // 使用 ref 存储 diff 应用结果，避免在计算属性中重复计算
-const diffResult = ref<{ content: string; success: boolean; message?: string }>({
-  content: "",
-  success: true,
-});
+const diffResult = ref<{ content: string; success: boolean; message?: string }>(
+  {
+    content: "",
+    success: true,
+  }
+);
 
 // 监听 diff 应用，只在需要时执行一次
 watch(
@@ -199,11 +217,35 @@ function endStreaming() {
 
 function streamWrite(code: string) {
   if (!isStreaming.value) {
-    console.warn("⚠️ [ImmersiveCode] streamWrite called but not in streaming mode");
+    console.warn(
+      "⚠️ [ImmersiveCode] streamWrite called but not in streaming mode"
+    );
     return;
   }
   // 直接更新编辑器值，不记录历史
   editorValue.value = code;
+
+  // 确保代码编辑器也同步更新（如果编辑器已初始化）
+  // 使用 nextTick 确保编辑器已经挂载
+  nextTick(() => {
+    if (mode.value === "code" && codeEditorRef.value) {
+      const editor = codeEditorRef.value.getEditor();
+      if (editor && editor.getValue() !== code) {
+        editor.setValue(code);
+      }
+    } else if (mode.value === "diff" && diffEditorRef.value) {
+      // 在 diff 模式下，流式写入应该更新右侧（modified side）
+      // 获取 diff 编辑器的 modified editor 并更新其内容
+      const diffEditor = diffEditorRef.value.getDiffEditor();
+      if (diffEditor) {
+        const modifiedEditor = diffEditor.getModifiedEditor();
+        const modifiedModel = modifiedEditor.getModel();
+        if (modifiedModel && modifiedModel.getValue() !== code) {
+          modifiedModel.setValue(code);
+        }
+      }
+    }
+  });
 }
 
 /**
@@ -231,7 +273,9 @@ function selectElementInPreview(selector: string) {
             trySelect(retryCount + 1);
           }, 100);
         } else {
-          console.warn("⚠️ [ImmersiveCode] Failed to select element after max retries");
+          console.warn(
+            "⚠️ [ImmersiveCode] Failed to select element after max retries"
+          );
         }
       }
     };
@@ -292,7 +336,10 @@ function setCodeAndSelectLines(
 
         const totalLines = model.getLineCount();
         const safeStartLine = Math.max(1, Math.min(startLine, totalLines));
-        const safeEndLine = Math.max(safeStartLine, Math.min(endLine, totalLines));
+        const safeEndLine = Math.max(
+          safeStartLine,
+          Math.min(endLine, totalLines)
+        );
 
         // 6. 设置选中区域
         editor.setSelection({
@@ -322,14 +369,18 @@ function setCodeAndSelectLines(
       } else {
         if (retryCount < maxRetries) {
           console.warn(
-            `⚠️ [ImmersiveCode] Editor not ready yet, retrying... (${retryCount + 1}/${maxRetries})`
+            `⚠️ [ImmersiveCode] Editor not ready yet, retrying... (${
+              retryCount + 1
+            }/${maxRetries})`
           );
           // 如果编辑器还没准备好，延迟重试
           setTimeout(() => {
             setCodeAndSelectLines(code, startLine, endLine, retryCount + 1);
           }, 100);
         } else {
-          console.error("❌ [ImmersiveCode] Failed to set code after max retries");
+          console.error(
+            "❌ [ImmersiveCode] Failed to set code after max retries"
+          );
           // 清除导航标记
           setTimeout(() => {
             isNavigatingHistory.value = false;
@@ -340,11 +391,42 @@ function setCodeAndSelectLines(
   });
 }
 
+// 获取上一个主要版本的代码
+function getPreviousVersionCode(): string {
+  if (currentVersionIndex.value > 0) {
+    const previousVersion = versions.value[currentVersionIndex.value - 1];
+    if (
+      previousVersion &&
+      previousVersion.records &&
+      previousVersion.records.length > 0
+    ) {
+      const lastRecordIndex =
+        previousVersion.currentIndex ?? previousVersion.records.length - 1;
+      return previousVersion.records[lastRecordIndex]?.code || "";
+    }
+  }
+  // 如果当前版本有多个记录，获取上一个记录的代码
+  const currentVersion = versions.value[currentVersionIndex.value];
+  if (
+    currentVersion &&
+    currentVersion.records &&
+    currentVersion.records.length > 1
+  ) {
+    const previousRecordIndex =
+      (currentVersion.currentIndex ?? currentVersion.records.length - 1) - 1;
+    if (previousRecordIndex >= 0) {
+      return currentVersion.records[previousRecordIndex]?.code || "";
+    }
+  }
+  return "";
+}
+
 // Expose methods for parent control
 defineExpose({
   addMajorVersion: (code?: string, label?: string) =>
     addMajorVersion(code || currentCode.value, label),
   getCurrentCode: () => currentCode.value,
+  getPreviousVersionCode,
   /**
    * Enter Diff/Contrast Mode
    * @param diffContent The RAW diff content (SEARCH/REPLACE blocks)
@@ -387,6 +469,9 @@ defineExpose({
   setCodeAndSelectLines,
   // 在预览模式中选中元素
   selectElementInPreview,
+  // 获取和设置历史版本
+  getHistory,
+  setHistory,
 });
 
 // Sync Editor -> History (Debounced)
@@ -412,7 +497,11 @@ const debouncedRecord = (val: string) => {
   // 设置新的防抖任务
   debounceTimer = setTimeout(() => {
     // Only record if we are in 'code' mode
-    if (mode.value === "code" && !isNavigatingHistory.value && !isStreaming.value) {
+    if (
+      mode.value === "code" &&
+      !isNavigatingHistory.value &&
+      !isStreaming.value
+    ) {
       record(val);
     }
     debounceTimer = null;
@@ -569,8 +658,7 @@ function handleKeyDown(event: KeyboardEvent) {
     // 检查是否在 Monaco Editor 中（Monaco Editor 有自己的快捷键处理）
     // 如果焦点在编辑器内，让编辑器自己处理 Ctrl+Z/Ctrl+Y
     const isInEditor =
-      target.closest(".monaco-editor") ||
-      target.closest('[class*="monaco"]');
+      target.closest(".monaco-editor") || target.closest('[class*="monaco"]');
     if (isInEditor) {
       // 对于编辑器内的快捷键，我们仍然需要处理一些全局快捷键
       // 但跳过编辑器的默认快捷键（如 Ctrl+Z, Ctrl+Y）
@@ -608,7 +696,11 @@ function handleKeyDown(event: KeyboardEvent) {
   }
 
   // Ctrl+Z: 撤销
-  if ((event.ctrlKey || event.metaKey) && event.key === "z" && !event.shiftKey) {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    event.key === "z" &&
+    !event.shiftKey
+  ) {
     event.preventDefault();
     event.stopPropagation();
     if (canUndo.value) {
@@ -620,8 +712,7 @@ function handleKeyDown(event: KeyboardEvent) {
   // Ctrl+Y 或 Ctrl+Shift+Z: 恢复/重做
   if (
     (event.ctrlKey || event.metaKey) &&
-    (event.key === "y" ||
-      (event.key === "z" && event.shiftKey))
+    (event.key === "y" || (event.key === "z" && event.shiftKey))
   ) {
     event.preventDefault();
     event.stopPropagation();
@@ -643,14 +734,20 @@ function handleKeyDown(event: KeyboardEvent) {
   }
 
   // Ctrl+S: 阻止系统默认保存
-  if ((event.ctrlKey || event.metaKey) && (event.key === "s" || event.key === "S")) {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    (event.key === "s" || event.key === "S")
+  ) {
     event.preventDefault();
     event.stopPropagation();
     return;
   }
 
   // Ctrl+R: 刷新预览页面
-  if ((event.ctrlKey || event.metaKey) && (event.key === "r" || event.key === "R")) {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    (event.key === "r" || event.key === "R")
+  ) {
     event.preventDefault();
     event.stopPropagation();
     refreshPreview();
@@ -677,7 +774,9 @@ onBeforeUnmount(() => {
       class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-100 z-20"
     >
       <div class="flex items-center space-x-4">
-        <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
+        <div
+          class="flex items-center space-x-2 text-slate-700 font-semibold select-none"
+        >
           <Code2 class="w-5 h-5 text-purple-600" />
           <span>{{ props.title }}</span>
         </div>

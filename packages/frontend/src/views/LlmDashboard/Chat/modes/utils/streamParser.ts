@@ -41,7 +41,7 @@ export function extractHtmlCode(content: string): string | null {
     return null;
   }
   // 返回最后一个 HTML 代码块（通常是最新的/完整的）
-  return htmlBlocks[htmlBlocks.length - 1].code;
+  return htmlBlocks[htmlBlocks.length - 1]?.code || null;
 }
 
 /**
@@ -57,9 +57,9 @@ export function extractJsCode(content: string): string | null {
     if (jsBlocksAlt.length === 0) {
       return null;
     }
-    return jsBlocksAlt[jsBlocksAlt.length - 1].code;
+    return jsBlocksAlt[jsBlocksAlt.length - 1]?.code || null;
   }
-  return jsBlocks[jsBlocks.length - 1].code;
+  return jsBlocks[jsBlocks.length - 1]?.code || null;
 }
 
 /**
@@ -72,6 +72,6 @@ export function extractCssCode(content: string): string | null {
   if (cssBlocks.length === 0) {
     return null;
   }
-  return cssBlocks[cssBlocks.length - 1].code;
+  return cssBlocks[cssBlocks.length - 1]?.code || null;
 }
 

@@ -10,7 +10,7 @@ import { extractHtmlCode } from "./utils/streamParser";
 export const canvasModeHandler: ConversationModeHandler = {
   mode: "canvas",
 
-  getSystemPrompt(context: ModeContext): ChatMessage[] {
+  getSystemPrompt(_context: ModeContext): ChatMessage[] {
     return getCanvasModeSystemPrompt();
   },
 
@@ -25,31 +25,29 @@ export const canvasModeHandler: ConversationModeHandler = {
     if (context.editorCode && context.editorCode.trim()) {
       messages.push({
         role: "user",
-        content: `当前编辑器中的代码：\n\`\`\`html\n${context.editorCode}\n\`\`\``,
+        content: `文件 index.html 的代码：\n\`\`\`html\n${context.editorCode}\n\`\`\``,
       });
     }
 
-    // 添加历史消息
-    context.messages.forEach((msg) => {
-      const latestVersion = msg.versions[msg.versions.length - 1];
-      if (!latestVersion) return;
-
-      const hasFiles = latestVersion.files && latestVersion.files.length > 0;
+    // 添加当前用户消息（不包含历史消息）
+    if (context.currentUserInput || context.files?.length) {
+      const hasFiles = context.files && context.files.length > 0;
 
       if (!hasFiles) {
-        if (!latestVersion.content) return;
-        messages.push({
-          role: msg.from,
-          content: latestVersion.content,
-        });
+        if (context.currentUserInput) {
+          messages.push({
+            role: "user",
+            content: context.currentUserInput,
+          });
+        }
       } else {
         const contentParts: ChatMessageContentPart[] = [];
 
-        if (latestVersion.content) {
-          contentParts.push({ type: "text", text: latestVersion.content });
+        if (context.currentUserInput) {
+          contentParts.push({ type: "text", text: context.currentUserInput });
         }
 
-        latestVersion.files?.forEach((file) => {
+        context.files?.forEach((file) => {
           if (file.mediaType?.startsWith("image/") && file.url) {
             contentParts.push({
               type: "image_url",
@@ -63,14 +61,14 @@ export const canvasModeHandler: ConversationModeHandler = {
           }
         });
 
-        if (contentParts.length === 0) return;
-
-        messages.push({
-          role: msg.from,
-          content: contentParts,
-        });
+        if (contentParts.length > 0) {
+          messages.push({
+            role: "user",
+            content: contentParts,
+          });
+        }
       }
-    });
+    }
 
     return messages;
   },
@@ -81,6 +79,10 @@ export const canvasModeHandler: ConversationModeHandler = {
     if (htmlCode && context.immersiveCodeRef) {
       try {
         context.immersiveCodeRef.streamWrite(htmlCode);
+        // 检测到 HTML 代码后，显示编辑器
+        if (context.onShowCanvasChange) {
+          context.onShowCanvasChange(true);
+        }
       } catch (error) {
         console.error("Canvas mode: Failed to stream write code:", error);
       }
@@ -91,9 +93,6 @@ export const canvasModeHandler: ConversationModeHandler = {
   },
 
   async onBeforeSubmit(context: ModeContext): Promise<void> {
-    // 确保画布显示
-    context.uiState.showCanvas = true;
-
     // 开始流式写入模式
     if (context.immersiveCodeRef) {
       try {
@@ -109,8 +108,36 @@ export const canvasModeHandler: ConversationModeHandler = {
     if (context.immersiveCodeRef) {
       try {
         context.immersiveCodeRef.endStreaming();
+
+        // 检查流式写入是否包含 HTML 代码
+        const htmlCode = extractHtmlCode(fullResponse);
+        if (htmlCode && context.immersiveCodeRef.addMajorVersion) {
+          const currentCode = context.immersiveCodeRef.getCurrentCode();
+          if (currentCode && currentCode.trim()) {
+            // 获取上一个版本的代码
+            const previousVersionCode = context.immersiveCodeRef.getPreviousVersionCode
+              ? context.immersiveCodeRef.getPreviousVersionCode()
+              : "";
+
+            // 比较当前代码和之前版本的代码是否一致
+            // 去除首尾空白后比较
+            const currentCodeTrimmed = currentCode.trim();
+            const previousCodeTrimmed = previousVersionCode.trim();
+
+            // 如果不一致，才添加主要版本
+            if (currentCodeTrimmed !== previousCodeTrimmed) {
+              const timestamp = new Date().toLocaleTimeString();
+              context.immersiveCodeRef.addMajorVersion(
+                currentCode,
+                `Canvas Version ${timestamp}`
+              );
+            } else {
+              console.log("Canvas mode: Code unchanged, skipping major version creation");
+            }
+          }
+        }
       } catch (error) {
-        console.error("Canvas mode: Failed to end streaming:", error);
+        console.error("Canvas mode: Failed to end streaming or add version:", error);
       }
     }
   },

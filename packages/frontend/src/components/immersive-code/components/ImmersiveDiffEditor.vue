@@ -176,7 +176,7 @@ onMounted(async () => {
   }
 });
 
-  // 处理滚轮缩放（与 CodeEditor 保持一致）
+// 处理滚轮缩放（与 CodeEditor 保持一致）
 function handleWheel(event: WheelEvent) {
   if (event.ctrlKey && diffEditor.value && monaco) {
     event.preventDefault();
@@ -536,6 +536,7 @@ defineExpose({
   handleAcceptAll,
   getFontSize,
   setFontSize,
+  getDiffEditor: () => diffEditor.value,
 });
 </script>
 
@@ -573,9 +574,11 @@ defineExpose({
 
 /* 编辑器的宽度 */
 :deep(.monaco-diff-editor .monaco-editor.modified-in-monaco-diff-editor.vs),
-:deep(.monaco-diff-editor
-    .monaco-editor.modified-in-monaco-diff-editor.vs
-    .overflow-guard) {
+:deep(
+    .monaco-diff-editor
+      .monaco-editor.modified-in-monaco-diff-editor.vs
+      .overflow-guard
+  ) {
   width: 100% !important;
 }
 

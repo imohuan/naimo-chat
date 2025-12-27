@@ -43,6 +43,22 @@ export interface Conversation {
   createdAt: number;
   messages: MessageType[];
   pending?: boolean;
+  mode?: string; // 对话模式：chat, canvas, agent, 图片, 视频
+  codeHistory?: {
+    versions: Array<{
+      id: string;
+      timestamp: number;
+      label: string;
+      records: Array<{
+        id: string;
+        code: string;
+        diffTarget?: string;
+        timestamp: number;
+      }>;
+      currentIndex: number;
+    }>;
+    currentVersionIndex: number;
+  }; // 编辑器历史版本
 }
 
 // 本地存储的 UI 状态（不存储在服务器）
@@ -200,7 +216,8 @@ export function useChatConversations(
     const conversation = conversations.value.find((c) => c.id === id);
 
     // 如果本地没有对话数据，使用默认值（PUT 接口会自动创建）
-    const conversationData = conversation || {
+    const conversationData: Conversation = conversation || {
+      id,
       title: "新对话",
       messages: [],
       createdAt: Date.now(),
@@ -213,6 +230,8 @@ export function useChatConversations(
         messages: conversationData.messages,
         createdAt: conversationData.createdAt,
         pending: conversationData.pending,
+        mode: conversationData.mode,
+        codeHistory: conversationData.codeHistory,
       });
 
       // 如果本地没有这个对话，添加到列表中
@@ -222,6 +241,57 @@ export function useChatConversations(
     } catch (err) {
       console.error("保存对话失败:", err);
       throw err;
+    }
+  }
+
+  /**
+   * 更新对话的模式
+   */
+  async function updateConversationMode(id: string, mode: string) {
+    const conversation = conversations.value.find((c) => c.id === id);
+    if (!conversation) return;
+
+    conversations.value = conversations.value.map((c) =>
+      c.id === id ? { ...c, mode } : c
+    );
+
+    try {
+      await updateConversationApi(baseUrl, id, { mode });
+    } catch (err) {
+      console.error("保存对话模式失败:", err);
+      // 回滚更改
+      if (conversation) {
+        conversations.value = conversations.value.map((c) =>
+          c.id === id ? conversation : c
+        );
+      }
+    }
+  }
+
+  /**
+   * 更新对话的代码历史
+   */
+  async function updateConversationCodeHistory(
+    id: string,
+    codeHistory: Conversation["codeHistory"]
+  ) {
+    const conversation = conversations.value.find((c) => c.id === id);
+    if (!conversation) return;
+
+    conversations.value = conversations.value.map((c) =>
+      c.id === id ? { ...c, codeHistory } : c
+    );
+
+    try {
+      await updateConversationApi(baseUrl, id, { codeHistory });
+    } catch (err) {
+      console.error("保存代码历史失败:", err);
+      // 回滚更改
+      if (conversation) {
+        conversations.value = conversations.value.map((c) =>
+          c.id === id ? conversation : c
+        );
+      }
     }
   }
 
@@ -556,6 +626,8 @@ export function useChatConversations(
     buildHistory,
     loadConversations,
     saveConversation,
+    updateConversationMode,
+    updateConversationCodeHistory,
   };
 }
 

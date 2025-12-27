@@ -20,6 +20,8 @@ export interface ModeUIState {
 export interface ImmersiveCodeRef {
   /** 获取当前代码 */
   getCurrentCode: () => string;
+  /** 获取上一个版本的代码 */
+  getPreviousVersionCode?: () => string;
   /** 开始流式写入模式 */
   startStreaming: () => void;
   /** 流式写入代码 */
@@ -30,6 +32,8 @@ export interface ImmersiveCodeRef {
   setCodeAndSelectLines?: (code: string, startLine: number, endLine: number) => void;
   /** 在预览模式中选中元素 */
   selectElementInPreview?: (selector: string) => void;
+  /** 添加主要版本 */
+  addMajorVersion?: (code?: string, label?: string) => void;
 }
 
 /**
@@ -49,6 +53,8 @@ export interface ModeContext {
   immersiveCodeRef?: ImmersiveCodeRef | null;
   /** 用户上传的文件 */
   files?: Array<{ url?: string; filename?: string; mediaType?: string }>;
+  /** 更新 showCanvas 的回调函数 */
+  onShowCanvasChange?: (show: boolean) => void;
 }
 
 /**
