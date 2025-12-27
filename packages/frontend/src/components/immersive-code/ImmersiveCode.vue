@@ -1126,7 +1126,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Diff Editor Area -->
-      <div v-show="mode === 'diff'" class="flex-1 overflow-hidden relative z-0">
+      <div v-if="mode === 'diff'" class="flex-1 overflow-hidden relative z-0">
         <ImmersiveDiffEditor
           ref="diffEditorRef"
           :original="currentCode"
