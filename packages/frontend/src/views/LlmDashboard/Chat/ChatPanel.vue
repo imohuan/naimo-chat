@@ -596,6 +596,9 @@ watch(
   { immediate: true }
 );
 
+// 保存上一次的对话 ID，用于判断是否真的切换了对话
+const previousConversationId = ref<string | undefined>(undefined);
+
 // 监听对话切换，恢复模式和代码历史
 watch(
   [activeConversationId, () => activeConversation.value],
@@ -609,6 +612,10 @@ watch(
       conversation = retryConversation;
     }
 
+    // 判断是否真的切换了对话（对话 ID 变化）
+    const isConversationSwitched = newId !== previousConversationId.value;
+    previousConversationId.value = newId;
+
     // 恢复模式（先设置模式，让组件开始创建）
     if (conversation.mode && conversation.mode !== selectedMode.value) {
       selectedMode.value = conversation.mode;
@@ -617,8 +624,9 @@ watch(
       await nextTick();
     }
 
-    // 恢复代码历史（仅在 canvas 模式下）
-    if (conversation.mode === "canvas") {
+    // 恢复代码历史（仅在 canvas 模式下，且只有在切换对话时才恢复）
+    // 关键：如果只是同一个对话内更新消息（如 addUserMessage），不应该恢复代码历史
+    if (conversation.mode === "canvas" && isConversationSwitched) {
       // 检查 codeHistory 是否有 versions
       const hasCodeHistory =
         conversation.codeHistory?.versions &&
@@ -637,7 +645,7 @@ watch(
           attempts++;
         }
 
-        // 组件挂载后，恢复代码历史
+        // 组件挂载后，恢复代码历史（只在切换对话时）
         if (immersiveCodeRef.value && conversation.codeHistory) {
           try {
             immersiveCodeRef.value.setHistory(conversation.codeHistory);
@@ -1163,7 +1171,7 @@ async function handleSubmit(message: PromptInputMessage) {
     status.value = "submitted";
     await addUserMessage(content, message.files);
     const assistantPlaceholderId = addAssistantPlaceholder();
-    requestAssistantReply(assistantPlaceholderId, content, userFiles);
+    await requestAssistantReply(assistantPlaceholderId, content, userFiles);
   }
 }
 

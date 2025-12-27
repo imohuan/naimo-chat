@@ -22,10 +22,13 @@ export const canvasModeHandler: ConversationModeHandler = {
     messages.push(...systemPrompt);
 
     // 如果有编辑器代码，作为上下文添加到消息中
-    if (context.editorCode && context.editorCode.trim()) {
+    // 优先从编辑器引用获取当前代码（实时），如果无法获取则使用 editorCode（构建时的快照）
+    const currentEditorCode = context.editorCode || "";
+
+    if (currentEditorCode && currentEditorCode.trim()) {
       messages.push({
         role: "user",
-        content: `文件 index.html 的代码：\n\`\`\`html\n${context.editorCode}\n\`\`\``,
+        content: `文件 index.html 的代码：\n\`\`\`html\n${currentEditorCode}\n\`\`\``,
       });
     }
 

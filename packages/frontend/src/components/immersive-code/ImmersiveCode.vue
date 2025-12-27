@@ -107,6 +107,16 @@ const mode = computed<"code" | "preview" | "diff">(() => {
   return uiMode.value;
 });
 
+// 预览代码：流式写入期间使用 editorValue，否则使用 currentCode
+const previewCode = computed(() => {
+  // 流式写入期间，使用最新的 editorValue
+  if (isStreaming.value) {
+    return editorValue.value;
+  }
+  // 否则使用历史记录中的 currentCode
+  return currentCode.value;
+});
+
 // 监听模式变化，同步字体大小
 watch(
   () => mode.value,
@@ -466,7 +476,9 @@ defineExpose({
     const codeToUse = code || editorValue.value || currentCode.value;
     return addMajorVersion(codeToUse, label);
   },
-  getCurrentCode: () => editorValue.value || currentCode.value,
+  getCurrentCode: () => {
+    return editorValue.value || currentCode.value;
+  },
   getPreviousVersionCode,
   /**
    * Enter Diff/Contrast Mode
@@ -644,8 +656,9 @@ function handlePreviewLoadError() {
 }
 
 // 监听代码变化，当处于预览模式时启动加载状态
+// 监听 previewCode（流式写入期间会使用 editorValue，否则使用 currentCode）
 watch(
-  () => currentCode.value,
+  () => previewCode.value,
   () => {
     if (mode.value === "preview") {
       isLoadingPreview.value = true;
@@ -1075,7 +1088,7 @@ onBeforeUnmount(() => {
           <PreviewFrame
             ref="previewFrameRef"
             :key="previewKey"
-            :code="currentCode"
+            :code="previewCode"
             :enable-element-selector="isElementSelectorActive"
             @console-log="handleLog"
             @element-selected="handleElementSelected"
