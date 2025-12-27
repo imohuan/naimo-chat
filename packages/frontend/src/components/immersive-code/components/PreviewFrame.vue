@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable no-useless-escape */
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import LOG_SCRIPT from "./preload/log.js?raw";
 import ELEMENT_SELECTOR_SCRIPT from "./preload/element-selector.js?raw";
@@ -168,9 +169,25 @@ function handleIframeLoad() {
   }
 }
 
+// 检查 iframe 是否已经加载完成
+function checkIfLoaded(): boolean {
+  if (!iframeRef.value) return false;
+  try {
+    const iframeDoc =
+      iframeRef.value.contentDocument ||
+      iframeRef.value.contentWindow?.document;
+    return iframeDoc?.readyState === "complete" || hasLoaded.value;
+  } catch (e) {
+    // 跨域或其他错误，使用内部状态
+    return hasLoaded.value;
+  }
+}
+
 defineExpose({
   refresh,
   selectElementBySelector,
+  checkIfLoaded,
+  getIframe: () => iframeRef.value,
 });
 
 // Listen to messages

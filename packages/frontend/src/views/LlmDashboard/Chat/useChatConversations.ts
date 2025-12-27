@@ -215,6 +215,16 @@ export function useChatConversations(
   async function saveConversation(id: string) {
     const conversation = conversations.value.find((c) => c.id === id);
 
+    // 如果对话是 pending 状态，先确保在服务器上创建对话
+    if (conversation?.pending) {
+      try {
+        await ensureConversationCreated(id);
+      } catch (err) {
+        console.error("创建对话失败:", err);
+        // 即使创建失败，也继续尝试保存（PUT 接口可能会自动创建）
+      }
+    }
+
     // 如果本地没有对话数据，使用默认值（PUT 接口会自动创建）
     const conversationData: Conversation = conversation || {
       id,
@@ -379,11 +389,29 @@ export function useChatConversations(
       messages: [],
       pending: true,
     };
+    // 只创建本地 pending 对话，不立即调用 API
+    // 只有在用户输入内容并生成标题时才会真正创建对话
+    conversations.value = [convo, ...conversations.value];
+    activeConversationId.value = id;
+    localStorage.setItem(ACTIVE_CONVERSATION_KEY, id);
+  }
+
+  /**
+   * 确保对话已在服务器上创建（如果对话是 pending 状态）
+   */
+  async function ensureConversationCreated(id: string) {
+    const conversation = conversations.value.find((c) => c.id === id);
+    if (!conversation || !conversation.pending) {
+      return; // 对话已存在或不是 pending 状态
+    }
+
     try {
-      await createConversationApi(baseUrl, convo);
-      conversations.value = [convo, ...conversations.value];
-      activeConversationId.value = id;
-      localStorage.setItem(ACTIVE_CONVERSATION_KEY, id);
+      // 调用 API 创建对话
+      await createConversationApi(baseUrl, conversation);
+      // 更新本地状态，移除 pending 标记
+      conversations.value = conversations.value.map((c) =>
+        c.id === id ? { ...c, pending: false } : c
+      );
     } catch (err) {
       console.error("创建对话失败:", err);
       error.value = err instanceof Error ? err.message : "创建对话失败";
@@ -628,6 +656,7 @@ export function useChatConversations(
     saveConversation,
     updateConversationMode,
     updateConversationCodeHistory,
+    ensureConversationCreated,
   };
 }
 

@@ -432,6 +432,7 @@ const {
   clearActiveConversation,
   updateConversationMode,
   updateConversationCodeHistory,
+  ensureConversationCreated,
 } = useChatConversations(initialMessages, endpoint.value);
 
 const availableModels = computed<SelectableModel[]>(() => {
@@ -623,36 +624,61 @@ watch(
   { immediate: true }
 );
 
-// 定期保存代码历史到对话（防抖保存）
-let codeHistorySaveTimer: ReturnType<typeof setTimeout> | null = null;
-function saveCodeHistory(immediate = false) {
+// 保存代码历史到对话（只保存流式写入产生的记录）
+function saveCodeHistory() {
   if (!activeConversationId.value || selectedMode.value !== "canvas") return;
   if (!immersiveCodeRef.value) return;
 
   try {
     const history = immersiveCodeRef.value.getHistory();
     if (history && history.versions.length > 0) {
-      // 清除之前的定时器
-      if (codeHistorySaveTimer) {
-        clearTimeout(codeHistorySaveTimer);
-        codeHistorySaveTimer = null;
-      }
+      // 过滤历史记录：只保留每个版本中最后一个由流式写入产生的记录
+      const filteredVersions = history.versions
+        .map((version) => {
+          // 找到所有流式写入的记录
+          const streamingRecords = version.records.filter(
+            (r) => r.isStreamingRecord === true
+          );
 
-      const save = () => {
+          // 只保留有流式写入记录的版本，且只保留最后一个流式写入记录
+          if (streamingRecords.length > 0) {
+            const lastStreamingRecord =
+              streamingRecords[streamingRecords.length - 1];
+            if (lastStreamingRecord) {
+              return {
+                id: version.id,
+                timestamp: version.timestamp,
+                label: version.label,
+                records: [
+                  {
+                    id: lastStreamingRecord.id,
+                    code: lastStreamingRecord.code,
+                    diffTarget: lastStreamingRecord.diffTarget,
+                    timestamp: lastStreamingRecord.timestamp,
+                  },
+                ],
+                currentIndex: 0, // 因为只保留一个记录，索引总是 0
+              };
+            }
+          }
+          // 如果没有流式写入记录，返回 null（会被 filter 过滤掉）
+          return null;
+        })
+        .filter((v): v is NonNullable<typeof v> => v !== null); // 过滤掉没有流式写入记录的版本
+
+      const filteredHistory = {
+        versions: filteredVersions,
+        currentVersionIndex: history.currentVersionIndex,
+      };
+
+      // 只保存有流式写入记录的版本
+      if (filteredHistory.versions.length > 0) {
         updateConversationCodeHistory(
           activeConversationId.value!,
-          history
+          filteredHistory
         ).catch((err) => {
           console.error("保存代码历史失败:", err);
         });
-      };
-
-      if (immediate) {
-        // 立即保存（用于组件卸载或对话切换时）
-        save();
-      } else {
-        // 防抖保存（1秒后保存）
-        codeHistorySaveTimer = setTimeout(save, 1000);
       }
     }
   } catch (error) {
@@ -660,94 +686,17 @@ function saveCodeHistory(immediate = false) {
   }
 }
 
-// 监听代码变化，保存代码历史
-watch(
-  () => immersiveCodeRef.value?.getCurrentCode(),
-  () => {
-    if (selectedMode.value === "canvas") {
-      saveCodeHistory();
-    }
-  },
-  { deep: true }
-);
-
-// 监听版本历史变化（通过定期检查 getHistory 的返回值）
-// 这样可以捕获版本切换、添加新版本等操作
-let historyCheckInterval: ReturnType<typeof setInterval> | null = null;
-let lastHistorySnapshot: string | null = null;
-
-function startHistoryWatcher() {
-  if (historyCheckInterval) return;
-
-  historyCheckInterval = setInterval(() => {
-    if (!activeConversationId.value || selectedMode.value !== "canvas") return;
-    if (!immersiveCodeRef.value) return;
-
-    try {
-      const history = immersiveCodeRef.value.getHistory();
-      if (history && history.versions.length > 0) {
-        // 序列化历史数据用于比较
-        const historySnapshot = JSON.stringify({
-          versionCount: history.versions.length,
-          currentVersionIndex: history.currentVersionIndex,
-          versionIds: history.versions.map((v) => v.id),
-          versionLabels: history.versions.map((v) => v.label),
-          recordCounts: history.versions.map((v) => v.records?.length || 0),
-        });
-
-        // 如果历史发生变化，触发保存
-        if (lastHistorySnapshot !== historySnapshot) {
-          lastHistorySnapshot = historySnapshot;
-          saveCodeHistory();
-        }
-      }
-    } catch (error) {
-      console.error("检查代码历史失败:", error);
-    }
-  }, 500); // 每 500ms 检查一次
-}
-
-function stopHistoryWatcher() {
-  if (historyCheckInterval) {
-    clearInterval(historyCheckInterval);
-    historyCheckInterval = null;
-  }
-  lastHistorySnapshot = null;
-}
-
-// 在 canvas 模式下启动历史监听
-watch(
-  () => selectedMode.value === "canvas" && showCanvas.value,
-  (isCanvasMode) => {
-    if (isCanvasMode) {
-      startHistoryWatcher();
-    } else {
-      stopHistoryWatcher();
-    }
-  },
-  { immediate: true }
-);
-
-// 组件卸载时立即保存并清理
+// 组件卸载时保存代码历史
 onBeforeUnmount(() => {
-  stopHistoryWatcher();
-  if (codeHistorySaveTimer) {
-    clearTimeout(codeHistorySaveTimer);
-    codeHistorySaveTimer = null;
-  }
-  // 立即保存当前代码历史
-  saveCodeHistory(true);
+  saveCodeHistory();
 });
 
-// 对话切换时立即保存当前对话的代码历史
-watch(activeConversationId, (newId, oldId) => {
-  // 切换对话前，立即保存旧对话的代码历史
+// 对话切换时保存当前对话的代码历史
+watch(activeConversationId, (_newId, oldId) => {
+  // 切换对话前，保存旧对话的代码历史
   if (oldId && selectedMode.value === "canvas") {
-    saveCodeHistory(true);
+    saveCodeHistory();
   }
-  // 停止旧对话的监听，新对话会在 watch showCanvas 时自动启动
-  stopHistoryWatcher();
-  lastHistorySnapshot = null;
 });
 
 // 初始化消息的默认版本索引
@@ -1055,6 +1004,16 @@ async function requestConversationTitleIfFirstMessage(
     return;
   }
 
+  // 如果对话是 pending 状态，先确保在服务器上创建对话
+  if (currentConversation.pending) {
+    try {
+      await ensureConversationCreated(activeId);
+    } catch (err) {
+      console.error("创建对话失败:", err);
+      // 即使创建失败，也继续尝试生成标题
+    }
+  }
+
   if (!selectedModelData.value) return;
 
   let titleDraft = "";
@@ -1070,7 +1029,7 @@ async function requestConversationTitleIfFirstMessage(
     // 基础清洗：去掉换行与首尾空白
     let normalized = titleDraft.replace(/\r?\n/g, "").trim();
 
-    // 额外防御：处理模型偶尔输出的“前两个字重复”情况，例如“一则一则笑话”
+    // 额外防御：处理模型偶尔输出的"前两个字重复"情况，例如"一则一则笑话"
     // 只在字符串开头检测，避免误伤正常句子
     const maxUnitLen = 4;
     for (

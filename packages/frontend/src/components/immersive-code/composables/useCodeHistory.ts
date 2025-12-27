@@ -5,6 +5,7 @@ export interface HistoryRecord {
   code: string;
   diffTarget?: string; // If present, implies we are in diff mode
   timestamp: number;
+  isStreamingRecord?: boolean; // 标识是否由流式写入产生的记录
 }
 
 export interface MajorVersion {
@@ -105,8 +106,11 @@ export function useCodeHistory(initialCode: string = "") {
 
   /**
    * Add a new minor record (editor history) to the current Major Version.
+   * @param code 代码内容
+   * @param diffTarget 可选的差异目标（用于 diff 模式）
+   * @param isStreamingRecord 是否为流式写入产生的记录（用于 canvas 模式保存时过滤）
    */
-  function record(code: string, diffTarget?: string) {
+  function record(code: string, diffTarget?: string, isStreamingRecord?: boolean) {
     const last = currentRecord.value;
 
     // De-duplication Logic
@@ -146,6 +150,7 @@ export function useCodeHistory(initialCode: string = "") {
       code,
       diffTarget: diffTarget, // Can be undefined, which means EXIT diff mode
       timestamp: Date.now(),
+      isStreamingRecord: isStreamingRecord ?? false,
     };
 
     v.records.push(newRecord);
@@ -230,6 +235,7 @@ export function useCodeHistory(initialCode: string = "") {
           code: r.code,
           diffTarget: r.diffTarget,
           timestamp: r.timestamp,
+          isStreamingRecord: r.isStreamingRecord,
         })),
         currentIndex: v.currentIndex,
       })),

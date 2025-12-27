@@ -210,11 +210,11 @@ function startStreaming() {
 function endStreaming() {
   console.log("🌊 [ImmersiveCode] Ending streaming mode");
   isStreaming.value = false;
-  // 流式写入结束后，记录一次最终状态
+  // 流式写入结束后，记录一次最终状态，并标记为流式写入记录
   if (mode.value === "code") {
-    record(editorValue.value);
+    record(editorValue.value, undefined, true);
   } else if (mode.value === "diff") {
-    record(editorValue.value, currentDiffTarget.value);
+    record(editorValue.value, currentDiffTarget.value, true);
   }
 }
 
@@ -645,10 +645,42 @@ watch(
 // 监听模式变化，当切换到预览模式时启动加载状态
 watch(
   () => mode.value,
-  (newMode) => {
+  async (newMode) => {
     if (newMode === "preview") {
       isLoadingPreview.value = true;
       previewLoadError.value = false;
+
+      // 如果从其他模式切换到预览模式，检查 iframe 是否已经加载完成
+      // 如果已经加载完成，立即隐藏进度条
+      await nextTick();
+      if (previewFrameRef.value?.checkIfLoaded) {
+        const isLoaded = previewFrameRef.value.checkIfLoaded();
+        if (isLoaded) {
+          // iframe 已经加载完成，立即隐藏进度条
+          isLoadingPreview.value = false;
+          previewLoadError.value = false;
+        } else {
+          // 如果 iframe 还没有加载完成，设置一个后备超时
+          // 如果 500ms 后还没有收到 load 事件，假设已经加载完成（可能是跨域问题）
+          setTimeout(() => {
+            if (isLoadingPreview.value && mode.value === "preview") {
+              isLoadingPreview.value = false;
+            }
+          }, 500);
+
+          // 注意：如果之后收到 load 事件，handlePreviewLoadComplete 会清除加载状态
+          // 这个超时只是一个后备方案
+        }
+      } else {
+        // 如果组件还没有准备好，设置一个短暂的后备超时
+        setTimeout(() => {
+          if (isLoadingPreview.value && mode.value === "preview") {
+            if (previewFrameRef.value?.checkIfLoaded?.()) {
+              isLoadingPreview.value = false;
+            }
+          }
+        }, 100);
+      }
     } else {
       // 离开预览模式时重置状态
       isLoadingPreview.value = false;
