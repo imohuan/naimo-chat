@@ -31,11 +31,22 @@ export function useConversation() {
       const conversations = await chatApi.fetchConversations();
       store.setConversations(conversations);
 
-      // 如果没有活跃对话且有对话列表，选择第一个
-      if (!store.activeConversationId && conversations.length > 0) {
+      // 如果有活跃对话，加载其详情（确保消息数据完整）
+      if (store.activeConversationId) {
+        const activeId = store.activeConversationId;
+        // 检查活跃对话是否在列表中
+        const existsInList = conversations.some((c) => c.id === activeId);
+        if (existsInList) {
+          // 加载对话详情，确保消息数据完整
+          await loadConversation(activeId);
+        }
+      } else if (conversations.length > 0) {
+        // 如果没有活跃对话且有对话列表，选择第一个并加载详情
         const firstConversation = conversations[0];
         if (firstConversation) {
           store.setActiveConversationId(firstConversation.id);
+          // 加载对话详情，确保消息数据完整
+          await loadConversation(firstConversation.id);
         }
       }
     } catch (error) {
