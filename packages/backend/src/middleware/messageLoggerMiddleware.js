@@ -261,19 +261,31 @@ function createMessageLoggerMiddleware(options = {}) {
 
     // 提取请求数据
     const requestData = extractRequestData(req);
-    const requestId = req.id;
+    const originalRequestId = req.id;
 
-    // 在响应头中添加请求 ID，方便客户端获取
-    reply.header("X-Request-Id", requestId);
+    // 生成带时间戳的唯一 ID，避免重复
+    // 格式：req-{原始ID}-{时间戳}
+    // 如果原始 ID 已经包含 req- 前缀，则去掉前缀再拼接
+    const baseId = originalRequestId.toString().replace(/^req-/, '');
+    const timestamp = Date.now();
+    const uniqueRequestId = `req-${baseId}-${timestamp}`;
+
+    // 更新请求数据中的 requestId 为唯一 ID
+    requestData.requestId = uniqueRequestId;
+
+    // 在响应头中添加唯一请求 ID，方便客户端获取
+    reply.header("X-Request-Id", uniqueRequestId);
 
     // 将请求数据存储到 request 对象上，供 onSend hook 使用
     req._messageLogger = {
       requestData,
-      startTime: Date.now(),
+      startTime: timestamp,
+      originalRequestId,
+      uniqueRequestId,
     };
 
-    // 立即保存请求文件
-    saveRequestFile(requestId, requestData).catch((err) => {
+    // 立即保存请求文件（使用唯一 ID）
+    saveRequestFile(uniqueRequestId, requestData).catch((err) => {
       console.error(`[MessageLogger] 保存请求文件失败:`, err);
     });
   };
@@ -295,11 +307,11 @@ function createMessageLoggerMiddleware(options = {}) {
       return payload;
     }
 
-    const { requestData, startTime } = req._messageLogger;
+    const { requestData, startTime, uniqueRequestId } = req._messageLogger;
     const duration = Date.now() - startTime;
-    const requestId = req.id;
+    const requestId = uniqueRequestId || req.id;
 
-    // 确保响应头中包含请求 ID（防止其他中间件覆盖）
+    // 确保响应头中包含唯一请求 ID（防止其他中间件覆盖）
     reply.header("X-Request-Id", requestId);
 
     // 检查是否是流式响应

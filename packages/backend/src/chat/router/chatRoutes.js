@@ -386,4 +386,4 @@ function registerChatRoutes(server) {
   });
 }
 
-module.exports = { registerChatRoutes };
+module.exports = { registerChatRoutes, getClaudeConfig };

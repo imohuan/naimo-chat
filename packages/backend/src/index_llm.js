@@ -103,7 +103,7 @@ async function startProcessManager() {
 
   // 等待服务启动后打开浏览器（仅在首次启动时）
   setTimeout(() => {
-    openBrowser(serviceUrl);
+    // openBrowser(serviceUrl);
   }, 2000);
 
   // 监听重启信号文件

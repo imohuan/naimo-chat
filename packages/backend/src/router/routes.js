@@ -9,6 +9,7 @@ const { registerMcpRoutes } = require("./mcpRoutes");
 const { registerClaudeRoutes } = require("./claudeRoutes");
 const { registerProjectRoutes } = require("./projectRoutes");
 const { registerChatModuleRoutes } = require("../chat/router");
+const { registerAiChatRoutes } = require("../conversations/router");
 
 function registerApiRoutes(server) {
   const app = server.app;
@@ -28,6 +29,7 @@ function registerApiRoutes(server) {
   registerClaudeRoutes(server);
   registerProjectRoutes(server);
   registerChatModuleRoutes(server);
+  registerAiChatRoutes(server);
 
   // 注册静态文件服务
   try {
@@ -39,20 +41,23 @@ function registerApiRoutes(server) {
       registerEmbeddedStatic(app, "/ui/");
       console.log("✅ 使用嵌入的静态资源");
     } catch {
-      // 如果嵌入资源不可用，回退到文件系统（开发模式）
-      console.log("📁 使用文件系统静态资源（开发模式）");
-      const publicPath = join(__dirname, "..", "..", "public");
-      app.register(fastifyStatic, {
-        root: publicPath,
-        prefix: "/ui/",
-        maxAge: "1h",
-        logLevel: "silent",
-      });
 
-      app.get("/ui", async (_, reply) => {
-        return reply.redirect("/ui/");
-      });
     }
+
+
+    // 如果嵌入资源不可用，回退到文件系统（开发模式）
+    console.log("📁 使用文件系统静态资源（开发模式）");
+    const publicPath = join(__dirname, "..", "..", "public");
+    app.register(fastifyStatic, {
+      root: publicPath,
+      prefix: "/static/",
+      maxAge: "1h",
+      logLevel: "silent",
+    });
+
+    app.get("/static", async (_, reply) => {
+      return reply.redirect("/static/");
+    });
   } catch (error) {
     console.warn("静态文件服务不可用:", error.message);
   }
