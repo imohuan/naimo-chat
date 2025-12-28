@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useElementSize } from "@vueuse/core";
+import { ref, watch } from "vue";
 import { PersonRound, SmartToyRound } from "@vicons/material";
 import { RefreshCcwIcon, CopyIcon, CheckIcon } from "lucide-vue-next";
 import {
@@ -37,9 +36,11 @@ import {
 } from "@/components/ai-elements/reasoning";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { MessageType } from "@/views/LlmDashboard/Chat/types";
+import type { ChatLayoutConfig } from "@/views/LlmDashboard/Chat/hooks/useChatLayout";
 
 const props = defineProps<{
   messages: MessageType[];
+  layoutConfig: ChatLayoutConfig;
 }>();
 
 const emit = defineEmits<{
@@ -48,34 +49,17 @@ const emit = defineEmits<{
   branchChange: [messageKey: string, branchIndex: number];
 }>();
 
-// 容器引用，用于响应式布局
-const conversationContainerRef = ref<HTMLElement | null>(null);
-const { width: conversationContainerWidth } = useElementSize(conversationContainerRef);
-
-// 响应式布局计算
-const isSmallScreen = computed(() => conversationContainerWidth.value < 640);
-const messageMaxWidth = computed(() =>
-  isSmallScreen.value ? "max-w-full" : "max-w-[80%]"
-);
-const messageLayout = computed(() =>
-  isSmallScreen.value ? "flex-col items-center" : "flex-row"
-);
-const avatarSize = computed(() => (isSmallScreen.value ? "size-8" : "size-11"));
-const iconSize = computed(() => (isSmallScreen.value ? "w-4 h-4" : "w-5 h-5"));
-const messageBranchPadding = computed(() =>
-  isSmallScreen.value ? "px-2 pb-4 pt-2" : "px-4 pb-6 pt-2 md:px-6"
-);
-const messageToolbarMargin = computed(() => {
-  const baseClasses = "sticky left-0 z-10 backdrop-blur-md";
-  return isSmallScreen.value
-    ? `${baseClasses} -mx-2 px-2`
-    : `${baseClasses} -mx-4 md:-mx-6 px-4 md:px-6`;
-});
-const containerMaxWidth = computed(() =>
-  isSmallScreen.value
-    ? "max-w-full"
-    : "max-w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-6xl"
-);
+// 從 props 中解構佈局配置
+const {
+  isSmallScreen,
+  messageMaxWidth,
+  messageLayout,
+  avatarSize,
+  iconSize,
+  messageBranchPadding,
+  messageToolbarMargin,
+  containerMaxWidth,
+} = props.layoutConfig;
 
 // 角色样式
 const roleStyles: Record<
@@ -96,7 +80,7 @@ const roleStyles: Record<
 
 // 获取头像容器类
 const getAvatarContainerClass = (from: MessageType["from"]) => {
-  if (isSmallScreen.value) {
+  if (isSmallScreen) {
     const flexDirection = from === "user" ? "flex-row-reverse" : "flex-row";
     return `flex ${flexDirection} items-center gap-2 shrink-0 order-first w-full pb-1`;
   }

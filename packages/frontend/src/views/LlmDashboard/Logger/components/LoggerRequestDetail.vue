@@ -18,7 +18,7 @@ import ToolUseEdit from "./ToolUseEdit.vue";
 import ImageDisplay from "@/components/llm/ImageDisplay.vue";
 import QueueExample from "./QueueExample.vue";
 import type { LogRequest, LogChatMessage } from "../types";
-import { useCharLoading } from "@/composables/useCharLoading";
+import { useCharLoading } from "@/hooks/useCharLoading";
 
 const props = defineProps<{
   request: LogRequest | null;

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, defineComponent, h } from "vue";
-import type { InstanceType } from "vue";
 import type { ChatStatus } from "ai";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import {
@@ -16,24 +15,13 @@ import {
   PromptInputTools,
   usePromptInput,
 } from "@/components/ai-elements/prompt-input";
-import {
-  ModelSelector,
-  ModelSelectorContent,
-  ModelSelectorEmpty,
-  ModelSelectorGroup,
-  ModelSelectorInput,
-  ModelSelectorItem,
-  ModelSelectorList,
-  ModelSelectorLogo,
-  ModelSelectorLogoGroup,
-  ModelSelectorName,
-  ModelSelectorTrigger,
-} from "@/components/ai-elements/model-selector";
-import { MicRound, CheckCircleRound } from "@vicons/material";
-import { Globe, ImageIcon } from "lucide-vue-next";
+import { MicRound } from "@vicons/material";
+import RouterModelSelect from "@/components/llm/RouterModelSelect.vue";
+import { Globe, ImageIcon, Sparkles } from "lucide-vue-next";
 import ModeSelector from "./ModeSelector.vue";
 import type { ConversationMode } from "@/views/LlmDashboard/Chat/types";
 import type { LlmProvider } from "@/interface";
+import { useModelSelection } from "@/views/LlmDashboard/Chat/hooks/useModelSelection";
 
 const props = defineProps<{
   mode: ConversationMode;
@@ -61,70 +49,27 @@ const emit = defineEmits<{
   ];
 }>();
 
-// 模型选择器状态
-const modelSelectorOpen = ref(false);
-
-// 可用模型计算
-type SelectableModel = {
-  id: string;
-  name: string;
-  chef: string;
-  chefSlug?: string;
-  providers?: string[];
-};
-
-const fallbackModels: SelectableModel[] = [
-  {
-    id: "gpt-4o",
-    name: "GPT-4o",
-    chef: "OpenAI",
-    chefSlug: "openai",
-    providers: ["openai", "azure"],
-  },
-];
-
-const availableModels = computed<SelectableModel[]>(() => {
-  const activeProviders = (props.providers || []).filter(
-    (provider) => provider.enabled !== false
-  );
-
-  if (activeProviders.length > 0) {
-    return activeProviders.flatMap((provider) => {
-      const slug =
-        provider.name
-          ?.toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "") || "provider";
-
-      return (provider.models || []).map((model) => ({
-        id: `${provider.name},${model}`,
-        name: model,
-        chef: provider.name,
-        chefSlug: slug,
-        providers: [slug],
-      }));
-    });
-  }
-  return fallbackModels;
-});
-
-const modelGroups = computed(() => {
-  const groups = new Map<string, { heading: string; models: SelectableModel[] }>();
-  availableModels.value.forEach((m) => {
-    if (!groups.has(m.chef)) {
-      groups.set(m.chef, { heading: m.chef, models: [] });
+// 收集所有可用的模型選項（格式：provider,model）
+const allModelOptions = computed(() => {
+  const options: string[] = [];
+  (props.providers || []).forEach((provider) => {
+    if (provider.enabled !== false && provider.models) {
+      provider.models.forEach((model) => {
+        options.push(`${provider.name},${model}`);
+      });
     }
-    groups.get(m.chef)!.models.push(m);
   });
-  return Array.from(groups.values());
+  return options.sort();
 });
 
-const selectedModelData = computed(() =>
-  availableModels.value.find((m) => m.id === props.modelId)
+// 使用模型選擇 hooks
+const modelIdRef = computed(() => props.modelId);
+const { selectModel } = useModelSelection(allModelOptions, modelIdRef, (modelId) =>
+  emit("update:modelId", modelId)
 );
 
 // PromptInputEditor ref
-const promptInputEditorRef = ref<InstanceType<typeof PromptInputEditor> | null>(null);
+const promptInputEditorRef = ref<typeof PromptInputEditor | null>(null);
 
 // 文件上传按钮组件
 const FileUploadButton = defineComponent({
@@ -150,9 +95,8 @@ function handleSubmit(message: PromptInputMessage) {
   emit("submit", message);
 }
 
-function handleModelSelect(id: string) {
-  emit("update:modelId", id);
-  modelSelectorOpen.value = false;
+function handleModelSelect(value: string) {
+  selectModel(value);
 }
 
 function toggleMicrophone() {
@@ -192,55 +136,18 @@ defineExpose({
       <PromptInputFooter>
         <PromptInputTools>
           <ModeSelector :mode="mode" @update:mode="emit('update:mode', $event)" />
-
-          <ModelSelector v-model:open="modelSelectorOpen">
-            <ModelSelectorTrigger as-child>
-              <PromptInputButton>
-                <ModelSelectorLogo
-                  v-if="selectedModelData?.chefSlug"
-                  :provider="selectedModelData.chefSlug"
-                />
-                <ModelSelectorName v-if="selectedModelData?.name">
-                  {{ selectedModelData.name }}
-                </ModelSelectorName>
-              </PromptInputButton>
-            </ModelSelectorTrigger>
-
-            <ModelSelectorContent>
-              <ModelSelectorInput placeholder="Search models..." />
-              <ModelSelectorList>
-                <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-
-                <ModelSelectorGroup
-                  v-for="group in modelGroups"
-                  :key="group.heading"
-                  :heading="group.heading"
-                >
-                  <ModelSelectorItem
-                    v-for="m in group.models"
-                    :key="m.id"
-                    :value="m.id"
-                    @select="() => handleModelSelect(m.id)"
-                  >
-                    <ModelSelectorLogo v-if="m.chefSlug" :provider="m.chefSlug" />
-                    <ModelSelectorName>{{ m.name }}</ModelSelectorName>
-                    <ModelSelectorLogoGroup v-if="m.providers?.length">
-                      <ModelSelectorLogo
-                        v-for="provider in m.providers"
-                        :key="provider"
-                        :provider="provider"
-                      />
-                    </ModelSelectorLogoGroup>
-                    <CheckCircleRound
-                      v-if="modelId === m.id"
-                      class="ml-auto w-4 h-4 text-emerald-500"
-                    />
-                    <div v-else class="ml-auto size-4" />
-                  </ModelSelectorItem>
-                </ModelSelectorGroup>
-              </ModelSelectorList>
-            </ModelSelectorContent>
-          </ModelSelector>
+          <div class="flex-1 min-w-[200px] max-w-[400px]">
+            <RouterModelSelect
+              :model-value="modelId"
+              :options="allModelOptions"
+              placeholder="选择或搜索模型..."
+              @update:model-value="handleModelSelect"
+            >
+              <template #icon>
+                <Sparkles class="w-4 h-4 text-slate-400" />
+              </template>
+            </RouterModelSelect>
+          </div>
         </PromptInputTools>
 
         <div class="flex items-center gap-2">

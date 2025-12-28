@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { ChevronDown, X } from "lucide-vue-next";
+import { ChevronDown, X, Search } from "lucide-vue-next";
 import Dropdown from "./Dropdown.vue";
 
-const props = defineProps<{
-  modelValue: string;
-  options: string[];
-  placeholder?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    options: string[];
+    placeholder?: string;
+    showIcon?: boolean;
+  }>(),
+  {
+    showIcon: true,
+  }
+);
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
@@ -18,7 +24,6 @@ const isOpen = ref(false);
 const isFocused = ref(false);
 const isEditing = ref(false); // 标记是否正在编辑
 const inputRef = ref<HTMLInputElement | null>(null);
-const dropdownRef = ref<InstanceType<typeof Dropdown> | null>(null);
 let blurTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // 计算输入框显示的值
@@ -211,12 +216,24 @@ onBeforeUnmount(() => {
   <Dropdown :show="isOpen" @update:show="isOpen = $event">
     <template #trigger>
       <div class="relative w-full font-mono">
+        <div
+          v-if="showIcon"
+          class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10"
+        >
+          <slot name="icon">
+            <Search class="w-4 h-4 text-slate-400" />
+          </slot>
+        </div>
         <input
           ref="inputRef"
           :value="inputValue"
           type="text"
-          class="w-full input-base router-model-select__input pr-9 text-left  transition-colors"
-          :class="{ 'text-slate-400': !modelValue && !searchQuery }"
+          class="w-full input-base router-model-select__input pr-9 text-left transition-colors"
+          :class="{
+            'text-slate-400': !modelValue && !searchQuery,
+            'pl-9': showIcon,
+            'pl-3': !showIcon,
+          }"
           :placeholder="placeholder || '-- 请选择模型 --'"
           @focus="handleInputFocus"
           @blur="handleInputBlur"
@@ -293,7 +310,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .router-model-select__input {
-  padding: 0.4rem 0.65rem;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  padding-right: 0.65rem;
   font-size: 0.85rem;
   min-height: 2.25rem;
 }

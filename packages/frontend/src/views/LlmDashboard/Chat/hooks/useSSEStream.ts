@@ -1,6 +1,6 @@
 import { ref, computed, onUnmounted } from "vue";
 import type { SSEEvent, StreamCallbacks } from "@/views/LlmDashboard/Chat/types";
-import { useChatApi } from "./useChatApi";
+import { useChatApi } from "../../../../hooks/useChatApi";
 
 /**
  * SSE 流式响应处理 Hook

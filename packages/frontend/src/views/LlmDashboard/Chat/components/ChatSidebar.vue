@@ -7,19 +7,19 @@ import {
   AddRound,
 } from "@vicons/material";
 import { useEventListener } from "@vueuse/core";
-import { useConversation } from "@/hooks/useConversation";
+import { useConversation } from "@/views/LlmDashboard/Chat/hooks/useConversation";
 
 const {
   sidebarConversations,
   activeConversationId,
   sidebarCollapsed,
   toggleSidebar,
-  selectConversation,
   deleteConversation,
 } = useConversation();
 
 const emit = defineEmits<{
   "conversation:new": [];
+  "conversation:select": [id: string];
 }>();
 
 function handleCreateConversation() {
@@ -29,7 +29,8 @@ function handleCreateConversation() {
 }
 
 function handleSelectConversation(id: string) {
-  selectConversation(id);
+  // 触发事件，让父组件处理选择逻辑
+  emit("conversation:select", id);
 }
 
 async function handleDeleteConversation(id: string) {

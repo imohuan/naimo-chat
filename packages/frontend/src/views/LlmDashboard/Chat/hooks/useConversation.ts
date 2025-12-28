@@ -1,7 +1,7 @@
 import { computed } from "vue";
 import { useDebounceFn } from "@vueuse/core";
 import { useConversationStore } from "@/stores/conversation";
-import { useChatApi } from "./useChatApi";
+import { useChatApi } from "../../../../hooks/useChatApi";
 import { useSSEStream } from "./useSSEStream";
 import { getContext } from "@/core/context";
 import type {
@@ -39,8 +39,7 @@ export function useConversation() {
         }
       }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "加载对话列表失败";
+      const message = error instanceof Error ? error.message : "加载对话列表失败";
       store.setError(message);
       console.error("加载对话列表失败:", error);
     } finally {
@@ -64,8 +63,7 @@ export function useConversation() {
         store.setActiveConversationId(id);
       }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "加载对话失败";
+      const message = error instanceof Error ? error.message : "加载对话失败";
       store.setError(message);
       console.error("加载对话失败:", error);
     } finally {
@@ -76,9 +74,7 @@ export function useConversation() {
   /**
    * 创建新对话
    */
-  async function createConversation(
-    params: CreateConversationParams
-  ): Promise<string> {
+  async function createConversation(params: CreateConversationParams): Promise<string> {
     store.setLoading(true);
     store.setError(null);
 
@@ -110,8 +106,7 @@ export function useConversation() {
 
       return result.id;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "创建对话失败";
+      const message = error instanceof Error ? error.message : "创建对话失败";
       store.setError(message);
       console.error("创建对话失败:", error);
       throw error;
@@ -162,8 +157,7 @@ export function useConversation() {
         });
       }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "发送消息失败";
+      const message = error instanceof Error ? error.message : "发送消息失败";
       store.setError(message);
       console.error("发送消息失败:", error);
       throw error;
@@ -180,7 +174,7 @@ export function useConversation() {
     let finalRequestId = requestId;
 
     sseStream.connectToStream(conversationId, requestId, {
-      onChunk: (chunk) => {
+      onChunk: (chunk: string) => {
         accumulatedContent = chunk;
         store.updateConversationMessage(
           conversationId,
@@ -197,15 +191,13 @@ export function useConversation() {
         });
       },
 
-      onRequestId: (newRequestId) => {
+      onRequestId: (newRequestId: string) => {
         // 更新 requestId（从临时 ID 切换到真实 ID）
         if (newRequestId !== finalRequestId) {
           // 需要迁移消息内容到新的 requestId
           const oldContent = accumulatedContent;
           // 删除旧的消息
-          const conversation = store.conversations.find(
-            (c) => c.id === conversationId
-          );
+          const conversation = store.conversations.find((c) => c.id === conversationId);
           if (conversation) {
             conversation.messages = conversation.messages.filter(
               (msg) => !msg.versions.some((v) => v.id === finalRequestId)
@@ -245,7 +237,7 @@ export function useConversation() {
         });
       },
 
-      onError: (errorMessage) => {
+      onError: (errorMessage: string) => {
         store.updateConversationMessage(
           conversationId,
           finalRequestId,
@@ -265,10 +257,9 @@ export function useConversation() {
 
     store.setActiveConversationId(id);
 
-    // 如果对话不在列表中，尝试加载
-    if (!store.conversations.some((c) => c.id === id)) {
-      await loadConversation(id);
-    }
+    // 始终加载对话详情，确保消息数据完整
+    // 因为对话列表接口可能不包含 messages 字段（为了性能考虑）
+    await loadConversation(id);
 
     // 发送事件
     eventBus.emit("conversation:selected", { id });
@@ -285,8 +276,7 @@ export function useConversation() {
       // 发送事件
       eventBus.emit("conversation:deleted", { id });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "删除对话失败";
+      const message = error instanceof Error ? error.message : "删除对话失败";
       store.setError(message);
       console.error("删除对话失败:", error);
       throw error;
@@ -312,9 +302,7 @@ export function useConversation() {
   const updateCodeHistory = useDebounceFn(
     async (
       conversationId: string,
-      codeHistory: Parameters<
-        typeof store.updateConversationCodeHistory
-      >[1]
+      codeHistory: Parameters<typeof store.updateConversationCodeHistory>[1]
     ) => {
       store.updateConversationCodeHistory(conversationId, codeHistory);
 
@@ -361,11 +349,9 @@ export function useConversation() {
     updateMode,
     updateCodeHistory,
     toggleSidebar: () => store.toggleSidebar(),
-    clearActiveConversationMessages: () =>
-      store.clearActiveConversationMessages(),
+    clearActiveConversationMessages: () => store.clearActiveConversationMessages(),
     clearActiveConversation,
     updateConversationTitle: (id: string, title: string) =>
       store.updateConversationTitle(id, title),
   };
 }
-
