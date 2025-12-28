@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { PersonRound, SmartToyRound } from "@vicons/material";
 import { RefreshCcwIcon, CopyIcon, CheckIcon } from "lucide-vue-next";
 import {
@@ -49,17 +49,15 @@ const emit = defineEmits<{
   branchChange: [messageKey: string, branchIndex: number];
 }>();
 
-// 從 props 中解構佈局配置
-const {
-  isSmallScreen,
-  messageMaxWidth,
-  messageLayout,
-  avatarSize,
-  iconSize,
-  messageBranchPadding,
-  messageToolbarMargin,
-  containerMaxWidth,
-} = props.layoutConfig;
+// 從 props 中解構佈局配置，保持響應式
+const isSmallScreen = computed(() => props.layoutConfig.isSmallScreen);
+const messageMaxWidth = computed(() => props.layoutConfig.messageMaxWidth);
+const messageLayout = computed(() => props.layoutConfig.messageLayout);
+const avatarSize = computed(() => props.layoutConfig.avatarSize);
+const iconSize = computed(() => props.layoutConfig.iconSize);
+const messageBranchPadding = computed(() => props.layoutConfig.messageBranchPadding);
+const messageToolbarMargin = computed(() => props.layoutConfig.messageToolbarMargin);
+const containerMaxWidth = computed(() => props.layoutConfig.containerMaxWidth);
 
 // 角色样式
 const roleStyles: Record<
@@ -80,7 +78,7 @@ const roleStyles: Record<
 
 // 获取头像容器类
 const getAvatarContainerClass = (from: MessageType["from"]) => {
-  if (isSmallScreen) {
+  if (isSmallScreen.value) {
     const flexDirection = from === "user" ? "flex-row-reverse" : "flex-row";
     return `flex ${flexDirection} items-center gap-2 shrink-0 order-first w-full pb-1`;
   }

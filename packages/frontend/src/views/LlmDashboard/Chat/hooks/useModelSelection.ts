@@ -47,39 +47,46 @@ export function useModelSelection(
     }
   };
 
-  // 初始化模型選擇：如果存儲的模型無效，則選擇第一個可用模型
+  // 初始化模型選擇：優先使用本地存儲的模型
   onMounted(() => {
-    const currentModel = (storedModelId.value || initialModelId.value || "").trim();
+    // 如果 modelOptions 已經有值，立即處理
+    if (modelOptions.value.length > 0) {
+      initializeModelSelection();
+    }
+  });
 
-    if (currentModel && isValidModel(currentModel)) {
-      // 如果當前模型有效，使用它
-      if (currentModel !== initialModelId.value) {
-        selectModel(currentModel);
+  // 初始化模型選擇的邏輯
+  const initializeModelSelection = () => {
+    // 優先使用本地存儲的模型
+    const storedModel = storedModelId.value?.trim();
+    const currentModel = initialModelId.value?.trim();
+
+    if (storedModel && isValidModel(storedModel)) {
+      // 本地存儲的模型有效，使用它
+      if (storedModel !== currentModel) {
+        selectModel(storedModel);
       }
+    } else if (currentModel && isValidModel(currentModel)) {
+      // 當前模型有效，使用它並保存到本地存儲
+      storedModelId.value = currentModel;
     } else {
-      // 如果模型無效，選擇第一個可用模型
+      // 都沒有有效模型，選擇第一個可用模型
       const firstModel = getFirstAvailableModel();
       if (firstModel) {
         selectModel(firstModel);
       }
     }
-  });
+  };
 
-  // 監聽模型選項變化，如果當前模型不在列表中，則選擇第一個
+  // 監聽模型選項變化
   watch(
     modelOptions,
     (newOptions) => {
+      // 如果選項列表為空，不處理
       if (newOptions.length === 0) return;
 
-      const currentModel = initialModelId.value || storedModelId.value;
-
-      if (currentModel && !isValidModel(currentModel)) {
-        // 當前模型不在列表中，選擇第一個
-        const firstModel = getFirstAvailableModel();
-        if (firstModel) {
-          selectModel(firstModel);
-        }
-      }
+      // 直接執行初始化邏輯，它會處理所有情況
+      initializeModelSelection();
     },
     { immediate: true }
   );
