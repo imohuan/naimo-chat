@@ -58,7 +58,7 @@ function generateConversationId() {
  */
 function getConversationFilePath(id) {
   const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "");
-  return path.join(PROJECT_DIR, `ai_chat_${safeId}.json`);
+  return path.join(PROJECT_DIR, `chat_${safeId}.json`);
 }
 
 /**
@@ -196,7 +196,7 @@ function registerAiChatRoutes(server) {
     try {
       const files = await fs.readdir(PROJECT_DIR);
       const aiChatFiles = files.filter((file) =>
-        file.startsWith("ai_chat_") && file.endsWith(".json")
+        file.startsWith("chat_") && file.endsWith(".json")
       );
 
       const conversations = await Promise.all(
@@ -206,7 +206,7 @@ function registerAiChatRoutes(server) {
             const content = await fs.readFile(filePath, "utf-8");
             const data = JSON.parse(content);
             // 从文件名提取 ID（去掉 ai_chat_ 前缀和 .json 后缀）
-            const id = file.replace(/^ai_chat_/, "").replace(/\.json$/, "");
+            const id = file.replace(/^chat_/, "").replace(/\.json$/, "");
             return {
               id,
               title: data.title || "新对话",
