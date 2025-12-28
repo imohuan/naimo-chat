@@ -66,11 +66,23 @@ function generateTempRequestId() {
   return `temp-${randomUUID()}`;
 }
 
+
 /**
- * 判断是否为临时 requestId
+ * 生成消息键（messageKey）
+ * @param {string} role - 消息角色
+ * @param {string} [requestId] - 可选的请求ID
+ * @returns {string} 消息键
  */
-function isTempRequestId(requestId) {
-  return requestId && requestId.startsWith("temp-");
+function generateMessageKey(role, requestId) {
+  if (role === "user") {
+    return `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  } else if (role === "assistant") {
+    // 对于 assistant 消息，可以使用 requestId 作为 messageKey 的一部分
+    return requestId
+      ? `assistant-${requestId}`
+      : `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+  return `${role}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
@@ -103,17 +115,31 @@ async function handleStreamResponse({
       if (event.type === "request_id" && event.requestId) {
         serverRequestId = event.requestId;
         currentRequestId = serverRequestId; // 更新当前 requestId
-        // 根据临时 requestId 找到消息并替换为真实的 requestId
+        // 根据临时 requestId 找到消息版本并替换为真实的 requestId
         (async () => {
           try {
-            await updateMessageByRequestId(
-              conversationId,
-              tempRequestId,
-              (message) => {
-                message.currentRequestId = serverRequestId;
-                return true;
+            const conversation = await readConversationFile(conversationId);
+            if (conversation) {
+              // 查找包含临时 requestId 的消息版本
+              for (const message of conversation.messages || []) {
+                if (message.versions && Array.isArray(message.versions)) {
+                  const version = message.versions.find(
+                    (v) => v.id === tempRequestId
+                  );
+                  if (version) {
+                    // 更新版本ID
+                    version.id = serverRequestId;
+                    // 如果 messageKey 包含临时 requestId，也需要更新
+                    if (message.messageKey && message.messageKey.includes(tempRequestId)) {
+                      message.messageKey = message.messageKey.replace(tempRequestId, serverRequestId);
+                    }
+                    conversation.updatedAt = Date.now();
+                    await writeConversationFile(conversationId, conversation);
+                    break;
+                  }
+                }
               }
-            );
+            }
           } catch (error) {
             console.error("更新 requestId 失败:", error);
           }
@@ -129,27 +155,6 @@ async function handleStreamResponse({
       } else if (event.type === "message_delta" && event.delta?.text) {
         accumulatedContent += event.delta.text;
       }
-
-      // 实时更新对话文件中的 assistant 消息内容
-      // 根据 currentRequestId 匹配消息（可能是临时的或真实的）
-      // (async () => {
-      //   try {
-      //     await updateMessageByRequestId(
-      //       conversationId,
-      //       currentRequestId,
-      //       (message) => {
-      //         message.content = accumulatedContent;
-      //         // 如果已获取到服务器返回的 requestId 且当前还是临时ID，更新为真实ID
-      //         if (serverRequestId && isTempRequestId(message.currentRequestId)) {
-      //           message.currentRequestId = serverRequestId;
-      //         }
-      //         return true;
-      //       }
-      //     );
-      //   } catch (error) {
-      //     console.error("实时更新对话失败:", error);
-      //   }
-      // })();
     };
 
     // 调用模式处理函数
@@ -163,20 +168,38 @@ async function handleStreamResponse({
     // 确定最终使用的 requestId（优先使用服务器返回的）
     const finalRequestId = serverRequestId || currentRequestId;
 
-    // 根据 currentRequestId 找到对应消息并更新最终内容
-    await updateMessageByRequestId(
+    // 更新消息版本内容
+    // 先尝试用 tempRequestId 查找（如果第一个位置没有成功更新）
+    let updated = await updateMessageByRequestId(
       conversationId,
-      finalRequestId,
-      (message) => {
-        message.content = result.fullResponse || accumulatedContent;
-        message.isRequesting = false;
-        // 如果还是临时ID，更新为真实ID
-        if (serverRequestId && isTempRequestId(message.currentRequestId)) {
-          message.currentRequestId = serverRequestId;
+      tempRequestId,
+      (version, message) => {
+        // 如果版本ID还是临时ID，更新为真实ID
+        if (version.id === tempRequestId && finalRequestId !== tempRequestId) {
+          version.id = finalRequestId;
+          // 如果 messageKey 包含临时 requestId，也需要更新
+          if (message.messageKey && message.messageKey.includes(tempRequestId)) {
+            message.messageKey = message.messageKey.replace(tempRequestId, finalRequestId);
+          }
         }
+        version.content = result.fullResponse || accumulatedContent;
+        version.isRequesting = false;
         return true;
       }
     );
+
+    // 如果使用 tempRequestId 没找到，尝试用 finalRequestId 查找（第一个位置可能已经更新了）
+    if (!updated) {
+      await updateMessageByRequestId(
+        conversationId,
+        finalRequestId,
+        (version, _message) => {
+          version.content = result.fullResponse || accumulatedContent;
+          version.isRequesting = false;
+          return true;
+        }
+      );
+    }
 
     // 更新标题（如果提供了 titlePromise，仅用于新对话）
     if (titlePromise) {
@@ -375,26 +398,57 @@ function registerAiChatRoutes(server) {
         updatedAt: Date.now(),
       };
 
-      // 添加用户消息
+      // 添加用户消息（新格式：messageKey + versions）
       if (initialInput) {
+        const userMessageKey = generateMessageKey("user");
         conversation.messages.push({
+          messageKey: userMessageKey,
           role: "user",
-          content: initialInput,
+          versions: [
+            {
+              id: userMessageKey,
+              content: initialInput,
+              createdAt: Date.now(),
+            },
+          ],
+          createdAt: Date.now(),
         });
       } else if (customMessages) {
-        conversation.messages.push(...customMessages);
+        // 转换自定义消息为新格式
+        for (const msg of customMessages) {
+          const msgKey = generateMessageKey(msg.role);
+          conversation.messages.push({
+            messageKey: msgKey,
+            role: msg.role,
+            versions: [
+              {
+                id: msgKey,
+                content: msg.content || "",
+                createdAt: Date.now(),
+              },
+            ],
+            createdAt: Date.now(),
+          });
+        }
       }
 
       // 生成临时 requestId（带临时前缀，方便辨别）
       const tempRequestId = generateTempRequestId();
+      const assistantMessageKey = generateMessageKey("assistant", tempRequestId);
 
-      // 添加初始 assistant 消息（正在请求中）
-      // 使用临时 requestId，等待服务器返回真实的 requestId 后替换
+      // 添加初始 assistant 消息（正在请求中，新格式）
       conversation.messages.push({
+        messageKey: assistantMessageKey,
         role: "assistant",
-        content: "",
-        isRequesting: true,
-        currentRequestId: tempRequestId, // 使用临时 requestId
+        versions: [
+          {
+            id: tempRequestId, // 使用临时 requestId，等待服务器返回真实的 requestId 后替换
+            content: "",
+            isRequesting: true,
+            createdAt: Date.now(),
+          },
+        ],
+        createdAt: Date.now(),
       });
 
       // 保存对话文件
@@ -479,23 +533,75 @@ function registerAiChatRoutes(server) {
       const requestId = randomUUID();
       createSession(requestId);
 
-      // 添加用户消息
+      // 添加用户消息（messageKey + versions）
+      const userMessageKey = generateMessageKey("user");
       conversation.messages.push({
+        messageKey: userMessageKey,
         role: "user",
-        content,
+        versions: [
+          {
+            id: userMessageKey,
+            content,
+            createdAt: Date.now(),
+          },
+        ],
+        createdAt: Date.now(),
       });
 
       // 生成临时 requestId（带临时前缀，方便辨别）
       const tempRequestId = generateTempRequestId();
+      const assistantMessageKey = generateMessageKey("assistant", tempRequestId);
 
-      // 添加新的 assistant 消息（正在请求中）
-      // 使用临时 requestId，等待服务器返回真实的 requestId 后替换
-      conversation.messages.push({
-        role: "assistant",
-        content: "",
-        isRequesting: true,
-        currentRequestId: tempRequestId, // 使用临时 requestId
-      });
+      // 检查是否有重试请求（通过 messageKey 参数判断）
+      const { messageKey: retryMessageKey } = req.body;
+
+      // 如果是重试，在同一消息下添加新版本
+      if (retryMessageKey) {
+        const existingMessage = conversation.messages.find(
+          (msg) => msg.messageKey === retryMessageKey && msg.role === "assistant"
+        );
+        if (existingMessage) {
+          // 在同一消息下添加新版本
+          existingMessage.versions.push({
+            id: tempRequestId,
+            content: "",
+            isRequesting: true,
+            createdAt: Date.now(),
+          });
+          existingMessage.updatedAt = Date.now();
+          targetMessageKey = retryMessageKey;
+        } else {
+          // 如果找不到原消息，创建新消息
+          conversation.messages.push({
+            messageKey: assistantMessageKey,
+            role: "assistant",
+            versions: [
+              {
+                id: tempRequestId,
+                content: "",
+                isRequesting: true,
+                createdAt: Date.now(),
+              },
+            ],
+            createdAt: Date.now(),
+          });
+        }
+      } else {
+        // 添加新的 assistant 消息（正在请求中，新格式）
+        conversation.messages.push({
+          messageKey: assistantMessageKey,
+          role: "assistant",
+          versions: [
+            {
+              id: tempRequestId, // 使用临时 requestId，等待服务器返回真实的 requestId 后替换
+              content: "",
+              isRequesting: true,
+              createdAt: Date.now(),
+            },
+          ],
+          createdAt: Date.now(),
+        });
+      }
 
       conversation.updatedAt = Date.now();
       await writeConversationFile(id, conversation);

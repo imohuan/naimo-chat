@@ -6,55 +6,42 @@ import {
   SearchRound,
   AddRound,
 } from "@vicons/material";
-import { onMounted, onBeforeUnmount } from "vue";
+import { useEventListener } from "@vueuse/core";
+import { useConversation } from "@/hooks/useConversation";
 
-type ConversationItem = {
-  id: string;
-  title: string;
-};
-
-const props = defineProps<{
-  sidebarCollapsed: boolean;
-  conversations: ConversationItem[];
-  activeConversationId?: string | null;
-}>();
-
-const emit = defineEmits<{
-  "toggle:sidebar": [];
-  "conversation:create": [];
-  "conversation:select": [id: string];
-  "conversation:delete": [id: string];
-}>();
-
-function handleToggleSidebar() {
-  emit("toggle:sidebar");
-}
+const {
+  sidebarConversations,
+  activeConversationId,
+  sidebarCollapsed,
+  toggleSidebar,
+  selectConversation,
+  deleteConversation,
+  createConversation,
+} = useConversation();
 
 function handleCreateConversation() {
-  emit("conversation:create");
+  createConversation({
+    initialInput: "",
+    mode: "chat",
+  });
 }
 
 function handleSelectConversation(id: string) {
-  emit("conversation:select", id);
+  selectConversation(id);
 }
 
-function handleDeleteConversation(id: string) {
-  emit("conversation:delete", id);
-}
-
-function handleGlobalKeydown(event: KeyboardEvent) {
-  if (event.key === "Tab") {
-    event.preventDefault();
-    emit("toggle:sidebar");
+async function handleDeleteConversation(id: string) {
+  if (confirm("确定要删除这个对话吗？")) {
+    await deleteConversation(id);
   }
 }
 
-onMounted(() => {
-  window.addEventListener("keydown", handleGlobalKeydown);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener("keydown", handleGlobalKeydown);
+// 使用 VueUse 的 useEventListener 处理键盘事件
+useEventListener(window, "keydown", (event: KeyboardEvent) => {
+  if (event.key === "Tab") {
+    event.preventDefault();
+    toggleSidebar();
+  }
 });
 </script>
 
@@ -71,7 +58,7 @@ onBeforeUnmount(() => {
         <button
           class="inline-flex items-center justify-center rounded-full p-2 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition-colors"
           type="button"
-          @click="handleToggleSidebar"
+          @click="toggleSidebar"
         >
           <MenuRound class="w-5 h-5" />
         </button>
@@ -92,7 +79,7 @@ onBeforeUnmount(() => {
           <button
             class="inline-flex items-center justify-center rounded-full p-2 hover:bg-slate-100/80 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-200"
             type="button"
-            @click="handleToggleSidebar"
+            @click="toggleSidebar"
           >
             <MenuRound class="w-5 h-5" />
           </button>
@@ -123,7 +110,7 @@ onBeforeUnmount(() => {
       <div class="flex-1 overflow-y-auto">
         <ul class="space-y-0.5 px-2 pb-3 pt-2">
           <li
-            v-for="c in conversations"
+            v-for="c in sidebarConversations"
             :key="c.id"
             class="group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs cursor-pointer transition-colors"
             :class="

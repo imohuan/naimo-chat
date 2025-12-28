@@ -521,7 +521,7 @@ const selectedModelData = computed(() =>
   availableModels.value.find((m) => m.id === modelId.value)
 );
 
-const hasMessages = computed(() => messages.value.length > 0);
+const hasMessages = computed(() => (messages.value?.length || 0) > 0);
 
 const sidebarConversations = computed(() =>
   conversations.value.filter((c) => !c.pending)
@@ -545,7 +545,8 @@ const roleStyles: Record<
 
 const isAssistantMessageReady = (message: MessageType) => {
   if (message.from !== "assistant") return false;
-  const latest = message.versions?.[message.versions.length - 1];
+  if (!message.versions || message.versions.length === 0) return false;
+  const latest = message.versions[message.versions.length - 1];
   return Boolean(latest?.content?.trim()?.length);
 };
 
@@ -790,6 +791,7 @@ watch(
     newMessages.forEach((message) => {
       if (
         message.from === "assistant" &&
+        message.versions &&
         message.versions.length > 0 &&
         !(message.key in currentVersionIndex.value)
       ) {
@@ -1049,8 +1051,8 @@ function resetCopied(key: string) {
 }
 
 function handleBranchChange(messageKey: string, branchIndex: number) {
-  const message = messages.value.find((msg) => msg.key === messageKey);
-  if (!message || message.versions.length === 0) return;
+  const message = messages.value?.find((msg) => msg.key === messageKey);
+  if (!message || !message.versions || message.versions.length === 0) return;
 
   // 确保索引在有效范围内
   const validIndex = Math.max(
@@ -1061,8 +1063,8 @@ function handleBranchChange(messageKey: string, branchIndex: number) {
 }
 
 function handleCopy(messageKey: string) {
-  const message = messages.value.find((msg) => msg.key === messageKey);
-  if (!message || message.versions.length === 0) return;
+  const message = messages.value?.find((msg) => msg.key === messageKey);
+  if (!message || !message.versions || message.versions.length === 0) return;
 
   // 获取当前选中的版本索引，如果没有则使用最后一个版本
   let selectedIndex =
@@ -1429,30 +1431,23 @@ const FileUploadButton = defineComponent({
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="
-              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
-            "
+            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
           >
-            <Conversation
-              v-if="hasMessages"
-              class="conversation-content border-none"
-            >
+            <Conversation v-if="hasMessages" class="conversation-content border-none">
               <ConversationContent
                 :class="['mx-auto w-full px-4 select-text', containerMaxWidth]"
               >
                 <MessageBranch
-                  v-for="message in messages"
-                  :key="`${message.key}-${message.versions.length}`"
-                  :default-branch="Math.max(0, message.versions.length - 1)"
+                  v-for="message in messages || []"
+                  :key="`${message.key}-${message.versions?.length || 0}`"
+                  :default-branch="Math.max(0, (message.versions?.length || 1) - 1)"
                   :class="messageBranchPadding"
-                  @branch-change="
-                    (index) => handleBranchChange(message.key, index)
-                  "
+                  @branch-change="(index) => handleBranchChange(message.key, index)"
                 >
                   <!-- 允许 Grid 子元素缩小到比内容更小的尺寸 Message 的 max-w-[80%] 限制才能生效 -->
                   <MessageBranchContent class="min-w-0">
                     <Message
-                      v-for="version in message.versions"
+                      v-for="version in message.versions || []"
                       :key="`${message.key}-${version.id}`"
                       :from="message.from"
                       :max-width="messageMaxWidth"
@@ -1479,10 +1474,7 @@ const FileUploadButton = defineComponent({
                             roleStyles[message.from].ring,
                           ]"
                         >
-                          <PersonRound
-                            v-if="message.from === 'user'"
-                            :class="iconSize"
-                          />
+                          <PersonRound v-if="message.from === 'user'" :class="iconSize" />
                           <SmartToyRound v-else :class="iconSize" />
                         </div>
                         <span
@@ -1503,9 +1495,7 @@ const FileUploadButton = defineComponent({
                           v-if="!isSmallScreen"
                           class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
                           :class="
-                            message.from === 'user'
-                              ? 'text-right pr-1'
-                              : 'text-left pl-1'
+                            message.from === 'user' ? 'text-right pr-1' : 'text-left pl-1'
                           "
                         >
                           {{ roleStyles[message.from].label }}
@@ -1528,16 +1518,11 @@ const FileUploadButton = defineComponent({
                           :duration="message.reasoning.duration"
                         >
                           <ReasoningTrigger />
-                          <ReasoningContent
-                            :content="message.reasoning.content"
-                          />
+                          <ReasoningContent :content="message.reasoning.content" />
                         </Reasoning>
 
                         <MessageContent class="max-w-full">
-                          <MessageAttachments
-                            v-if="version.files?.length"
-                            class="mb-2"
-                          >
+                          <MessageAttachments v-if="version.files?.length" class="mb-2">
                             <MessageAttachment
                               v-for="(file, fileIndex) in version.files"
                               :key="file.url || file.filename || fileIndex"
@@ -1568,6 +1553,7 @@ const FileUploadButton = defineComponent({
                   >
                     <MessageBranchSelector
                       v-if="
+                        message.versions &&
                         message.versions.length > 1 &&
                         isAssistantMessageReady(message)
                       "
@@ -1580,10 +1566,10 @@ const FileUploadButton = defineComponent({
 
                     <MessageBranchSelector
                       v-else-if="
+                        message.versions &&
                         message.versions.length > 1 &&
                         !(
-                          message.from === 'assistant' &&
-                          isAssistantMessageReady(message)
+                          message.from === 'assistant' && isAssistantMessageReady(message)
                         )
                       "
                       :from="message.from"
@@ -1659,16 +1645,8 @@ const FileUploadButton = defineComponent({
                 />
               </Suggestions>
 
-              <div
-                class="w-full px-4"
-                :class="hasMessages ? 'md:px-6' : 'pb-0'"
-              >
-                <PromptInput
-                  class="w-full"
-                  multiple
-                  global-drop
-                  @submit="handleSubmit"
-                >
+              <div class="w-full px-4" :class="hasMessages ? 'md:px-6' : 'pb-0'">
+                <PromptInput class="w-full" multiple global-drop @submit="handleSubmit">
                   <PromptInputHeader>
                     <PromptInputAttachments>
                       <template #default="{ file }">
@@ -1692,9 +1670,7 @@ const FileUploadButton = defineComponent({
                             class="gap-1.5 bg-gray-200 hover:bg-gray-300"
                           >
                             <InfinityIcon class="w-4 h-4" />
-                            <span class="font-medium">{{
-                              selectedModeLabel
-                            }}</span>
+                            <span class="font-medium">{{ selectedModeLabel }}</span>
                             <ChevronDown class="w-3.5 h-3.5 opacity-50" />
                           </PromptInputButton>
                         </DropdownMenuTrigger>
@@ -1723,9 +1699,7 @@ const FileUploadButton = defineComponent({
                               ]"
                             >
                               <div class="flex flex-col gap-1 w-full">
-                                <span class="font-medium text-sm">{{
-                                  mode.label
-                                }}</span>
+                                <span class="font-medium text-sm">{{ mode.label }}</span>
                                 <span
                                   class="text-xs text-muted-foreground leading-relaxed"
                                 >
@@ -1753,9 +1727,7 @@ const FileUploadButton = defineComponent({
                         <ModelSelectorContent>
                           <ModelSelectorInput placeholder="Search models..." />
                           <ModelSelectorList>
-                            <ModelSelectorEmpty
-                              >No models found.</ModelSelectorEmpty
-                            >
+                            <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
 
                             <ModelSelectorGroup
                               v-for="group in modelGroups"
@@ -1772,12 +1744,8 @@ const FileUploadButton = defineComponent({
                                   v-if="m.chefSlug"
                                   :provider="m.chefSlug"
                                 />
-                                <ModelSelectorName>{{
-                                  m.name
-                                }}</ModelSelectorName>
-                                <ModelSelectorLogoGroup
-                                  v-if="m.providers?.length"
-                                >
+                                <ModelSelectorName>{{ m.name }}</ModelSelectorName>
+                                <ModelSelectorLogoGroup v-if="m.providers?.length">
                                   <ModelSelectorLogo
                                     v-for="provider in m.providers"
                                     :key="provider"

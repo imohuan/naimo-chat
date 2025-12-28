@@ -21,13 +21,13 @@ setLoggerConfig({
 });
 
 // Vue 错误处理
-app.config.errorHandler = (err: unknown, instance: unknown, info: string) => {
-  const error = err instanceof Error ? err : new Error(String(err));
-  logger.error(`Vue 错误: ${info}`, error, {
-    component: instance,
-    errorInfo: info,
-  });
-};
+// app.config.errorHandler = (err: unknown, instance: unknown, info: string) => {
+//   const error = err instanceof Error ? err : new Error(String(err));
+//   logger.error(`Vue 错误: ${info}`, error, {
+//     component: instance,
+//     errorInfo: info,
+//   });
+// };
 
 // // 全局错误处理
 // window.onerror = (

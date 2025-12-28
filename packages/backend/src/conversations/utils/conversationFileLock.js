@@ -122,41 +122,39 @@ async function writeConversationFile(id, data) {
 }
 
 /**
- * 更新对话文件中的特定消息（带锁）
- * 根据 currentRequestId 匹配消息并更新
+ * 更新对话文件中的特定消息版本（带锁）
+ * 根据 versionId 匹配消息版本并更新
  * @param {string} conversationId - 对话ID
- * @param {string} requestId - 请求ID（用于匹配消息）
- * @param {Function} updateFn - 更新函数 (message) => void，返回 true 表示已更新
+ * @param {string} versionId - 版本ID（requestId）
+ * @param {Function} updateFn - 更新函数 (version, message) => void，返回 true 表示已更新
  * @returns {Promise<boolean>} 是否成功更新
  */
-async function updateMessageByRequestId(conversationId, requestId, updateFn) {
+async function updateMessageByRequestId(conversationId, versionId, updateFn) {
   const releaseLock = await acquireLock(conversationId);
 
   try {
-    // 使用内部函数，避免重复获取锁
     const conversation = await _readConversationFileInternal(conversationId);
     if (!conversation || !conversation.messages) {
       return false;
     }
 
-    // 查找匹配的消息
+    // 查找匹配的消息版本
     let updated = false;
     for (const message of conversation.messages) {
-      if (
-        message.role === "assistant" &&
-        message.currentRequestId === requestId
-      ) {
-        const result = updateFn(message);
-        if (result !== false) {
-          updated = true;
-          conversation.updatedAt = Date.now();
+      if (message.versions && Array.isArray(message.versions)) {
+        const version = message.versions.find((v) => v.id === versionId);
+        if (version) {
+          const result = updateFn(version, message);
+          if (result !== false) {
+            updated = true;
+            conversation.updatedAt = Date.now();
+          }
+          break;
         }
-        break;
       }
     }
 
     if (updated) {
-      // 使用内部函数，避免重复获取锁
       await _writeConversationFileInternal(conversationId, conversation);
     }
 
@@ -165,6 +163,7 @@ async function updateMessageByRequestId(conversationId, requestId, updateFn) {
     releaseLock();
   }
 }
+
 
 /**
  * 删除对话文件（带锁）

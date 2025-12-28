@@ -1,4 +1,5 @@
 <!-- 2f5d1d4f-ad1f-4f50-a852-4bb4dccc8e6f 75e72073-d337-4f11-9818-746f466c68f5 -->
+
 # ChatPanel 重构计划
 
 ## 一、目标
@@ -19,13 +20,13 @@ graph TB
     subgraph Store[Pinia Store]
         ConversationStore[conversationStore]
     end
-    
+
     subgraph Hooks[Composables/Hooks]
         useChatApi[useChatApi]
         useSSEStream[useSSEStream]
         useConversation[useConversation]
     end
-    
+
     subgraph Components[Components]
         ChatPanel[ChatPanel.vue]
         ChatSidebar[ChatSidebar.vue]
@@ -34,11 +35,11 @@ graph TB
         ModeSelector[ModeSelector.vue]
         ModelSelector[ModelSelector.vue]
     end
-    
+
     subgraph EventBus[Event Bus - mitt]
         EventBus[eventBus]
     end
-    
+
     ConversationStore --> useChatApi
     ConversationStore --> useSSEStream
     ConversationStore --> useConversation
@@ -102,21 +103,56 @@ packages/frontend/src/
 **关键状态：**
 
 ```typescript
-interface Conversation {
-  id: string
-  title: string
-  mode: 'chat' | 'canvas' | 'agent' | 'image' | 'video' | '图片' | '视频'
-  messages: Message[]
-  createdAt: number
-  updatedAt: number
-  codeHistory?: CodeHistory
+// 后端 API 格式（与服务器交互使用）
+interface ApiConversation {
+  id: string;
+  title: string;
+  mode: "chat" | "canvas" | "agent" | "image" | "video" | "图片" | "视频";
+  messages: ApiMessage[];
+  createdAt: number;
+  updatedAt: number;
+  codeHistory?: CodeHistory;
 }
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  isRequesting?: boolean
-  currentRequestId?: string
+interface ApiMessage {
+  messageKey: string; // 消息唯一标识
+  role: "user" | "assistant";
+  versions: ApiMessageVersion[]; // 版本数组，支持消息重试
+  createdAt: number;
+  updatedAt?: number;
+}
+
+interface ApiMessageVersion {
+  id: string; // 版本ID（通常是 requestId）
+  content: string;
+  isRequesting?: boolean;
+  createdAt?: number;
+}
+
+// 前端 UI 格式（用于组件渲染）
+interface Conversation {
+  id: string;
+  title: string;
+  mode: ConversationMode;
+  messages: MessageType[];
+  createdAt: number;
+  updatedAt: number;
+  codeHistory?: CodeHistory;
+}
+
+interface MessageType {
+  key: string; // 对应后端的 messageKey
+  from: "user" | "assistant";
+  versions: MessageVersion[];
+  sources?: MessageSource[];
+  reasoning?: MessageReasoning;
+  tools?: MessageTool[];
+}
+
+interface MessageVersion {
+  id: string;
+  content: string;
+  files?: FileUIPart[];
 }
 ```
 
@@ -140,12 +176,20 @@ interface Message {
 **职责：**
 
 - 管理 SSE 连接
-- 处理流式事件 (`content_block_delta`, `message_complete`, `error`, `request_id`)
+- 处理流式事件 (`content_block_delta`, `message_delta`, `message_complete`, `error`, `request_id`)
 - 使用 `useEventListener` (VueUse) 处理事件
 - 提供方法：
   - `connectToStream(conversationId, requestId, callbacks)`
   - `disconnect()`
   - `isConnected` (computed)
+
+**事件处理：**
+
+- `content_block_delta`: 累积文本内容，更新到对应的 `version.content`
+- `message_delta`: 累积文本内容（备用格式）
+- `request_id`: 更新 `version.id` 和 `messageKey`（如果包含临时 ID）
+- `message_complete`: 标记版本完成，设置 `isRequesting = false`
+- `error`: 处理错误，更新版本状态
 
 #### 3.3.3 useConversation.ts
 
@@ -185,7 +229,14 @@ interface Message {
 - 渲染消息列表
 - 消息版本切换（如果有多个版本）
 - 消息操作（复制、重试等）
+- 处理流式响应更新（通过 `version.id` 匹配）
 - 使用 `useVirtualList` 或 `useScroll` (VueUse) 优化性能
+
+**重要实现细节：**
+
+- 需要根据 `version.id`（requestId）来更新对应的版本内容
+- 当收到 `request_id` 事件时，需要更新 `version.id` 和 `messageKey`（如果包含临时 ID）
+- 重试时传递 `messageKey` 参数，在同一消息下创建新版本
 
 #### 3.4.4 ChatInput.vue
 
@@ -222,14 +273,24 @@ interface Message {
 
 ```typescript
 interface ConversationEvents {
-  'conversation:created': { id: string }
-  'conversation:selected': { id: string }
-  'conversation:deleted': { id: string }
-  'message:sent': { conversationId: string, content: string }
-  'message:streaming': { conversationId: string, requestId: string, chunk: string }
-  'message:complete': { conversationId: string, requestId: string }
-  'mode:changed': { conversationId: string, mode: string }
-  'canvas:code-changed': { conversationId: string, code: string }
+  "conversation:created": { id: string };
+  "conversation:selected": { id: string };
+  "conversation:deleted": { id: string };
+  "message:sent": { conversationId: string; content: string };
+  "message:streaming": {
+    conversationId: string;
+    requestId: string;
+    chunk: string;
+  };
+  "message:complete": { conversationId: string; requestId: string };
+  "message:request-id-updated": {
+    conversationId: string;
+    messageKey: string;
+    oldRequestId: string;
+    newRequestId: string;
+  };
+  "mode:changed": { conversationId: string; mode: string };
+  "canvas:code-changed": { conversationId: string; code: string };
 }
 ```
 
@@ -267,6 +328,11 @@ interface ConversationEvents {
 2. 使用 SSE 连接接收流式响应
 3. 对话自动保存，无需手动 PUT 更新
 4. 模式处理在后端完成，前端只传递 `mode` 参数
+5. **消息结构变化**：使用 `messageKey + versions` 结构，支持消息重试
+   - 每个消息有唯一的 `messageKey`
+   - 每个消息可以有多个 `versions`（用于重试）
+   - 每个 `version` 有独立的 `id`（通常是 `requestId`）
+6. **重试机制**：通过传递 `messageKey` 参数，可以在同一消息下创建新版本
 
 ## 四、实现细节
 
@@ -274,30 +340,31 @@ interface ConversationEvents {
 
 ```typescript
 // useSSEStream.ts
-const eventSource = new EventSource(streamUrl)
+const eventSource = new EventSource(streamUrl);
 
 eventSource.onmessage = (event) => {
-  const data = JSON.parse(event.data)
-  
+  const data = JSON.parse(event.data);
+
   switch (data.type) {
-    case 'content_block_delta':
+    case "content_block_delta":
       // 累积内容并更新 store
-      onChunk(data.delta.text)
-      break
-    case 'request_id':
-      // 更新消息的 requestId
-      onRequestId(data.requestId)
-      break
-    case 'message_complete':
+      onChunk(data.delta.text);
+      break;
+    case "request_id":
+      // 更新消息的 requestId（从临时ID更新为真实ID）
+      // 需要同时更新 version.id 和 messageKey（如果 messageKey 包含临时ID）
+      onRequestId(data.requestId);
+      break;
+    case "message_complete":
       // 标记消息完成
-      onComplete()
-      break
-    case 'error':
+      onComplete();
+      break;
+    case "error":
       // 处理错误
-      onError(data.error)
-      break
+      onError(data.error);
+      break;
   }
-}
+};
 ```
 
 ### 4.2 模式管理简化
@@ -309,26 +376,63 @@ eventSource.onmessage = (event) => {
 
 ### 4.3 消息格式转换
 
-**前端 UI 格式 → 后端 API 格式：**
+**后端 API 格式（服务器返回）：**
 
 ```typescript
-// 前端 MessageType (UI)
-interface MessageType {
-  key: string
-  from: 'user' | 'assistant'
-  versions: MessageVersion[]
+// 后端 API 消息格式
+interface ApiMessage {
+  messageKey: string; // 消息唯一标识，格式如 "user-{timestamp}-{random}" 或 "assistant-{requestId}"
+  role: "user" | "assistant";
+  versions: ApiMessageVersion[]; // 版本数组，支持消息重试
+  createdAt: number;
+  updatedAt?: number;
 }
 
-// 后端 Message (API)
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  isRequesting?: boolean
-  currentRequestId?: string
+interface ApiMessageVersion {
+  id: string; // 版本ID，通常是 requestId（如 "req-5-{timestamp}" 或临时ID "temp-{uuid}"）
+  content: string;
+  isRequesting?: boolean; // 是否正在请求中
+  createdAt?: number;
 }
 ```
 
-需要在 store 中维护转换逻辑。
+**前端 UI 格式（组件使用）：**
+
+```typescript
+// 前端 UI 消息格式
+interface MessageType {
+  key: string; // 对应后端的 messageKey
+  from: "user" | "assistant";
+  versions: MessageVersion[];
+  sources?: MessageSource[];
+  reasoning?: MessageReasoning;
+  tools?: MessageTool[];
+}
+
+interface MessageVersion {
+  id: string; // 对应后端的 version.id
+  content: string;
+  files?: FileUIPart[];
+}
+```
+
+**转换逻辑：**
+
+- **API → UI**: 在 store 中使用 `apiMessageToMessageType` 函数转换
+
+  - `messageKey` → `key`
+  - `role` → `from`
+  - `versions` 数组直接映射，但只保留 `id` 和 `content`
+  - `isRequesting` 状态用于判断当前版本是否正在请求
+
+- **UI → API**: 发送消息时，前端只需要传递 `content`、`mode` 等参数，后端会自动创建 `messageKey` 和 `versions`
+
+**关键点：**
+
+1. 每个消息可以有多个版本（versions），用于支持消息重试功能
+2. `messageKey` 是消息的唯一标识，不会因为重试而改变
+3. `version.id` 通常是 `requestId`，用于标识不同的请求版本
+4. 当 `version.id` 从临时 ID 更新为真实 ID 时，如果 `messageKey` 包含临时 ID，也需要同步更新
 
 ## 五、迁移步骤
 
@@ -350,6 +454,11 @@ interface Message {
 5. **代码历史**：Canvas 模式的代码历史保存和恢复
 6. **SSE 重连**：连接断开时的自动重连机制
 7. **类型安全**：确保所有类型定义完整
+8. **消息版本管理**：
+   - 正确处理 `version.id` 从临时 ID 到真实 ID 的更新
+   - 当更新 `version.id` 时，如果 `messageKey` 包含临时 ID，需要同步更新 `messageKey`
+   - 使用 `version.id`（requestId）来匹配和更新对应的版本内容
+9. **消息重试**：通过传递 `messageKey` 参数实现，在同一消息下创建新版本
 
 ## 七、测试清单
 
@@ -363,6 +472,10 @@ interface Message {
 - [ ] Canvas 模式代码历史
 - [ ] 错误处理
 - [ ] SSE 连接断开处理
+- [ ] 消息重试功能（通过 messageKey 创建新版本）
+- [ ] 消息版本切换（多个版本之间的切换）
+- [ ] requestId 更新（从临时ID到真实ID的更新）
+- [ ] messageKey 同步更新（当包含临时ID时）
 
 ### To-dos
 
