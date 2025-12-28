@@ -163,7 +163,12 @@ export type SSEEventType =
   | "message_delta"
   | "message_complete"
   | "error"
-  | "request_id";
+  | "request_id"
+  | "canvas:code_delta"
+  | "canvas:diff_detected"
+  | "canvas:show_editor"
+  | "canvas:code_complete"
+  | "canvas:record_created";
 
 /**
  * SSE 事件数据
@@ -176,6 +181,12 @@ export interface SSEEvent {
   };
   error?: string;
   timestamp?: string;
+  // Canvas 事件相关字段
+  code?: string;
+  diff?: string;
+  originalCode?: string;
+  recordId?: string;
+  codeType?: "full" | "diff";
 }
 
 /**
@@ -186,5 +197,19 @@ export interface StreamCallbacks {
   onRequestId?: (requestId: string) => void;
   onComplete?: () => void;
   onError?: (error: string) => void;
+  // Canvas 事件回调
+  onCanvasCodeDelta?: (code: string) => void;
+  onCanvasDiffDetected?: (data: {
+    diff: string;
+    recordId: string;
+    originalCode?: string;
+  }) => void;
+  onCanvasShowEditor?: () => void;
+  onCanvasCodeComplete?: (data: {
+    recordId: string;
+    codeType: "full" | "diff";
+    code?: string;
+  }) => void;
+  onCanvasRecordCreated?: (recordId: string) => void;
 }
 

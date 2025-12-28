@@ -184,6 +184,69 @@ export function useChatApi() {
     );
   }
 
+  /**
+   * 获取 Canvas 代码历史
+   */
+  async function fetchCanvas(conversationId: string) {
+    return apiCall<{
+      conversationId: string;
+      codeHistory: {
+        versions: Array<{
+          id: string;
+          timestamp: number;
+          label: string;
+          records: Array<{
+            id: string;
+            code: string;
+            diff: string;
+            originalCode: string;
+            timestamp: number;
+          }>;
+          currentIndex: number;
+        }>;
+        currentVersionIndex: number;
+      };
+      updatedAt: number;
+    }>(`/api/ai_chat/conversations/${conversationId}/canvas`);
+  }
+
+  /**
+   * 更新 Canvas 代码历史
+   */
+  async function updateCanvas(
+    conversationId: string,
+    canvasData: {
+      conversationId: string;
+      codeHistory: unknown;
+      updatedAt: number;
+    }
+  ): Promise<{ success: boolean }> {
+    return apiCall<{ success: boolean }>(
+      `/api/ai_chat/conversations/${conversationId}/canvas`,
+      {
+        method: "PUT",
+        body: JSON.stringify(canvasData),
+      }
+    );
+  }
+
+  /**
+   * 应用 diff 并保存最终代码
+   */
+  async function applyCanvasDiff(
+    conversationId: string,
+    recordId: string,
+    code: string
+  ): Promise<{ success: boolean; recordId: string }> {
+    return apiCall<{ success: boolean; recordId: string }>(
+      `/api/ai_chat/conversations/${conversationId}/canvas/records/${recordId}/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      }
+    );
+  }
+
   return {
     endpoint: computed(() => endpoint.value),
     fetchConversations,
@@ -191,6 +254,9 @@ export function useChatApi() {
     createConversation,
     sendMessage,
     deleteConversation,
+    fetchCanvas,
+    updateCanvas,
+    applyCanvasDiff,
   };
 }
 

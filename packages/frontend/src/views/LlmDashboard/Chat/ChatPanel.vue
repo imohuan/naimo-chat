@@ -8,6 +8,7 @@ import { useConversation } from "@/views/LlmDashboard/Chat/hooks/useConversation
 import { useChatLayout } from "@/views/LlmDashboard/Chat/hooks/useChatLayout";
 import { getContext } from "@/core/context";
 import { useToasts } from "@/hooks/useToasts";
+import { useChatApi } from "@/hooks/useChatApi";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
 import ChatSidebar from "./components/ChatSidebar.vue";
 import ChatMessages from "./components/ChatMessages.vue";
@@ -40,9 +41,11 @@ const {
   updateCodeHistory,
   clearActiveConversationMessages,
   clearActiveConversation,
+  loadConversation,
 } = useConversation();
 const { pushToast } = useToasts();
 const { eventBus } = getContext();
+const chatApi = useChatApi();
 
 // 本地状态
 const selectedMode = ref<ConversationMode>("chat");
@@ -320,6 +323,10 @@ function handleClear() {
   emit("clear");
 }
 
+// 存储当前记录 ID（用于 diff 应用后保存）
+const currentRecordId = ref<string | null>(null);
+const currentOriginalCode = ref<string | null>(null);
+
 // 监听事件总线事件
 onMounted(() => {
   eventBus.on("message:complete", () => {
@@ -329,11 +336,119 @@ onMounted(() => {
   eventBus.on("message:streaming", () => {
     status.value = "streaming";
   });
+
+  // Canvas 事件监听
+  eventBus.on("canvas:code_delta", (data: { conversationId: string; code: string }) => {
+    if (data.conversationId !== activeConversationId.value) return;
+    if (!canvasPanelRef.value?.immersiveCodeRef) return;
+
+    const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
+    // 开始流式写入（如果还没开始）
+    if (!immersiveCode.isStreaming) {
+      immersiveCode.startStreaming();
+    }
+    // 流式写入代码
+    immersiveCode.streamWrite(data.code);
+  });
+
+  eventBus.on(
+    "canvas:diff_detected",
+    (data: {
+      conversationId: string;
+      diff: string;
+      recordId: string;
+      originalCode?: string;
+    }) => {
+      if (data.conversationId !== activeConversationId.value) return;
+      if (!canvasPanelRef.value?.immersiveCodeRef) return;
+
+      const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
+      // 保存记录 ID 和原始代码
+      currentRecordId.value = data.recordId;
+      currentOriginalCode.value = data.originalCode || null;
+
+      // 显示 diff 编辑器
+      immersiveCode.setDiffTarget(data.originalCode || immersiveCode.getCurrentCode(), data.diff);
+    }
+  );
+
+  eventBus.on("canvas:show_editor", (data: { conversationId: string }) => {
+    if (data.conversationId !== activeConversationId.value) return;
+    showCanvas.value = true;
+  });
+
+  eventBus.on(
+    "canvas:code_complete",
+    (data: {
+      conversationId: string;
+      recordId: string;
+      codeType: "full" | "diff";
+      code?: string;
+    }) => {
+      if (data.conversationId !== activeConversationId.value) return;
+      if (!canvasPanelRef.value?.immersiveCodeRef) return;
+
+      const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
+
+      if (data.codeType === "full" && data.code) {
+        // 完整代码模式：结束流式写入
+        immersiveCode.endStreaming();
+      }
+      // diff 模式：等待用户确认应用
+    }
+  );
+
+  eventBus.on("canvas:record_created", (data: { conversationId: string; recordId: string }) => {
+    if (data.conversationId !== activeConversationId.value) return;
+    // 记录 ID 已保存，等待 diff 应用后使用
+  });
 });
+
+// 处理 diff 应用后的保存
+async function handleDiffApplied(recordId: string, appliedCode: string) {
+  if (!activeConversationId.value || !recordId) return;
+
+  try {
+    await chatApi.applyCanvasDiff(activeConversationId.value, recordId, appliedCode);
+    // 重新加载对话以获取最新的 canvas 数据
+    await loadConversation(activeConversationId.value);
+    pushToast("代码已保存", "success");
+  } catch (error) {
+    console.error("保存应用后的代码失败:", error);
+    pushToast(
+      `保存失败: ${error instanceof Error ? error.message : "未知错误"}`,
+      "error"
+    );
+  }
+}
+
+// 监听对话切换，加载 canvas 数据
+watch(
+  activeConversationId,
+  async (newId) => {
+    if (!newId || selectedMode.value !== "canvas") return;
+
+    try {
+      const canvasData = await chatApi.fetchCanvas(newId);
+      if (canvasData && canvasData.codeHistory) {
+        // 更新对话的 codeHistory
+        updateCodeHistory(newId, canvasData.codeHistory);
+      }
+    } catch (error) {
+      console.error("加载 Canvas 数据失败:", error);
+    }
+  },
+  { immediate: true }
+);
 
 onUnmounted(() => {
   eventBus.off("message:complete");
   eventBus.off("message:streaming");
+  eventBus.off("canvas:code_delta");
+  eventBus.off("canvas:diff_detected");
+  eventBus.off("canvas:show_editor");
+  eventBus.off("canvas:code_complete");
+  eventBus.off("canvas:record_created");
 });
 
 // 保存代码历史

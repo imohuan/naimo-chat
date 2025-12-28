@@ -164,6 +164,7 @@ async function handleStreamResponse({
     const result = await processMode({
       ...processModeOptions,
       onStreamEvent,
+      sseRequestId: requestId, // 传递 SSE 请求ID，用于发送 canvas 事件
     });
 
     // 获取服务器返回的真实 requestId
@@ -468,6 +469,7 @@ function registerAiChatRoutes(server) {
             editorCode,
             model,
             apiKey,
+            conversationId, // 传递对话ID，用于保存 canvas 文件
           },
           titlePromise,
         });
@@ -612,6 +614,7 @@ function registerAiChatRoutes(server) {
             editorCode,
             model,
             apiKey,
+            conversationId: id, // 传递对话ID，用于保存 canvas 文件
           },
         });
       })();
@@ -704,6 +707,94 @@ function registerAiChatRoutes(server) {
       reply.code(500).send({ error: error.message });
     }
   });
+
+  /**
+   * GET /api/ai_chat/conversations/:id/canvas
+   * 获取 Canvas 代码历史
+   */
+  app.get("/api/ai_chat/conversations/:id/canvas", async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const { readCanvasFile } = require("./utils/canvasFileManager");
+
+      const canvasData = await readCanvasFile(id);
+      if (!canvasData) {
+        // 如果文件不存在，返回空结构
+        return {
+          conversationId: id,
+          codeHistory: {
+            versions: [],
+            currentVersionIndex: 0,
+          },
+          updatedAt: Date.now(),
+        };
+      }
+
+      return canvasData;
+    } catch (error) {
+      console.error("获取 Canvas 数据失败:", error);
+      reply.code(500).send({ error: error.message });
+    }
+  });
+
+  /**
+   * PUT /api/ai_chat/conversations/:id/canvas
+   * 更新整个 Canvas 代码历史
+   */
+  app.put("/api/ai_chat/conversations/:id/canvas", async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const { writeCanvasFile } = require("./utils/canvasFileManager");
+
+      const canvasData = req.body;
+      if (!canvasData || !canvasData.conversationId) {
+        reply.code(400).send({ error: "无效的 Canvas 数据" });
+        return;
+      }
+
+      // 确保 conversationId 匹配
+      if (canvasData.conversationId !== id) {
+        canvasData.conversationId = id;
+      }
+
+      await writeCanvasFile(id, canvasData);
+      return { success: true };
+    } catch (error) {
+      console.error("更新 Canvas 数据失败:", error);
+      reply.code(500).send({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/ai_chat/conversations/:id/canvas/records/:recordId/apply
+   * 应用 diff 并保存最终代码
+   */
+  app.post(
+    "/api/ai_chat/conversations/:id/canvas/records/:recordId/apply",
+    async (req, reply) => {
+      try {
+        const { id, recordId } = req.params;
+        const { code } = req.body;
+        const { updateCodeRecord } = require("./utils/canvasFileManager");
+
+        if (!code) {
+          reply.code(400).send({ error: "code 必填" });
+          return;
+        }
+
+        const updated = await updateCodeRecord(id, recordId, code);
+        if (!updated) {
+          reply.code(404).send({ error: "记录未找到" });
+          return;
+        }
+
+        return { success: true, recordId };
+      } catch (error) {
+        console.error("应用 diff 失败:", error);
+        reply.code(500).send({ error: error.message });
+      }
+    }
+  );
 }
 
 module.exports = { registerAiChatRoutes };

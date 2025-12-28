@@ -257,6 +257,49 @@ export function useConversation() {
         );
         store.setError(errorMessage);
       },
+
+      // Canvas 事件处理
+      onCanvasCodeDelta: (code: string) => {
+        eventBus.emit("canvas:code_delta", {
+          conversationId,
+          code,
+        });
+      },
+
+      onCanvasDiffDetected: (data: {
+        diff: string;
+        recordId: string;
+        originalCode?: string;
+      }) => {
+        eventBus.emit("canvas:diff_detected", {
+          conversationId,
+          ...data,
+        });
+      },
+
+      onCanvasShowEditor: () => {
+        eventBus.emit("canvas:show_editor", {
+          conversationId,
+        });
+      },
+
+      onCanvasCodeComplete: (data: {
+        recordId: string;
+        codeType: "full" | "diff";
+        code?: string;
+      }) => {
+        eventBus.emit("canvas:code_complete", {
+          conversationId,
+          ...data,
+        });
+      },
+
+      onCanvasRecordCreated: (recordId: string) => {
+        eventBus.emit("canvas:record_created", {
+          conversationId,
+          recordId,
+        });
+      },
     });
   }
 

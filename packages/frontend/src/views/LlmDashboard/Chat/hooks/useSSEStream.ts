@@ -63,6 +63,43 @@ export function useSSEStream() {
             callbacks.onError?.(errorMessage);
             disconnect();
             break;
+
+          // Canvas 事件处理
+          case "canvas:code_delta":
+            if (data.code) {
+              callbacks.onCanvasCodeDelta?.(data.code);
+            }
+            break;
+
+          case "canvas:diff_detected":
+            if (data.diff && data.recordId) {
+              callbacks.onCanvasDiffDetected?.({
+                diff: data.diff,
+                recordId: data.recordId,
+                originalCode: data.originalCode,
+              });
+            }
+            break;
+
+          case "canvas:show_editor":
+            callbacks.onCanvasShowEditor?.();
+            break;
+
+          case "canvas:code_complete":
+            if (data.recordId && data.codeType) {
+              callbacks.onCanvasCodeComplete?.({
+                recordId: data.recordId,
+                codeType: data.codeType,
+                code: data.code,
+              });
+            }
+            break;
+
+          case "canvas:record_created":
+            if (data.recordId) {
+              callbacks.onCanvasRecordCreated?.(data.recordId);
+            }
+            break;
         }
       } catch (error) {
         console.error("解析 SSE 事件失败:", error);
