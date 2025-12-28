@@ -94,6 +94,13 @@ function addFilesToLastUserMessage(messages, files, userInput = "") {
     lastUserMsg.content = contentParts.length > 0 ? contentParts : lastUserMsg.content;
   }
 
+  // 清理所有消息中的临时属性 _noInsertFiles
+  newMessages.forEach((msg) => {
+    if (msg._noInsertFiles !== undefined) {
+      delete msg._noInsertFiles;
+    }
+  });
+
   return newMessages;
 }
 

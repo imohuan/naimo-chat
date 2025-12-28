@@ -23,18 +23,12 @@ async function processCanvasMode(context) {
   const messages = [];
 
   // 加载系统提示词（包含格式选择提示），替换变量
+  // 注意：editorCode 变量会被替换，如果为空则带有 _checkVariables: ["editorCode"] 的消息会被自动删除
   const systemPrompts = replaceVariablesInMessages(canvasModePrompt, {
     userInput: currentInput || "",
+    editorCode: editorCode || "",
   });
   messages.push(...systemPrompts);
-
-  // Canvas 模式不包含历史消息，只添加编辑器代码
-  if (editorCode && editorCode.trim()) {
-    messages.push({
-      role: "user",
-      content: `当前编辑器中的代码：\n\`\`\`\n${editorCode}\n\`\`\``,
-    });
-  }
 
   // 2. 添加文件/图片（如果有）
   // 注意：格式选择提示消息已经标记了 _noInsertFiles，所以文件会被添加到新的 user 消息中

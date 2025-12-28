@@ -56,6 +56,11 @@ Always prioritize user experience and create responsive, accessible designs.
   },
   {
     role: "user",
+    content: `当前编辑器中的代码：\n\`\`\`\n{{editorCode}}\n\`\`\``,
+    _checkVariables: ["editorCode"],
+  },
+  {
+    role: "user",
     content: `<format_selection>
 ⚠️ 格式选择提示：你看到上面有现有代码（文件 index.html 的代码）。请根据用户输入智能判断应该使用哪种格式：
 

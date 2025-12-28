@@ -18,6 +18,12 @@ const {
   getSession,
   hasSession,
 } = require("./sessionService");
+const {
+  readConversationFile,
+  writeConversationFile,
+  updateMessageByRequestId,
+  deleteConversationFile,
+} = require("./utils/conversationFileLock");
 
 // 模式处理函数
 const processChatMode = require("./mode/chatMode");
@@ -54,84 +60,152 @@ function generateConversationId() {
 }
 
 /**
- * 获取对话文件路径
+ * 生成临时 requestId（带临时前缀）
  */
-function getConversationFilePath(id) {
-  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "");
-  return path.join(PROJECT_DIR, `chat_${safeId}.json`);
+function generateTempRequestId() {
+  return `temp-${randomUUID()}`;
 }
 
 /**
- * 读取对话文件
- * 添加重试机制以处理文件写入时的竞态条件
+ * 判断是否为临时 requestId
  */
-async function readConversationFile(id, retries = 3) {
-  const filePath = getConversationFilePath(id);
-
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      const content = await fs.readFile(filePath, "utf-8");
-
-      // 检查内容是否为空或只有空白字符
-      if (!content || !content.trim()) {
-        if (attempt < retries - 1) {
-          // 等待一小段时间后重试
-          await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
-          continue;
-        }
-        console.warn(`对话文件为空: ${filePath}`);
-        return null;
-      }
-
-      // 尝试解析 JSON
-      try {
-        return JSON.parse(content);
-      } catch (parseError) {
-        // 如果是最后一次尝试，记录错误并返回 null
-        if (attempt === retries - 1) {
-          console.error(`对话文件 JSON 解析失败: ${filePath}`, parseError);
-          console.error(`文件内容预览: ${content.substring(0, 200)}...`);
-          return null;
-        }
-        // 否则等待后重试（可能是文件正在写入中）
-        await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
-        continue;
-      }
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        return null;
-      }
-      // 如果是最后一次尝试，抛出错误
-      if (attempt === retries - 1) {
-        throw error;
-      }
-      // 其他错误也重试
-      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
-    }
-  }
-
-  return null;
+function isTempRequestId(requestId) {
+  return requestId && requestId.startsWith("temp-");
 }
 
 /**
- * 写入对话文件
+ * 处理流式响应（通用函数）
+ * @param {Object} options - 配置选项
+ * @param {string} options.conversationId - 对话ID
+ * @param {string} options.requestId - SSE 请求ID
+ * @param {string} options.tempRequestId - 临时请求ID
+ * @param {Function} options.processMode - 模式处理函数
+ * @param {Object} options.processModeOptions - 传递给 processMode 的选项
+ * @param {Promise<string>} [options.titlePromise] - 标题生成 Promise（可选，仅用于新对话）
+ * @returns {Promise<void>}
  */
-async function writeConversationFile(id, data) {
-  const filePath = getConversationFilePath(id);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
-}
-
-/**
- * 删除对话文件
- */
-async function deleteConversationFile(id) {
-  const filePath = getConversationFilePath(id);
+async function handleStreamResponse({
+  conversationId,
+  requestId,
+  tempRequestId,
+  processMode,
+  processModeOptions,
+  titlePromise,
+}) {
   try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if (error.code !== "ENOENT") {
-      throw error;
+    // 构建流式事件处理回调
+    let accumulatedContent = "";
+    let serverRequestId = null; // 存储从服务器获取的真实 requestId
+    let currentRequestId = tempRequestId; // 当前使用的 requestId（可能是临时的，也可能是真实的）
+
+    const onStreamEvent = (event) => {
+      // 处理 request_id 事件（从响应头获取的真实 requestId）
+      if (event.type === "request_id" && event.requestId) {
+        serverRequestId = event.requestId;
+        currentRequestId = serverRequestId; // 更新当前 requestId
+        // 根据临时 requestId 找到消息并替换为真实的 requestId
+        (async () => {
+          try {
+            await updateMessageByRequestId(
+              conversationId,
+              tempRequestId,
+              (message) => {
+                message.currentRequestId = serverRequestId;
+                return true;
+              }
+            );
+          } catch (error) {
+            console.error("更新 requestId 失败:", error);
+          }
+        })();
+      }
+
+      // 发送事件到 SSE 客户端
+      sendEvent(requestId, event);
+
+      // 提取文本内容（仅用于累积，不实时写入文件）
+      if (event.type === "content_block_delta" && event.delta?.text) {
+        accumulatedContent += event.delta.text;
+      } else if (event.type === "message_delta" && event.delta?.text) {
+        accumulatedContent += event.delta.text;
+      }
+
+      // 实时更新对话文件中的 assistant 消息内容
+      // 根据 currentRequestId 匹配消息（可能是临时的或真实的）
+      // (async () => {
+      //   try {
+      //     await updateMessageByRequestId(
+      //       conversationId,
+      //       currentRequestId,
+      //       (message) => {
+      //         message.content = accumulatedContent;
+      //         // 如果已获取到服务器返回的 requestId 且当前还是临时ID，更新为真实ID
+      //         if (serverRequestId && isTempRequestId(message.currentRequestId)) {
+      //           message.currentRequestId = serverRequestId;
+      //         }
+      //         return true;
+      //       }
+      //     );
+      //   } catch (error) {
+      //     console.error("实时更新对话失败:", error);
+      //   }
+      // })();
+    };
+
+    // 调用模式处理函数
+    const result = await processMode({
+      ...processModeOptions,
+      onStreamEvent,
+    });
+
+    // 获取服务器返回的真实 requestId
+    serverRequestId = result.requestId || serverRequestId;
+    // 确定最终使用的 requestId（优先使用服务器返回的）
+    const finalRequestId = serverRequestId || currentRequestId;
+
+    // 根据 currentRequestId 找到对应消息并更新最终内容
+    await updateMessageByRequestId(
+      conversationId,
+      finalRequestId,
+      (message) => {
+        message.content = result.fullResponse || accumulatedContent;
+        message.isRequesting = false;
+        // 如果还是临时ID，更新为真实ID
+        if (serverRequestId && isTempRequestId(message.currentRequestId)) {
+          message.currentRequestId = serverRequestId;
+        }
+        return true;
+      }
+    );
+
+    // 更新标题（如果提供了 titlePromise，仅用于新对话）
+    if (titlePromise) {
+      const title = await titlePromise;
+      const finalConversation = await readConversationFile(conversationId);
+      if (finalConversation) {
+        finalConversation.title = title;
+        finalConversation.updatedAt = Date.now();
+        await writeConversationFile(conversationId, finalConversation);
+      }
     }
+
+    // 发送完成事件
+    sendEvent(requestId, {
+      type: "message_complete",
+      requestId: result.requestId || requestId,
+      timestamp: new Date().toISOString(),
+    });
+
+    // 关闭会话
+    setTimeout(() => closeSession(requestId), 1000);
+  } catch (error) {
+    console.error("处理流式响应失败:", error);
+    sendEvent(requestId, {
+      type: "error",
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+    closeSession(requestId);
   }
 }
 
@@ -311,13 +385,16 @@ function registerAiChatRoutes(server) {
         conversation.messages.push(...customMessages);
       }
 
+      // 生成临时 requestId（带临时前缀，方便辨别）
+      const tempRequestId = generateTempRequestId();
+
       // 添加初始 assistant 消息（正在请求中）
-      // 注意：currentRequestId 将在获取到服务器返回的 X-Request-Id 后更新
+      // 使用临时 requestId，等待服务器返回真实的 requestId 后替换
       conversation.messages.push({
         role: "assistant",
         content: "",
         isRequesting: true,
-        currentRequestId: null, // 初始为 null，等待服务器返回真实的 requestId
+        currentRequestId: tempRequestId, // 使用临时 requestId
       });
 
       // 保存对话文件
@@ -325,85 +402,13 @@ function registerAiChatRoutes(server) {
 
       // 异步处理流式响应
       (async () => {
-        try {
-          // 获取模式处理函数
-          const processMode = getModeProcessor(mode);
-
-          // 构建流式事件处理回调
-          let accumulatedContent = "";
-          let serverRequestId = null; // 存储从服务器获取的真实 requestId
-          const onStreamEvent = (event) => {
-            // 处理 request_id 事件（从响应头获取的真实 requestId）
-            if (event.type === "request_id" && event.requestId) {
-              serverRequestId = event.requestId;
-              // 立即更新对话文件中的 currentRequestId
-              (async () => {
-                try {
-                  const currentConversation = await readConversationFile(
-                    conversationId
-                  );
-                  if (currentConversation) {
-                    const lastMessage =
-                      currentConversation.messages[
-                      currentConversation.messages.length - 1
-                      ];
-                    if (lastMessage && lastMessage.role === "assistant") {
-                      lastMessage.currentRequestId = serverRequestId;
-                      currentConversation.updatedAt = Date.now();
-                      await writeConversationFile(
-                        conversationId,
-                        currentConversation
-                      );
-                    }
-                  }
-                } catch (error) {
-                  console.error("更新 requestId 失败:", error);
-                }
-              })();
-            }
-
-            // 发送事件到 SSE 客户端
-            sendEvent(requestId, event);
-
-            // 提取文本内容
-            if (event.type === "content_block_delta" && event.delta?.text) {
-              accumulatedContent += event.delta.text;
-            } else if (event.type === "message_delta" && event.delta?.text) {
-              accumulatedContent += event.delta.text;
-            }
-
-            // 实时更新对话文件中的 assistant 消息内容
-            (async () => {
-              try {
-                const currentConversation = await readConversationFile(
-                  conversationId
-                );
-                if (currentConversation) {
-                  const lastMessage =
-                    currentConversation.messages[
-                    currentConversation.messages.length - 1
-                    ];
-                  if (lastMessage && lastMessage.role === "assistant") {
-                    lastMessage.content = accumulatedContent;
-                    // 如果已获取到服务器返回的 requestId，更新 currentRequestId
-                    if (serverRequestId && !lastMessage.currentRequestId) {
-                      lastMessage.currentRequestId = serverRequestId;
-                    }
-                    currentConversation.updatedAt = Date.now();
-                    await writeConversationFile(
-                      conversationId,
-                      currentConversation
-                    );
-                  }
-                }
-              } catch (error) {
-                console.error("实时更新对话失败:", error);
-              }
-            })();
-          };
-
-          // 调用模式处理函数
-          const result = await processMode({
+        const processMode = getModeProcessor(mode);
+        await handleStreamResponse({
+          conversationId,
+          requestId,
+          tempRequestId,
+          processMode,
+          processModeOptions: {
             conversation: null, // 新对话，没有历史
             currentInput: initialInput || "",
             mode,
@@ -411,47 +416,9 @@ function registerAiChatRoutes(server) {
             editorCode,
             model,
             apiKey,
-            onStreamEvent,
-          });
-
-          // 获取服务器返回的真实 requestId
-          serverRequestId = result.requestId || null;
-
-          // 更新标题（如果已生成）
-          const title = await titlePromise;
-          conversation.title = title;
-
-          // 更新最后的 assistant 消息
-          const lastMessage =
-            conversation.messages[conversation.messages.length - 1];
-          if (lastMessage && lastMessage.role === "assistant") {
-            lastMessage.content = result.fullResponse || accumulatedContent;
-            lastMessage.isRequesting = false;
-            // 使用服务器返回的真实 requestId
-            lastMessage.currentRequestId = serverRequestId;
-          }
-
-          conversation.updatedAt = Date.now();
-          await writeConversationFile(conversationId, conversation);
-
-          // 发送完成事件
-          sendEvent(requestId, {
-            type: "message_complete",
-            requestId: result.requestId || requestId,
-            timestamp: new Date().toISOString(),
-          });
-
-          // 关闭会话
-          setTimeout(() => closeSession(requestId), 1000);
-        } catch (error) {
-          console.error("处理流式响应失败:", error);
-          sendEvent(requestId, {
-            type: "error",
-            error: error.message,
-            timestamp: new Date().toISOString(),
-          });
-          closeSession(requestId);
-        }
+          },
+          titlePromise,
+        });
       })();
 
       // 立即返回
@@ -518,13 +485,16 @@ function registerAiChatRoutes(server) {
         content,
       });
 
+      // 生成临时 requestId（带临时前缀，方便辨别）
+      const tempRequestId = generateTempRequestId();
+
       // 添加新的 assistant 消息（正在请求中）
-      // 注意：currentRequestId 将在获取到服务器返回的 X-Request-Id 后更新
+      // 使用临时 requestId，等待服务器返回真实的 requestId 后替换
       conversation.messages.push({
         role: "assistant",
         content: "",
         isRequesting: true,
-        currentRequestId: null, // 初始为 null，等待服务器返回真实的 requestId
+        currentRequestId: tempRequestId, // 使用临时 requestId
       });
 
       conversation.updatedAt = Date.now();
@@ -532,70 +502,13 @@ function registerAiChatRoutes(server) {
 
       // 异步处理流式响应
       (async () => {
-        try {
-          const processMode = getModeProcessor(mode);
-
-          let accumulatedContent = "";
-          let serverRequestId = null; // 存储从服务器获取的真实 requestId
-          const onStreamEvent = (event) => {
-            // 处理 request_id 事件（从响应头获取的真实 requestId）
-            if (event.type === "request_id" && event.requestId) {
-              serverRequestId = event.requestId;
-              // 立即更新对话文件中的 currentRequestId
-              (async () => {
-                try {
-                  const currentConversation = await readConversationFile(id);
-                  if (currentConversation) {
-                    const lastMsg =
-                      currentConversation.messages[
-                      currentConversation.messages.length - 1
-                      ];
-                    if (lastMsg && lastMsg.role === "assistant") {
-                      lastMsg.currentRequestId = serverRequestId;
-                      currentConversation.updatedAt = Date.now();
-                      await writeConversationFile(id, currentConversation);
-                    }
-                  }
-                } catch (error) {
-                  console.error("更新 requestId 失败:", error);
-                }
-              })();
-            }
-
-            sendEvent(requestId, event);
-
-            if (event.type === "content_block_delta" && event.delta?.text) {
-              accumulatedContent += event.delta.text;
-            } else if (event.type === "message_delta" && event.delta?.text) {
-              accumulatedContent += event.delta.text;
-            }
-
-            // 实时更新对话文件
-            (async () => {
-              try {
-                const currentConversation = await readConversationFile(id);
-                if (currentConversation) {
-                  const lastMsg =
-                    currentConversation.messages[
-                    currentConversation.messages.length - 1
-                    ];
-                  if (lastMsg && lastMsg.role === "assistant") {
-                    lastMsg.content = accumulatedContent;
-                    // 如果已获取到服务器返回的 requestId，更新 currentRequestId
-                    if (serverRequestId && !lastMsg.currentRequestId) {
-                      lastMsg.currentRequestId = serverRequestId;
-                    }
-                    currentConversation.updatedAt = Date.now();
-                    await writeConversationFile(id, currentConversation);
-                  }
-                }
-              } catch (error) {
-                console.error("实时更新对话失败:", error);
-              }
-            })();
-          };
-
-          const result = await processMode({
+        const processMode = getModeProcessor(mode);
+        await handleStreamResponse({
+          conversationId: id,
+          requestId,
+          tempRequestId,
+          processMode,
+          processModeOptions: {
             conversation,
             currentInput: content,
             mode,
@@ -603,41 +516,8 @@ function registerAiChatRoutes(server) {
             editorCode,
             model,
             apiKey,
-            onStreamEvent,
-          });
-
-          // 获取服务器返回的真实 requestId
-          serverRequestId = result.requestId || null;
-
-          // 更新最后的 assistant 消息
-          const lastMsg =
-            conversation.messages[conversation.messages.length - 1];
-          if (lastMsg && lastMsg.role === "assistant") {
-            lastMsg.content = result.fullResponse || accumulatedContent;
-            lastMsg.isRequesting = false;
-            // 使用服务器返回的真实 requestId
-            lastMsg.currentRequestId = serverRequestId;
-          }
-
-          conversation.updatedAt = Date.now();
-          await writeConversationFile(id, conversation);
-
-          sendEvent(requestId, {
-            type: "message_complete",
-            requestId: result.requestId || requestId,
-            timestamp: new Date().toISOString(),
-          });
-
-          setTimeout(() => closeSession(requestId), 1000);
-        } catch (error) {
-          console.error("处理流式响应失败:", error);
-          sendEvent(requestId, {
-            type: "error",
-            error: error.message,
-            timestamp: new Date().toISOString(),
-          });
-          closeSession(requestId);
-        }
+          },
+        });
       })();
 
       return {
