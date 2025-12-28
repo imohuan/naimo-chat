@@ -2,10 +2,11 @@
  * 主入口文件，参考 claude-code-router-main/src/index.ts 实现
  * 使用 @musistudio/llms 启动路由服务
  */
+const path = require("path");
 const { createServer } = require("./server_llm");
 const { PROVIDER_CONFIG } = require("./config/provider");
 const { writeConfigFile } = require("./utils/configFile");
-const { HOME_DIR, CONFIG_FILE, LOG_FILE } = require("./config/constants");
+const { HOME_DIR, CONFIG_FILE, LOG_FILE, CHAT_MESSAGE_DIR } = require("./config/constants");
 const {
   initializeClaudeConfig,
   initConfig,
@@ -23,6 +24,7 @@ const {
   createRouteMiddleware,
   createUsageCacheMiddleware,
   createProviderKeyMiddleware,
+  createMessageLoggerMiddleware,
 } = require("./middleware");
 const { runStatusLine } = require("./utils/statusline");
 
@@ -322,6 +324,20 @@ async function startService() {
     await keyMiddleware.onError(request, _reply, error);
     appLogger.error("请求错误:", error);
   });
+
+  // 消息日志记录中间件 - 保存 /v1/messages 的请求和响应
+  const messageLogger = createMessageLoggerMiddleware({
+    logDir: CHAT_MESSAGE_DIR,
+    saveToFile: true,
+    logStream: true, // 流式响应较大，默认不记录
+    // 可选：自定义保存函数，例如保存到数据库
+    // onSave: async (requestData, responseData) => {
+    //   // 保存到数据库或其他存储
+    //   await saveToDatabase(requestData, responseData);
+    // },
+  });
+  server.addHook("preHandler", messageLogger.preHandler);
+  server.addHook("onSend", messageLogger.onSend);
 
   // 添加 onSend hook 用于处理响应和缓存用量
   // 注意：如果需要 agents 支持，需要传递 agentsManager 参数

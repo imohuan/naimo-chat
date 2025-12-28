@@ -14,6 +14,8 @@ const CONFIG_FILE = join(HOME_DIR, "config.json");
 const MCP_SERVER_DIR = join(HOME_DIR, "mcp-server");
 /* 项目保存目录 */
 const PROJECT_DIR = join(HOME_DIR, "projects");
+/* 聊天消息目录：存储聊天消息的目录 */
+const CHAT_MESSAGE_DIR = join(HOME_DIR, "chat-message")
 /* PID 文件：存储后台服务进程 ID 的文件 */
 const PID_FILE = join(HOME_DIR, ".claude-llm.pid");
 /* 剪贴板监听任务 PID 文件 */
@@ -25,7 +27,7 @@ const PLUGINS_DIR = join(HOME_DIR, "plugins");
 /* 日志目录：存储日志文件的位置 */
 const LOGS_DIR = join(HOME_DIR, "logs");
 /* 日志目录：存储日志文件的位置 */
-const CLIPBOARD_IMAGES_DIR = join(HOME_DIR, "clipboard_images");
+const CLIPBOARD_IMAGES_DIR = join(HOME_DIR, "clipboard-images");
 /* 引用计数文件：用于跟踪服务引用次数的临时文件 */
 const REFERENCE_COUNT_FILE = join(tmpdir(), "claude-llm-reference-count.txt");
 /* Claude 主目录：Claude 编辑器的主配置目录 */
@@ -44,6 +46,7 @@ module.exports = {
   CONFIG_FILE,
   MCP_SERVER_DIR,
   PROJECT_DIR,
+  CHAT_MESSAGE_DIR,
   PID_FILE,
   RESTART_SIGNAL_FILE,
   PLUGINS_DIR,
