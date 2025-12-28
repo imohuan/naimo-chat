@@ -474,8 +474,8 @@ interface MessageVersion {
 - [ ] SSE 连接断开处理
 - [ ] 消息重试功能（通过 messageKey 创建新版本）
 - [ ] 消息版本切换（多个版本之间的切换）
-- [ ] requestId 更新（从临时ID到真实ID的更新）
-- [ ] messageKey 同步更新（当包含临时ID时）
+- [ ] requestId 更新（从临时 ID 到真实 ID 的更新）
+- [ ] messageKey 同步更新（当包含临时 ID 时）
 
 ### To-dos
 

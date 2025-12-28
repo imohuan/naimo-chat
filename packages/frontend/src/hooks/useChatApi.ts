@@ -25,7 +25,7 @@ interface SendMessageResponse {
  * 封装所有对话相关的 API 调用
  */
 export function useChatApi() {
-  const { endpoint, tempApiKey } = useLlmApi();
+  const { endpoint } = useLlmApi();
 
   /**
    * 通用 API 调用函数
@@ -100,8 +100,9 @@ export function useChatApi() {
       body.model = params.model;
     }
 
-    if (params.apiKey || tempApiKey.value) {
-      body.apiKey = params.apiKey || tempApiKey.value;
+    // 不自动传输 apikey，只在明确传递时才传输
+    if (params.apiKey) {
+      body.apiKey = params.apiKey;
     }
 
     if (params.files && params.files.length > 0) {
@@ -142,8 +143,9 @@ export function useChatApi() {
       body.model = params.model;
     }
 
-    if (params.apiKey || tempApiKey.value) {
-      body.apiKey = params.apiKey || tempApiKey.value;
+    // 不自动传输 apikey，只在明确传递时才传输
+    if (params.apiKey) {
+      body.apiKey = params.apiKey;
     }
 
     if (params.files && params.files.length > 0) {

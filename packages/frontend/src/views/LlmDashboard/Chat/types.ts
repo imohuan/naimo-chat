@@ -35,12 +35,13 @@ export interface ApiMessage {
 
 /**
  * 后端 API 对话格式（与服务器交互使用）
+ * 注意：对话列表接口可能不包含 messages 字段（为了性能考虑）
  */
 export interface ApiConversation {
   id: string;
   title: string;
   mode: ConversationMode;
-  messages: ApiMessage[];
+  messages?: ApiMessage[]; // 列表接口可能不包含此字段
   createdAt: number;
   updatedAt: number;
   codeHistory?: CodeHistory;

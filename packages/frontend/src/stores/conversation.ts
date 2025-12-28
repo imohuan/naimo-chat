@@ -42,7 +42,8 @@ function apiConversationToConversation(apiConversation: ApiConversation): Conver
     createdAt: apiConversation.createdAt,
     updatedAt: apiConversation.updatedAt,
     mode: apiConversation.mode,
-    messages: apiConversation.messages.map((msg, index) =>
+    // 对话列表接口可能不包含 messages，需要处理这种情况
+    messages: (apiConversation.messages || []).map((msg, index) =>
       apiMessageToMessageType(msg, index)
     ),
     codeHistory: apiConversation.codeHistory,

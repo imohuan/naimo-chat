@@ -332,6 +332,14 @@ export function useConversation() {
     loadConversations();
   }
 
+  /**
+   * 清空活跃对话（用于新建对话时）
+   */
+  function clearActiveConversation() {
+    store.setActiveConversationId(undefined);
+    eventBus.emit("conversation:cleared");
+  }
+
   return {
     // Store state
     conversations: computed(() => store.conversations),
@@ -355,6 +363,7 @@ export function useConversation() {
     toggleSidebar: () => store.toggleSidebar(),
     clearActiveConversationMessages: () =>
       store.clearActiveConversationMessages(),
+    clearActiveConversation,
     updateConversationTitle: (id: string, title: string) =>
       store.updateConversationTitle(id, title),
   };

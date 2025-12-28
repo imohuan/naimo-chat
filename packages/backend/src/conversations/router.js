@@ -66,7 +66,6 @@ function generateTempRequestId() {
   return `temp-${randomUUID()}`;
 }
 
-
 /**
  * 生成消息键（messageKey）
  * @param {string} role - 消息角色
@@ -123,15 +122,19 @@ async function handleStreamResponse({
               // 查找包含临时 requestId 的消息版本
               for (const message of conversation.messages || []) {
                 if (message.versions && Array.isArray(message.versions)) {
-                  const version = message.versions.find(
-                    (v) => v.id === tempRequestId
-                  );
+                  const version = message.versions.find((v) => v.id === tempRequestId);
                   if (version) {
                     // 更新版本ID
                     version.id = serverRequestId;
                     // 如果 messageKey 包含临时 requestId，也需要更新
-                    if (message.messageKey && message.messageKey.includes(tempRequestId)) {
-                      message.messageKey = message.messageKey.replace(tempRequestId, serverRequestId);
+                    if (
+                      message.messageKey &&
+                      message.messageKey.includes(tempRequestId)
+                    ) {
+                      message.messageKey = message.messageKey.replace(
+                        tempRequestId,
+                        serverRequestId
+                      );
                     }
                     conversation.updatedAt = Date.now();
                     await writeConversationFile(conversationId, conversation);
@@ -179,7 +182,10 @@ async function handleStreamResponse({
           version.id = finalRequestId;
           // 如果 messageKey 包含临时 requestId，也需要更新
           if (message.messageKey && message.messageKey.includes(tempRequestId)) {
-            message.messageKey = message.messageKey.replace(tempRequestId, finalRequestId);
+            message.messageKey = message.messageKey.replace(
+              tempRequestId,
+              finalRequestId
+            );
           }
         }
         version.content = result.fullResponse || accumulatedContent;
@@ -255,11 +261,7 @@ async function generateConversationTitle(firstUserContent, model, apiKey) {
 
     // 处理重复字符（如"一则一则笑话"）
     const maxUnitLen = 4;
-    for (
-      let len = 1;
-      len <= maxUnitLen && len * 2 <= normalized.length;
-      len++
-    ) {
+    for (let len = 1; len <= maxUnitLen && len * 2 <= normalized.length; len++) {
       const unit = normalized.slice(0, len);
       if (normalized.startsWith(unit.repeat(2))) {
         normalized = unit + normalized.slice(len * 2);
@@ -292,8 +294,8 @@ function registerAiChatRoutes(server) {
   app.get("/api/ai_chat/conversations", async (_req, reply) => {
     try {
       const files = await fs.readdir(PROJECT_DIR);
-      const aiChatFiles = files.filter((file) =>
-        file.startsWith("chat_") && file.endsWith(".json")
+      const aiChatFiles = files.filter(
+        (file) => file.startsWith("chat_") && file.endsWith(".json")
       );
 
       const conversations = await Promise.all(
@@ -382,11 +384,7 @@ function registerAiChatRoutes(server) {
       createSession(requestId);
 
       // 生成对话标题（异步，不阻塞）
-      const titlePromise = generateConversationTitle(
-        initialInput || "",
-        model,
-        apiKey
-      );
+      const titlePromise = generateConversationTitle(initialInput || "", model, apiKey);
 
       // 构建对话对象
       const conversation = {
@@ -494,14 +492,7 @@ function registerAiChatRoutes(server) {
   app.post("/api/ai_chat/conversations/:id/messages", async (req, reply) => {
     try {
       const { id } = req.params;
-      const {
-        content,
-        mode: newMode,
-        model,
-        apiKey,
-        files = [],
-        editorCode,
-      } = req.body;
+      const { content, mode: newMode, model, apiKey, files = [], editorCode } = req.body;
 
       if (!content) {
         reply.code(400).send({ error: "content 必填" });
@@ -516,8 +507,7 @@ function registerAiChatRoutes(server) {
       }
 
       // 检查最后一条 assistant 消息是否正在请求中
-      const lastMessage =
-        conversation.messages[conversation.messages.length - 1];
+      const lastMessage = conversation.messages[conversation.messages.length - 1];
       if (lastMessage && lastMessage.isRequesting) {
         reply.code(409).send({ error: "对话正在请求中，请稍候" });
         return;
@@ -650,11 +640,24 @@ function registerAiChatRoutes(server) {
 
     const session = getSession(requestId);
 
-    // 设置 SSE 响应头
+    // 设置 CORS 头（SSE 流式响应需要手动设置）
+    const origin = req.headers.origin || "*";
+    const allowCredentials = origin && origin !== "*" ? "true" : "false";
+    const reqHeaders =
+      req.headers["access-control-request-headers"] ||
+      "Content-Type,Authorization,Accept,Cache-Control,Last-Event-ID";
+
+    // 设置 SSE 响应头（包含 CORS 头）
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "Access-Control-Allow-Origin": origin || "*",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers": reqHeaders,
+      "Access-Control-Allow-Credentials": allowCredentials,
+      "Access-Control-Expose-Headers": "*",
+      Vary: "Origin",
     });
     reply.raw.write("\n");
 
@@ -704,4 +707,3 @@ function registerAiChatRoutes(server) {
 }
 
 module.exports = { registerAiChatRoutes };
-

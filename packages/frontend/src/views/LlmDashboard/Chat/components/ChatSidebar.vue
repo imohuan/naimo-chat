@@ -16,14 +16,16 @@ const {
   toggleSidebar,
   selectConversation,
   deleteConversation,
-  createConversation,
 } = useConversation();
 
+const emit = defineEmits<{
+  "conversation:new": [];
+}>();
+
 function handleCreateConversation() {
-  createConversation({
-    initialInput: "",
-    mode: "chat",
-  });
+  // 只是触发事件，不清空也不创建对话
+  // 让父组件处理清空逻辑
+  emit("conversation:new");
 }
 
 function handleSelectConversation(id: string) {
