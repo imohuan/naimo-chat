@@ -371,14 +371,15 @@ const acceptSpecificChange = (change: any) => {
   // 等待 Monaco 重新計算 diff，然後重置標誌
   setTimeout(() => {
     isUpdating = false;
+    updateDiffInfo();
 
-    // 手動觸發更新，但這次是為了同步父組件的狀態
-    // 注意：這裡應該只更新當前的 accepted 變更，不應該清除 diffTarget
-    emit("update:original", newContent);
+    // emit("update:original", newContent)
 
-    // Wait for diff to update
-    setTimeout(() => updateDiffInfo(), 100);
-  }, 0);
+    // 關鍵修復：接受單個變更時，不觸發 update:original
+    // 因為這會導致父組件清除 diffTarget，從而退出 diff 模式
+    // 我們只在編輯器內部保持狀態，只有在用戶明確保存時才同步父組件
+    // （通過 handleAcceptAll 或保存按鈕）
+  }, 100);
 };
 
 const undoSpecificChange = (change: any) => {
