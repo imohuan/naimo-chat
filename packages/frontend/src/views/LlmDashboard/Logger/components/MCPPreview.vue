@@ -19,8 +19,8 @@ const emit = defineEmits<{
   "update:show": [value: boolean];
 }>();
 
-// 提取 MCP 工具列表
-const mcpTools = computed(() => {
+// 提取所有工具列表
+const allTools = computed(() => {
   if (!props.request) return [];
 
   // 首先从 request body 日志中查找
@@ -29,9 +29,7 @@ const mcpTools = computed(() => {
   );
 
   if (bodyLog && bodyLog.data.tools && Array.isArray(bodyLog.data.tools)) {
-    return bodyLog.data.tools.filter(
-      (tool: any) => tool.name && tool.name.startsWith("mcp__")
-    );
+    return bodyLog.data.tools;
   }
 
   // 如果没有找到，尝试从其他日志中查找原始请求体
@@ -45,9 +43,7 @@ const mcpTools = computed(() => {
           ? JSON.parse(finalReqLog.request.body)
           : finalReqLog.request.body;
       if (parsedBody.tools && Array.isArray(parsedBody.tools)) {
-        return parsedBody.tools.filter(
-          (tool: any) => tool.name && tool.name.startsWith("mcp__")
-        );
+        return parsedBody.tools;
       }
     } catch (e) {
       // ignore
@@ -57,25 +53,46 @@ const mcpTools = computed(() => {
   return [];
 });
 
+// 提取 MCP 工具列表（仅以 mcp__ 开头的工具）
+const mcpTools = computed(() => {
+  return allTools.value.filter(
+    (tool: any) => tool.name && tool.name.startsWith("mcp__")
+  );
+});
+
 // 搜索关键词
 const searchKeyword = ref("");
 
+// 工具类型筛选：'all' | 'mcp' | 'base'
+const toolTypeFilter = ref<"all" | "mcp" | "base">("all");
+
 // 过滤后的工具列表
 const filteredTools = computed(() => {
-  if (!searchKeyword.value.trim()) {
-    return mcpTools.value;
+  let tools = allTools.value;
+
+  // 先按类型筛选
+  if (toolTypeFilter.value === "mcp") {
+    tools = tools.filter((tool: any) => isMCPTool(tool.name));
+  } else if (toolTypeFilter.value === "base") {
+    tools = tools.filter((tool: any) => !isMCPTool(tool.name));
   }
-  const keyword = searchKeyword.value.toLowerCase().trim();
-  return mcpTools.value.filter((tool: any) => {
-    const toolName = formatToolName(tool.name).toLowerCase();
-    const description = (tool.description || "").toLowerCase();
-    const serverName = getServerName(tool.name).toLowerCase();
-    return (
-      toolName.includes(keyword) ||
-      description.includes(keyword) ||
-      serverName.includes(keyword)
-    );
-  });
+
+  // 再按搜索关键词筛选
+  if (searchKeyword.value.trim()) {
+    const keyword = searchKeyword.value.toLowerCase().trim();
+    tools = tools.filter((tool: any) => {
+      const toolName = formatToolName(tool.name).toLowerCase();
+      const description = (tool.description || "").toLowerCase();
+      const serverName = getServerName(tool.name).toLowerCase();
+      return (
+        toolName.includes(keyword) ||
+        description.includes(keyword) ||
+        serverName.includes(keyword)
+      );
+    });
+  }
+
+  return tools;
 });
 
 // 当前选中的工具索引（基于过滤后的列表）
@@ -118,9 +135,14 @@ function formatToolName(name: string): string {
   return name;
 }
 
+// 判断是否是 MCP 工具
+function isMCPTool(toolName: string | undefined): boolean {
+  return !!(toolName && toolName.startsWith("mcp__"));
+}
+
 // 获取工具所属的服务器名称（从工具名称中提取）
 function getServerName(toolName: string): string {
-  if (!toolName.startsWith("mcp__")) return "Unknown";
+  if (!toolName.startsWith("mcp__")) return "基础工具";
   const parts = toolName.substring(5).split("__");
   return parts[0] || "Unknown";
 }
@@ -139,6 +161,7 @@ function closeModal() {
   selectedToolIndex.value = null;
   currentDetailTab.value = "info";
   searchKeyword.value = "";
+  toolTypeFilter.value = "all";
 }
 
 // 点击背景关闭
@@ -165,6 +188,20 @@ watch(
     ) {
       selectedToolIndex.value = null;
     }
+    // 如果有工具列表且当前没有选中任何工具，默认选中第一个
+    if (filteredTools.value.length > 0 && selectedToolIndex.value === null) {
+      selectedToolIndex.value = 0;
+    }
+  }
+);
+
+// 监听弹窗显示状态，当弹窗打开时自动选中第一个工具
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal && filteredTools.value.length > 0) {
+      selectedToolIndex.value = 0;
+    }
   }
 );
 </script>
@@ -187,9 +224,12 @@ watch(
         >
           <h3 class="font-bold text-slate-800 flex items-center gap-2">
             <InfoOutlined class="w-5 h-5" />
-            <span class="text-lg">MCP 工具预览11</span>
+            <span class="text-lg">工具预览</span>
             <span class="text-sm font-normal text-slate-600 ml-2">
-              ({{ filteredTools.length }}/{{ mcpTools.length }} 个工具)
+              ({{ filteredTools.length }}/{{ allTools.length }} 个工具
+              <span v-if="mcpTools.length > 0"
+                >，{{ mcpTools.length }} 个 MCP</span
+              >)
             </span>
           </h3>
           <button class="btn-icon" @click="closeModal">
@@ -203,8 +243,8 @@ watch(
           <div
             class="w-80 border-r border-slate-100 bg-slate-50 overflow-hidden flex flex-col shrink-0"
           >
-            <!-- 搜索框 -->
-            <div class="p-4 border-b border-slate-200 shrink-0">
+            <!-- 搜索框和筛选器 -->
+            <div class="p-4 border-b border-slate-200 shrink-0 space-y-3">
               <div class="relative">
                 <SearchOutlined
                   class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
@@ -216,6 +256,42 @@ watch(
                   class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
               </div>
+              <!-- 类型筛选按钮 -->
+              <div class="flex gap-2">
+                <button
+                  @click="toolTypeFilter = 'all'"
+                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+                  :class="
+                    toolTypeFilter === 'all'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  "
+                >
+                  全部 ({{ allTools.length }})
+                </button>
+                <button
+                  @click="toolTypeFilter = 'mcp'"
+                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+                  :class="
+                    toolTypeFilter === 'mcp'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-white text-purple-600 border border-purple-200 hover:bg-purple-50'
+                  "
+                >
+                  MCP ({{ mcpTools.length }})
+                </button>
+                <button
+                  @click="toolTypeFilter = 'base'"
+                  class="flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all"
+                  :class="
+                    toolTypeFilter === 'base'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'
+                  "
+                >
+                  基础 ({{ allTools.length - mcpTools.length }})
+                </button>
+              </div>
             </div>
 
             <!-- 工具列表 -->
@@ -223,7 +299,7 @@ watch(
               <div
                 v-for="(tool, index) in filteredTools"
                 :key="index"
-                class="p-4 rounded-lg cursor-pointer transition-all border"
+                class="p-4 rounded-lg cursor-pointer transition-all border relative overflow-hidden"
                 :class="
                   selectedToolIndex === index
                     ? 'bg-white border-slate-300 shadow-md'
@@ -231,13 +307,30 @@ watch(
                 "
                 @click="selectedToolIndex = index as number"
               >
+                <!-- 右上角标签 -->
+                <div
+                  class="absolute top-0 right-0 w-32 h-32 overflow-hidden pointer-events-none"
+                >
+                  <span
+                    class="absolute top-4 right-0 w-40 text-center text-[10px] px-2 py-1 font-bold transform rotate-45 origin-center"
+                    :class="
+                      isMCPTool(tool.name)
+                        ? 'bg-purple-200 text-purple-800'
+                        : 'bg-blue-200 text-blue-800'
+                    "
+                  >
+                    {{ isMCPTool(tool.name) ? "MCP" : "基础" }}
+                  </span>
+                </div>
                 <div class="flex items-start justify-between gap-2">
                   <div class="flex-1 min-w-0">
-                    <div
-                      class="font-mono text-sm font-bold text-slate-800 truncate"
-                      :title="formatToolName(tool.name)"
-                    >
-                      {{ formatToolName(tool.name) }}
+                    <div class="mb-1">
+                      <div
+                        class="font-mono text-sm font-bold text-slate-800 truncate"
+                        :title="formatToolName(tool.name)"
+                      >
+                        {{ formatToolName(tool.name) }}
+                      </div>
                     </div>
                     <div
                       class="text-xs text-slate-500 mt-1 line-clamp-2"
@@ -245,7 +338,7 @@ watch(
                     >
                       {{ tool.description }}
                     </div>
-                    <div class="flex items-center gap-2 mt-2">
+                    <div class="flex items-center gap-2 mt-2 flex-wrap">
                       <span
                         class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono"
                       >
@@ -257,7 +350,7 @@ watch(
                           (tool as any).input_schema?.properties ||
                           tool.annotations?.properties
                         "
-                        class="text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-700"
+                        class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700"
                       >
                         {{
                           Object.keys(
@@ -278,9 +371,7 @@ watch(
                 v-if="filteredTools.length === 0"
                 class="text-center py-8 text-slate-400 text-sm"
               >
-                {{
-                  searchKeyword.trim() ? "未找到匹配的工具" : "未找到 MCP 工具"
-                }}
+                {{ searchKeyword.trim() ? "未找到匹配的工具" : "未找到工具" }}
               </div>
             </div>
           </div>
@@ -351,7 +442,23 @@ watch(
                   v-if="currentDetailTab === 'info'"
                   class="flex-1 overflow-y-auto"
                 >
-                  <div class="bg-slate-50 rounded-lg p-4 space-y-3">
+                  <div
+                    class="bg-slate-50 rounded-lg p-4 space-y-3 border border-slate-200"
+                  >
+                    <div class="flex items-center gap-2 mb-3">
+                      <span
+                        class="text-xs px-3 py-1 rounded font-bold"
+                        :class="
+                          isMCPTool(selectedTool.name)
+                            ? 'bg-purple-200 text-purple-800'
+                            : 'bg-blue-200 text-blue-800'
+                        "
+                      >
+                        {{
+                          isMCPTool(selectedTool.name) ? "MCP 工具" : "基础工具"
+                        }}
+                      </span>
+                    </div>
                     <div>
                       <div class="text-xs text-slate-500 mb-1">工具名称</div>
                       <div class="font-mono text-sm font-bold text-slate-800">
