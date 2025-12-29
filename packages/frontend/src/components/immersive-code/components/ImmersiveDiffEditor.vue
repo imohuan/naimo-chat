@@ -57,6 +57,9 @@ let isUpdating = false;
 const totalChanges = ref(0);
 const currentIndex = ref(0);
 const allChanges = ref<any[]>([]); // Monaco editor diff line information
+const isPrevDisabled = ref(false);
+const isNextDisabled = ref(false);
+const hasAutoScrolledToSingleDiff = ref(false); // 标记是否已经自动滚动过单个diff
 
 // Initialize Editor
 onMounted(async () => {
@@ -154,6 +157,13 @@ onMounted(async () => {
   // Listen for changes
   diffEditor.value.onDidUpdateDiff(() => {
     updateDiffInfo();
+  });
+
+  // 监听滚动事件，更新按钮状态
+  modifiedEditor.onDidScrollChange(() => {
+    if (totalChanges.value > 0) {
+      checkDiffVisibility();
+    }
   });
 
   // Listen to original model changes to sync back
@@ -261,6 +271,86 @@ const clearAllWidgets = () => {
   activeWidgets.value = [];
 };
 
+// 检测当前diff是否在可视区域内
+const checkDiffVisibility = () => {
+  if (!diffEditor.value || totalChanges.value === 0) {
+    isPrevDisabled.value = true;
+    isNextDisabled.value = true;
+    return;
+  }
+
+  const change = allChanges.value[currentIndex.value];
+  if (!change) {
+    isPrevDisabled.value = true;
+    isNextDisabled.value = true;
+    return;
+  }
+
+  const modifiedEditor = diffEditor.value.getModifiedEditor();
+  const lineNumber =
+    change.modifiedStartLineNumber > 0
+      ? change.modifiedStartLineNumber
+      : change.modifiedEndLineNumber;
+
+  if (lineNumber <= 0) {
+    isPrevDisabled.value = true;
+    isNextDisabled.value = true;
+    return;
+  }
+
+  // 获取可视区域的行号范围
+  const visibleRanges = modifiedEditor.getVisibleRanges();
+  if (visibleRanges.length === 0 || !visibleRanges[0]) {
+    // 如果只有一个diff且还没有自动滚动过，自动滚动到可视区域
+    if (totalChanges.value === 1 && !hasAutoScrolledToSingleDiff.value) {
+      hasAutoScrolledToSingleDiff.value = true;
+      setTimeout(() => {
+        jumpToChange(0);
+      }, 100);
+    }
+    isPrevDisabled.value = currentIndex.value === 0;
+    isNextDisabled.value = currentIndex.value === totalChanges.value - 1;
+    return;
+  }
+
+  const visibleRange = visibleRanges[0];
+  const visibleTop = visibleRange.startLineNumber;
+  const visibleBottom = visibleRange.endLineNumber;
+
+  // 判断diff是否在可视区域内
+  const isInViewport =
+    lineNumber >= visibleTop && lineNumber <= visibleBottom;
+
+  if (totalChanges.value === 1) {
+    // 只有一个diff时，根据位置决定按钮状态
+    if (isInViewport) {
+      // 在可视区域内，两个按钮都禁用
+      isPrevDisabled.value = true;
+      isNextDisabled.value = true;
+    } else if (lineNumber < visibleTop) {
+      // 在可视区域上方，上按钮可用（用于滚动到diff）
+      isPrevDisabled.value = false;
+      isNextDisabled.value = true;
+    } else {
+      // 在可视区域下方，下按钮可用（用于滚动到diff）
+      isPrevDisabled.value = true;
+      isNextDisabled.value = false;
+    }
+
+    // 如果还没有自动滚动过且不在可视区域内，自动滚动到可视区域
+    if (!hasAutoScrolledToSingleDiff.value && !isInViewport) {
+      hasAutoScrolledToSingleDiff.value = true;
+      setTimeout(() => {
+        jumpToChange(0);
+      }, 100);
+    }
+  } else {
+    // 多个diff时，使用原来的逻辑
+    isPrevDisabled.value = currentIndex.value === 0;
+    isNextDisabled.value = currentIndex.value === totalChanges.value - 1;
+  }
+};
+
 const updateDiffInfo = () => {
   if (!diffEditor.value || !monaco) return;
 
@@ -271,6 +361,11 @@ const updateDiffInfo = () => {
   allChanges.value = changes;
   const previousTotalChanges = totalChanges.value;
   totalChanges.value = changes.length;
+
+  // 如果diff数量变化，重置自动滚动标记
+  if (previousTotalChanges !== totalChanges.value) {
+    hasAutoScrolledToSingleDiff.value = false;
+  }
 
   // Add buttons
   changes.forEach((change) => {
@@ -283,6 +378,11 @@ const updateDiffInfo = () => {
   if (currentIndex.value >= totalChanges.value) {
     currentIndex.value = Math.max(0, totalChanges.value - 1);
   }
+
+  // 检测可视区域并更新按钮状态
+  setTimeout(() => {
+    checkDiffVisibility();
+  }, 150);
 
   // 如果所有变化都已处理完成（totalChanges 变为 0），自动退出 diff 模式
   if (previousTotalChanges > 0 && totalChanges.value === 0) {
@@ -488,6 +588,11 @@ const jumpToChange = (index: number) => {
   editorToFocus.revealLineInCenter(safeLine);
   editorToFocus.setPosition({ lineNumber: safeLine, column: 1 });
   editorToFocus.focus();
+
+  // 更新按钮状态
+  setTimeout(() => {
+    checkDiffVisibility();
+  }, 100);
 };
 
 const nextChange = () => {
@@ -611,6 +716,8 @@ defineExpose({
       v-if="!readonly"
       :current-index="currentIndex"
       :total-changes="totalChanges"
+      :is-prev-disabled="isPrevDisabled"
+      :is-next-disabled="isNextDisabled"
       @next="nextChange"
       @previous="prevChange"
       @accept-all="handleAcceptAll"

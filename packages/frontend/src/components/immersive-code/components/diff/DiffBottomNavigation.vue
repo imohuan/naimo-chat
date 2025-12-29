@@ -6,18 +6,20 @@
         <button
           class="nav-btn prev-btn"
           @click="$emit('previous')"
-          :disabled="currentIndex === 0"
+          :disabled="props.isPrevDisabled"
           :title="'Previous Change'"
         >
           <ChevronUp class="w-4 h-4" />
         </button>
 
-        <div class="change-counter">{{ currentIndex + 1 }} / {{ totalChanges }}</div>
+        <div class="change-counter">
+          {{ props.currentIndex + 1 }} / {{ props.totalChanges }}
+        </div>
 
         <button
           class="nav-btn next-btn"
           @click="$emit('next')"
-          :disabled="currentIndex === totalChanges - 1"
+          :disabled="props.isNextDisabled"
           :title="'Next Change'"
         >
           <ChevronDown class="w-4 h-4" />
@@ -54,9 +56,14 @@ import { ChevronUp, ChevronDown } from "lucide-vue-next";
 interface Props {
   currentIndex: number;
   totalChanges: number;
+  isPrevDisabled?: boolean;
+  isNextDisabled?: boolean;
 }
 
-defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  isPrevDisabled: false,
+  isNextDisabled: false,
+});
 
 defineEmits<{
   previous: [];
