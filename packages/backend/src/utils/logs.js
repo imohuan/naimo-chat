@@ -10,7 +10,7 @@ const { readdir: readdirAsync, unlink: unlinkAsync } = require("fs/promises");
 const fs = require("fs");
 const os = require("os");
 const { createStream } = require("rotating-file-stream");
-const { LOGS_DIR } = require("../config/constants");
+const { LOGS_DIR, CHAT_MESSAGE_DIR } = require("../config/constants");
 
 /**
  * 获取日志文件列表
@@ -264,23 +264,201 @@ const createLoggerConfig = (config, homeDir) => {
     const day = pad(time.getDate());
     const hour = pad(time.getHours());
     const minute = pad(time.getMinutes());
-    return `./logs/ccr-${month}${day}${hour}${minute}${pad(time.getSeconds())}${
-      index ? `_${index}` : ""
-    }.log`;
+    return `./logs/ccr-${month}${day}${hour}${minute}${pad(time.getSeconds())}${index ? `_${index}` : ""
+      }.log`;
   };
 
   return config.LOG !== false
     ? {
-        level: config.LOG_LEVEL || "debug",
-        stream: createStream(generator, {
-          path: homeDir,
-          maxFiles: 3,
-          interval: "1d",
-          compress: false,
-          maxSize: "50M",
-        }),
-      }
+      level: config.LOG_LEVEL || "debug",
+      stream: createStream(generator, {
+        path: homeDir,
+        maxFiles: 3,
+        interval: "1d",
+        compress: false,
+        maxSize: "50M",
+      }),
+    }
     : false;
+};
+
+// ========== 消息日志功能 ==========
+/**
+ * 获取消息日志列表
+ * 扫描消息日志目录，返回所有对话的信息，按时间倒序排列
+ * @param {Object} options - 选项
+ * @param {number} options.limit - 返回的最大数量（默认：100）
+ * @param {number} options.offset - 偏移量（默认：0）
+ * @returns {Array<{requestId: string, timestamp: string, model: string, hasRequest: boolean, hasResponse: boolean, hasStreamResponse: boolean}>} 消息列表
+ * @throws {Error} 当读取目录失败时抛出错误
+ */
+const getMessageList = (options = {}) => {
+  try {
+    const { limit = 100, offset = 0 } = options;
+    const messageDir = CHAT_MESSAGE_DIR;
+    const messageMap = new Map();
+
+    if (!existsSync(messageDir)) {
+      return [];
+    }
+
+    const files = readdirSync(messageDir);
+
+    // 遍历所有文件，提取 requestId
+    for (const file of files) {
+      let requestId = null;
+      let fileType = null;
+
+      // 匹配格式：{requestId}-req.json, {requestId}-res.md, {requestId}-res-full.jsonl
+      const reqMatch = file.match(/^(.+)-req\.json$/);
+      const resMdMatch = file.match(/^(.+)-res\.md$/);
+      const resFullMatch = file.match(/^(.+)-res-full\.jsonl$/);
+
+      if (reqMatch) {
+        requestId = reqMatch[1];
+        fileType = "request";
+      } else if (resMdMatch) {
+        requestId = resMdMatch[1];
+        fileType = "response";
+      } else if (resFullMatch) {
+        requestId = resFullMatch[1];
+        fileType = "streamResponse";
+      }
+
+      if (requestId) {
+        if (!messageMap.has(requestId)) {
+          messageMap.set(requestId, {
+            requestId,
+            hasRequest: false,
+            hasResponse: false,
+            hasStreamResponse: false,
+            timestamp: null,
+            model: null,
+            lastModified: null,
+          });
+        }
+
+        const message = messageMap.get(requestId);
+        const filePath = join(messageDir, file);
+        const stats = statSync(filePath);
+
+        if (fileType === "request") {
+          message.hasRequest = true;
+          // 尝试读取请求文件获取时间戳和模型信息
+          try {
+            const requestData = JSON.parse(readFileSync(filePath, "utf8"));
+            message.timestamp = requestData.timestamp || stats.mtime.toISOString();
+            message.model = requestData.body?.model || null;
+          } catch {
+            message.timestamp = stats.mtime.toISOString();
+          }
+        } else if (fileType === "response") {
+          message.hasResponse = true;
+        } else if (fileType === "streamResponse") {
+          message.hasStreamResponse = true;
+        }
+
+        // 更新最后修改时间（取最新的）
+        if (!message.lastModified || stats.mtime > new Date(message.lastModified)) {
+          message.lastModified = stats.mtime.toISOString();
+        }
+      }
+    }
+
+    // 转换为数组并按时间倒序排列
+    const messageList = Array.from(messageMap.values())
+      .filter((msg) => msg.hasRequest) // 只返回有请求文件的对话
+      .sort((a, b) => {
+        const timeA = new Date(a.timestamp || a.lastModified).getTime();
+        const timeB = new Date(b.timestamp || b.lastModified).getTime();
+        return timeB - timeA;
+      });
+
+    // 应用分页
+    return messageList.slice(offset, offset + limit);
+  } catch (error) {
+    console.error("Failed to get message list:", error);
+    throw error;
+  }
+};
+
+/**
+ * 获取消息详情
+ * 根据 requestId 获取完整的对话信息（包括请求和响应）
+ * @param {string} requestId - 请求 ID
+ * @returns {Object|null} 消息详情对象，包含请求、响应等信息，如果不存在则返回 null
+ * @throws {Error} 当读取文件失败时抛出错误
+ */
+const getMessageDetail = (requestId) => {
+  try {
+    const messageDir = CHAT_MESSAGE_DIR;
+    const requestFile = join(messageDir, `${requestId}-req.json`);
+    const responseMdFile = join(messageDir, `${requestId}-res.md`);
+    const responseFullFile = join(messageDir, `${requestId}-res-full.jsonl`);
+
+    const result = {
+      requestId,
+      request: null,
+      response: {
+        content: null, // Markdown 格式的响应内容
+        full: null, // 完整的响应数据（JSONL 格式，流式响应）
+        isStream: false,
+      },
+    };
+
+    // 读取请求文件
+    if (existsSync(requestFile)) {
+      try {
+        const requestContent = readFileSync(requestFile, "utf8");
+        result.request = JSON.parse(requestContent);
+      } catch (error) {
+        console.error(`Failed to parse request file for ${requestId}:`, error);
+        result.request = { error: "Failed to parse request file" };
+      }
+    }
+
+    // 读取响应内容文件（Markdown）
+    if (existsSync(responseMdFile)) {
+      try {
+        result.response.content = readFileSync(responseMdFile, "utf8");
+      } catch (error) {
+        console.error(`Failed to read response content file for ${requestId}:`, error);
+      }
+    }
+
+    // 读取完整响应文件（JSONL）
+    if (existsSync(responseFullFile)) {
+      try {
+        const fullContent = readFileSync(responseFullFile, "utf8");
+        const lines = fullContent
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => {
+            try {
+              return JSON.parse(line);
+            } catch {
+              return null;
+            }
+          })
+          .filter((item) => item !== null);
+
+        result.response.full = lines;
+        result.response.isStream = lines.length > 0 && lines[0].type !== undefined;
+      } catch (error) {
+        console.error(`Failed to parse response full file for ${requestId}:`, error);
+      }
+    }
+
+    // 如果没有任何数据，返回 null
+    if (!result.request && !result.response.content && !result.response.full) {
+      return null;
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`Failed to get message detail for ${requestId}:`, error);
+    throw error;
+  }
 };
 
 module.exports = {
@@ -290,4 +468,6 @@ module.exports = {
   cleanupLogFiles,
   logger,
   createLoggerConfig,
+  getMessageList,
+  getMessageDetail,
 };

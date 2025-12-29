@@ -2,6 +2,8 @@ const {
   getLogFiles,
   readLogContent,
   clearLogContent,
+  getMessageList,
+  getMessageDetail,
 } = require("../utils/logs");
 
 function registerLogRoutes(server) {
@@ -83,6 +85,45 @@ function registerLogRoutes(server) {
     } catch (error) {
       console.error("清除日志失败:", error);
       reply.status(500).send({ error: "清除日志失败" });
+    }
+  });
+
+  // ========== 消息日志接口 ==========
+
+  // 获取对话列表
+  app.get("/api/messages", async (req, reply) => {
+    try {
+      const limit = parseInt(req.query?.limit) || 100;
+      const offset = parseInt(req.query?.offset) || 0;
+
+      const messages = getMessageList({ limit, offset });
+      return {
+        messages,
+        total: messages.length,
+        limit,
+        offset,
+      };
+    } catch (error) {
+      console.error("获取对话列表失败:", error);
+      reply.status(500).send({ error: "获取对话列表失败" });
+    }
+  });
+
+  // 获取具体对话详情
+  app.get("/api/messages/:requestId", async (req, reply) => {
+    try {
+      const { requestId } = req.params;
+      const messageDetail = getMessageDetail(requestId);
+
+      if (!messageDetail) {
+        reply.status(404).send({ error: "对话不存在" });
+        return;
+      }
+
+      return messageDetail;
+    } catch (error) {
+      console.error("获取对话详情失败:", error);
+      reply.status(500).send({ error: "获取对话详情失败" });
     }
   });
 }

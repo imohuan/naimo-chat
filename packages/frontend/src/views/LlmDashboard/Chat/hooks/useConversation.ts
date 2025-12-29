@@ -61,23 +61,35 @@ export function useConversation() {
   /**
    * 加载单个对话详情
    * 
-loadConversation()
-  ↓
-store.upsertConversation() 
-  ↓
-conversations.value[index] = newConversationObject  // 新对象引用
-  ↓
-activeConversation computed 返回新对象引用
-  ↓
-ChatPanel.vue 的 watch([activeConversationId, activeConversation]) 触发
-  ↓
-ChatPanel.vue 的 watch([codeVersion, codeHistory]) 触发
-  ↓
-CanvasPanel.vue 的 watch([codeVersion, codeHistory]) 触发（deep: true）
-  ↓
-immersiveCodeRef.value.setHistory(codeHistory)  // 重新加载整个历史
-  ↓
-Canvas 被强制刷新 ❌
+   * 刷新链分析：
+   * 
+   * 1. loadConversation() (当前函数)
+   *    ↓ 调用
+   * 2. store.upsertConversation() (stores/conversation.ts:100)
+   *    ↓ 执行 conversations.value[index] = conversation (第105行)
+   *    ⚠️ 关键：创建新对象引用，即使数据内容相同
+   *    ↓
+   * 3. activeConversation computed (stores/conversation.ts:76)
+   *    ↓ 返回新对象引用
+   *    ↓
+   * 4. ChatPanel.vue watch (第136-160行)
+   *    watch(() => [activeConversation.value?.codeVersion, activeConversation.value?.codeHistory])
+   *    ⚠️ 关键：因为 activeConversation 对象引用变化而触发
+   *    ↓ 更新 props 传递给 CanvasPanel
+   *    ↓
+   * 5. CanvasPanel.vue watch (第34-55行)
+   *    watch(() => [props.codeVersion, props.codeHistory], { deep: true })
+   *    ⚠️ 关键：因为 props.codeHistory 对象引用变化而触发（deep watch）
+   *    ↓ 调用
+   * 6. immersiveCodeRef.value.setHistory(codeHistory) (第46行)
+   *    ⚠️ 关键：导致 Canvas 编辑器强制刷新整个历史
+   *    ↓
+   * 7. Canvas 被强制刷新 ❌
+   * 
+   * 根本原因：
+   * - upsertConversation() 总是创建新对象引用（stores/conversation.ts:105）
+   * - 即使数据内容相同，对象引用变化也会触发所有依赖的 watch
+   * - CanvasPanel 的 deep watch 检测到 codeHistory 引用变化，调用 setHistory() 刷新
    */
   async function loadConversation(id: string) {
     store.setLoading(true);
