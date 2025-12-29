@@ -5,6 +5,12 @@
 const { join } = require("path");
 const { homedir, tmpdir } = require("os");
 
+
+/* 静态文件目录：存储静态文件的目录 */
+const STATIC_DIR = process.execPath.endsWith(".eve")
+  ? join(__dirname, "static") : join(__dirname, "..", "..", "public");
+/* 文件hash索引文件：存储文件hash到文件路径的映射 */
+const FILE_HASH_INDEX_FILE = join(STATIC_DIR, "file-hash-index.json");
 /* 主目录：存储所有配置、日志等文件的根目录 */
 const HOME_DIR = join(homedir(), ".claude-llm");
 // const HOME_DIR = join(process.cwd(), ".claude-llm");
@@ -42,6 +48,7 @@ const LOG_FILE = join(HOME_DIR, "claude-code-router.log");
 const MCP_SERVERS_CONFIG_FILE = join(HOME_DIR, "mcp-servers.json");
 
 module.exports = {
+  STATIC_DIR,
   HOME_DIR,
   CONFIG_FILE,
   MCP_SERVER_DIR,
@@ -59,4 +66,5 @@ module.exports = {
   CLIPBOARD_WATCH_PID_FILE,
   LOG_FILE,
   MCP_SERVERS_CONFIG_FILE,
+  FILE_HASH_INDEX_FILE,
 };

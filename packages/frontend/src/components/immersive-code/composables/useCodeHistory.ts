@@ -190,7 +190,7 @@ export function useCodeHistory(initialCode: string = "") {
     const newVersion: MajorVersion = {
       id: generateId(),
       timestamp: Date.now(),
-      label: label || `Version ${versions.value.length + 1}`,
+      label: label || `版本 ${versions.value.length + 1}`,
       records: [
         {
           id: generateId(),

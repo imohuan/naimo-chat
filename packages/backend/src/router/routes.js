@@ -1,4 +1,3 @@
-const { join } = require("path");
 const fastifyStatic = require("@fastify/static");
 const { calculateTokenCount } = require("../middleware/routeMiddleware");
 const { registerConfigRoutes } = require("./configRoutes");
@@ -8,8 +7,10 @@ const { registerClipboardWatchRoutes } = require("./clipboardWatch");
 const { registerMcpRoutes } = require("./mcpRoutes");
 const { registerClaudeRoutes } = require("./claudeRoutes");
 const { registerProjectRoutes } = require("./projectRoutes");
+const { registerUploadRoutes } = require("./uploadRoutes");
 const { registerChatModuleRoutes } = require("../chat/router");
 const { registerAiChatRoutes } = require("../conversations/router");
+const { STATIC_DIR } = require("../config/constants");
 
 function registerApiRoutes(server) {
   const app = server.app;
@@ -28,6 +29,7 @@ function registerApiRoutes(server) {
   registerMcpRoutes(server);
   registerClaudeRoutes(server);
   registerProjectRoutes(server);
+  registerUploadRoutes(server);
   registerChatModuleRoutes(server);
   registerAiChatRoutes(server);
 
@@ -41,15 +43,10 @@ function registerApiRoutes(server) {
       registerEmbeddedStatic(app, "/ui/");
       console.log("✅ 使用嵌入的静态资源");
     } catch {
-
     }
 
-
-    // 如果嵌入资源不可用，回退到文件系统（开发模式）
-    console.log("📁 使用文件系统静态资源（开发模式）");
-    const publicPath = join(__dirname, "..", "..", "public");
     app.register(fastifyStatic, {
-      root: publicPath,
+      root: STATIC_DIR,
       prefix: "/static/",
       maxAge: "1h",
       logLevel: "silent",

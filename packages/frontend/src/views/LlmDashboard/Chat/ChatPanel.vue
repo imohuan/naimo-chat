@@ -77,7 +77,7 @@ const htmlIconSvg = `<svg t="1766772789014"  viewBox="0 0 1024 1024" version="1.
 const suggestions: string[] = [
   "开发一个hello world 的网页，极简",
   "修改标题",
-  "完成重构，不使用修改格式，实现一个 hello world的极简页面",
+  "完成重构，不使用修改格式，实现一个 hello world的极简页面， 设置一个随机名称的大标题",
 ];
 const hasMessages = computed(() => (activeMessages.value?.length || 0) > 0);
 
@@ -86,6 +86,9 @@ watch(
   [activeConversationId, activeConversation],
   async ([newId, conversation]) => {
     if (!newId || !conversation) return;
+
+    // 切换对话时重置空版本标记
+    hasCreatedEmptyVersion.value = false;
 
     // 恢复模式
     if (conversation.mode && conversation.mode !== selectedMode.value) {
@@ -368,11 +371,15 @@ function handleClear() {
 // 存储当前记录 ID（用于 diff 应用后保存）
 const currentRecordId = ref<string | null>(null);
 const currentOriginalCode = ref<string | null>(null);
+// 标记当前对话是否已为流式输出创建空版本
+const hasCreatedEmptyVersion = ref(false);
 
 // 监听事件总线事件
 onMounted(() => {
   eventBus.on("message:complete", () => {
     status.value = "ready";
+    // 消息完成后重置标记，为下一次流式输出做准备
+    hasCreatedEmptyVersion.value = false;
   });
 
   eventBus.on("message:streaming", () => {
@@ -395,6 +402,17 @@ onMounted(() => {
     if (!canvasPanelRef.value?.immersiveCodeRef) return;
 
     const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
+
+    // 如果是第一次收到流式输出，先创建一个空版本
+    if (
+      !hasCreatedEmptyVersion.value &&
+      immersiveCode &&
+      typeof immersiveCode.addMajorVersion === "function"
+    ) {
+      immersiveCode.addMajorVersion("", undefined);
+      hasCreatedEmptyVersion.value = true;
+    }
+
     // 开始流式写入（如果还没开始，直接调用 startStreaming 会设置内部状态）
     if (immersiveCode && typeof immersiveCode.startStreaming === "function") {
       immersiveCode.startStreaming();
@@ -438,6 +456,9 @@ onMounted(() => {
       immersiveCode.endStreaming();
     }
     // diff 模式：等待用户确认应用
+
+    // 流式输出完成后重置标记，为下一次流式输出做准备
+    hasCreatedEmptyVersion.value = false;
   });
 
   eventBus.on("canvas:record_created", (data) => {
