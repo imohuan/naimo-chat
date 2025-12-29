@@ -11,6 +11,7 @@ const MODULE_TYPES = [
   { label: "Git分支", value: "gitBranch" },
   { label: "模型", value: "model" },
   { label: "使用量", value: "usage" },
+  { label: "进度条", value: "progress" },
   { label: "脚本", value: "script" },
   { label: "分割线", value: "separator" },
 ];

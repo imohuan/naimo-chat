@@ -12,6 +12,18 @@ export const DEFAULT_MODULES: StatusLineModuleConfig[] = [
     color: "rgb(244, 114, 182)",
   },
   {
+    type: "progress",
+    icon: "📈",
+    text: "",
+    color: "rgb(34, 211, 238)",
+    progressInput: "{{totalInputTokens}}",
+    progressOutput: "{{contextWindowSize}}",
+    progressLength: 20,
+    progressBgColor: "rgb(51, 65, 85)",
+    progressColor: "rgb(34, 211, 238)",
+    progressStyle: "block",
+  },
+  {
     type: "script",
     icon: "📜",
     text: "Script Module",

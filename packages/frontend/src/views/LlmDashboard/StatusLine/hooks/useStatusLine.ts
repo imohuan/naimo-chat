@@ -353,7 +353,135 @@ export function useStatusLine(previewVariables: Ref<PreviewVariables>) {
     };
   }
 
+  /**
+   * 解析 token 字符串（如 "2.11k", "1.5M", "500"）为数字
+   */
+  function parseTokenString(tokenStr: string): number {
+    if (!tokenStr || typeof tokenStr !== "string") return 0;
+
+    const cleaned = tokenStr.trim().toLowerCase();
+    const match = cleaned.match(/^([\d.]+)\s*([kmg]?)$/);
+    if (!match || !match[1]) {
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+
+    const value = parseFloat(match[1]);
+    const unit = match[2] || "";
+
+    switch (unit) {
+      case "k":
+        return value * 1000;
+      case "m":
+        return value * 1000000;
+      case "g":
+        return value * 1000000000;
+      default:
+        return value;
+    }
+  }
+
+
+  /**
+   * 渲染进度条模块预览
+   */
+  function renderProgressModulePreview(
+    module: StatusLineModuleConfig,
+    isPowerline: boolean
+  ) {
+    const progressInput = module.progressInput || "";
+    const progressOutput = module.progressOutput || "";
+    const progressLength = module.progressLength || 20;
+    const progressBgColor = module.progressBgColor || "";
+    const progressColor = module.progressColor || "";
+    const progressStyle = module.progressStyle || "block";
+
+    // 替换变量
+    const inputStr = replaceVariables(progressInput, previewVariables.value);
+    const outputStr = replaceVariables(progressOutput, previewVariables.value);
+
+    // 解析输入和输出值
+    const inputValue = parseTokenString(inputStr);
+    const outputValue = parseTokenString(outputStr);
+
+    // 计算百分比
+    let percentage = 0;
+    if (outputValue > 0) {
+      percentage = (inputValue / outputValue) * 100;
+    }
+
+    // HEX 转 RGB
+    function hexToRgb(hex: string): string {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!result || !result[1] || !result[2] || !result[3]) return "";
+      const r = parseInt(result[1], 16);
+      const g = parseInt(result[2], 16);
+      const b = parseInt(result[3], 16);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    // 检查是否为 RGB 格式
+    function isRgbColor(color: string): boolean {
+      return /^rgb\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i.test(color);
+    }
+
+    // 检查是否为 HEX 格式
+    function isHexColor(color: string): boolean {
+      return /^#[0-9A-F]{6}$/i.test(color);
+    }
+
+    // 处理背景颜色
+    let bgColor = progressBgColor || "rgb(51, 65, 85)";
+    if (progressBgColor) {
+      if (isHexColor(progressBgColor)) {
+        bgColor = hexToRgb(progressBgColor);
+      } else if (!isRgbColor(progressBgColor)) {
+        bgColor = "rgb(51, 65, 85)";
+      }
+    }
+
+    // 处理进度条颜色
+    let progressBarColor = progressColor || "rgb(34, 211, 238)";
+    if (progressColor) {
+      if (isHexColor(progressColor)) {
+        progressBarColor = hexToRgb(progressColor);
+      } else if (!isRgbColor(progressColor)) {
+        progressBarColor = "rgb(34, 211, 238)";
+      }
+    }
+
+    // 返回进度条数据
+    return {
+      isProgress: true,
+      percentage,
+      progressLength,
+      progressStyle,
+      bgColor,
+      progressColor: progressBarColor,
+      // Powerline 样式相关
+      bgColorStyle: isPowerline ? { backgroundColor: bgColor } : {},
+      bgColorClass: "",
+      textColorStyle: {},
+      textColorClass: "",
+      borderLeftColor: isPowerline
+        ? progressBgColor && isHexColor(progressBgColor)
+          ? progressBgColor
+          : progressBgColor && isRgbColor(progressBgColor)
+            ? progressBgColor
+            : "#374151"
+        : undefined,
+      icon: module.icon || "",
+      text: "",
+      background: module.background,
+    };
+  }
+
   function renderModulePreview(module: StatusLineModuleConfig, isPowerline: boolean) {
+    // 如果是进度条类型，特殊处理
+    if (module.type === "progress") {
+      return renderProgressModulePreview(module, isPowerline);
+    }
+
     const text = replaceVariables(module.text || "", previewVariables.value);
     const icon = module.icon || "";
     const colorValue = module.color || "";
@@ -604,6 +732,37 @@ export function useStatusLine(previewVariables: Ref<PreviewVariables>) {
     return true;
   }
 
+  // 复制主题模板
+  function duplicateThemeTemplate(sourceName: string) {
+    if (!statusLineConfig.value[sourceName]) {
+      pushToast('源主题模板不存在', 'error');
+      return false;
+    }
+
+    // 生成新主题名称
+    let newName = `${sourceName} 副本`;
+    let counter = 1;
+    while (statusLineConfig.value[newName]) {
+      newName = `${sourceName} 副本 ${counter}`;
+      counter++;
+    }
+
+    // 复制主题配置
+    const sourceThemeConfig = statusLineConfig.value[sourceName];
+    if (sourceThemeConfig && typeof sourceThemeConfig === 'object' && 'modules' in sourceThemeConfig) {
+      const modules = [...(sourceThemeConfig.modules || [])];
+      statusLineConfig.value = {
+        ...statusLineConfig.value,
+        [newName]: { modules },
+      };
+      pushToast(`主题模板 "${sourceName}" 已复制为 "${newName}"`, 'success');
+      return true;
+    }
+
+    pushToast('复制主题模板失败', 'error');
+    return false;
+  }
+
   // 重命名主题模板
   function renameThemeTemplate(oldName: string, newName: string) {
     if (!newName || newName.trim() === '') {
@@ -698,6 +857,7 @@ export function useStatusLine(previewVariables: Ref<PreviewVariables>) {
     handleEnabledChange,
     addThemeTemplate,
     deleteThemeTemplate,
+    duplicateThemeTemplate,
     renameThemeTemplate,
     switchThemeTemplate,
   };

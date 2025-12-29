@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import type { StatusLineModuleConfig } from "../types";
+import ProgressBar from "./ProgressBar.vue";
 
 const props = defineProps<{
   modules: StatusLineModuleConfig[];
@@ -22,6 +23,13 @@ const props = defineProps<{
     icon?: string;
     text: string;
     background?: string;
+    // 进度条相关属性
+    isProgress?: boolean;
+    percentage?: number;
+    progressLength?: number;
+    progressStyle?: string;
+    bgColor?: string;
+    progressColor?: string;
   };
 }>();
 
@@ -70,7 +78,8 @@ const draggableModules = computed({
               class="powerline-module px-4 cursor-pointer transition-all relative group"
               :class="[
                 props.renderModulePreview(module, true)?.bgColorClass || '',
-                props.renderModulePreview(module, true)?.textColorClass || 'text-white',
+                props.renderModulePreview(module, true)?.textColorClass ||
+                  'text-white',
                 props.selectedIndex === index
                   ? 'shadow-md shadow-indigo-500/30 scale-[1.01] z-10'
                   : 'hover:shadow-sm hover:brightness-110',
@@ -86,17 +95,47 @@ const draggableModules = computed({
                   ...props.renderModulePreview(module, true)?.textColorStyle,
                 }"
               >
-                <span v-if="props.showIcon && props.renderModulePreview(module, true)?.icon">
+                <span
+                  v-if="
+                    props.showIcon &&
+                    props.renderModulePreview(module, true)?.icon
+                  "
+                >
                   {{ props.renderModulePreview(module, true)?.icon }}
                 </span>
-                <span>{{ props.renderModulePreview(module, true)?.text }}</span>
+                <template
+                  v-if="props.renderModulePreview(module, true)?.isProgress"
+                >
+                  <ProgressBar
+                    :percentage="
+                      props.renderModulePreview(module, true)?.percentage ?? 0
+                    "
+                    :length="
+                      props.renderModulePreview(module, true)?.progressLength ??
+                      20
+                    "
+                    :style="
+                      props.renderModulePreview(module, true)?.progressStyle ??
+                      'block'
+                    "
+                    :bg-color="props.renderModulePreview(module, true)?.bgColor"
+                    :progress-color="
+                      props.renderModulePreview(module, true)?.progressColor
+                    "
+                    :height="14"
+                  />
+                </template>
+                <span v-else>{{
+                  props.renderModulePreview(module, true)?.text
+                }}</span>
               </div>
               <div
                 v-if="index < draggableModules.length - 1"
                 class="powerline-separator"
                 :style="{
                   borderLeftColor:
-                    props.renderModulePreview(module, true)?.borderLeftColor || '#374151',
+                    props.renderModulePreview(module, true)?.borderLeftColor ||
+                    '#374151',
                 }"
               ></div>
             </div>
@@ -115,10 +154,37 @@ const draggableModules = computed({
             :style="props.renderModulePreview(module, false)?.textStyle"
             @click="emit('update:selected', index)"
           >
-            <span v-if="props.showIcon && props.renderModulePreview(module, false)?.icon">
+            <span
+              v-if="
+                props.showIcon && props.renderModulePreview(module, false)?.icon
+              "
+            >
               {{ props.renderModulePreview(module, false)?.icon }}
             </span>
-            <span>{{ props.renderModulePreview(module, false)?.text }}</span>
+            <template
+              v-if="props.renderModulePreview(module, false)?.isProgress"
+            >
+              <ProgressBar
+                :percentage="
+                  props.renderModulePreview(module, false)?.percentage ?? 0
+                "
+                :length="
+                  props.renderModulePreview(module, false)?.progressLength ?? 20
+                "
+                :style="
+                  props.renderModulePreview(module, false)?.progressStyle ??
+                  'block'
+                "
+                :bg-color="props.renderModulePreview(module, false)?.bgColor"
+                :progress-color="
+                  props.renderModulePreview(module, false)?.progressColor
+                "
+                :height="12"
+              />
+            </template>
+            <span v-else>{{
+              props.renderModulePreview(module, false)?.text
+            }}</span>
           </div>
         </VueDraggable>
       </template>
@@ -143,7 +209,9 @@ const draggableModules = computed({
             />
           </svg>
         </div>
-        <span class="text-sm text-slate-400 font-medium">点击下方组件添加模块</span>
+        <span class="text-sm text-slate-400 font-medium"
+          >点击下方组件添加模块</span
+        >
       </div>
     </div>
   </div>

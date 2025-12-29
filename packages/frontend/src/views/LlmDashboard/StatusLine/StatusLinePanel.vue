@@ -57,6 +57,7 @@ const {
   handleEnabledChange,
   addThemeTemplate,
   deleteThemeTemplate,
+  duplicateThemeTemplate,
   renameThemeTemplate,
   switchThemeTemplate,
 } = useStatusLine(previewVariables);
@@ -153,6 +154,7 @@ onMounted(() => {
             @update:enabled="(val) => handleEnabledChange(val)"
             @add-theme="(name) => addThemeTemplate(name)"
             @delete-theme="(name) => deleteThemeTemplate(name)"
+            @duplicate-theme="(name) => duplicateThemeTemplate(name)"
             @rename-theme="(oldName, newName) => renameThemeTemplate(oldName, newName)"
           />
 

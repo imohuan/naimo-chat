@@ -17,7 +17,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "update-module", field: keyof StatusLineModuleConfig, value: string): void;
+  (
+    e: "update-module",
+    field: keyof StatusLineModuleConfig,
+    value: string
+  ): void;
   (e: "delete-module"): void;
 }>();
 
@@ -132,172 +136,181 @@ function toggleStyle(styleValue: string) {
   <template v-if="props.selectedModule && props.selectedModuleIndex !== null">
     <div class="h-full flex-1 flex flex-col gap-2">
       <div class="flex-1 flex flex-col gap-5 overflow-y-auto p-5">
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
-            >图标</label
-          >
-          <IconSearchInput
-            :model-value="props.selectedModule.icon || ''"
-            @update:model-value="(val: string) => emit('update-module', 'icon', val)"
-          />
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
-            >文本</label
-          >
-          <VariableTextInput
-            v-model="variableTextValue"
-            placeholder="例如: {{workDirName}}"
-            preview-mode="dropdown"
-            :show-tip="true"
-            :show-left-icon="false"
-            :multiline="true"
-            :resolve-variable="resolveVariable"
-            :available-variables="availableVariables"
-            :autocomplete-trigger-chars="['{', '[']"
-          />
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
-            >文字颜色</label
-          >
-          <ColorPicker
-            :model-value="props.selectedModule.color || null"
-            placeholder="选择文字颜色"
-            @update:model-value="
-              (val) => {
-                emit('update-module', 'color', val || '');
-              }
-            "
-          />
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
-            >背景颜色</label
-          >
-          <ColorPicker
-            :model-value="props.selectedModule.background || null"
-            placeholder="选择背景颜色"
-            @update:model-value="
-              (val) => {
-                emit('update-module', 'background', val || '');
-              }
-            "
-          />
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
-            >文本样式</label
-          >
-          <div class="grid grid-cols-3 gap-2">
-            <!-- 粗体 -->
-            <StyleButton
-              value="bold"
-              label="粗体"
-              description="加粗文本"
-              :is-selected="selectedStyles.includes('bold')"
-              @click="toggleStyle"
+        <!-- 进度条类型不显示通用配置项 -->
+        <template v-if="props.selectedModule.type !== 'progress'">
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >图标</label
             >
-              <template #icon>
-                <svg
-                  class="w-4 h-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
-                  <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
-                </svg>
-              </template>
-            </StyleButton>
-
-            <!-- 暗淡 -->
-            <StyleButton
-              value="dim"
-              label="暗淡"
-              description="弱化文本"
-              :is-selected="selectedStyles.includes('dim')"
-              @click="toggleStyle"
-            >
-              <template #icon>
-                <svg
-                  class="w-4 h-4 opacity-60 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M4 12h16" />
-                  <path d="M4 16h12" />
-                  <path d="M4 8h14" />
-                </svg>
-              </template>
-            </StyleButton>
-
-            <!-- 下划线 -->
-            <StyleButton
-              value="underline"
-              label="下划线"
-              description="添加下划线"
-              :is-selected="selectedStyles.includes('underline')"
-              @click="toggleStyle"
-            >
-              <template #icon>
-                <svg
-                  class="w-4 h-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M6 4v6a6 6 0 0 0 12 0V4" />
-                  <path d="M4 20h16" />
-                </svg>
-              </template>
-            </StyleButton>
-
-            <!-- 反色 -->
-            <StyleButton
-              value="reverse"
-              label="反色"
-              description="前景色和背景色互换"
-              :is-selected="selectedStyles.includes('reverse')"
-              @click="toggleStyle"
-            >
-              <template #icon>
-                <svg
-                  class="w-4 h-4 shrink-0"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="2" y="3" width="20" height="14" rx="2" />
-                  <path d="M8 21h8" />
-                  <path d="M12 17v4" />
-                  <path d="M7 8l5-5 5 5" />
-                </svg>
-              </template>
-            </StyleButton>
+            <IconSearchInput
+              :model-value="props.selectedModule.icon || ''"
+              @update:model-value="(val: string) => emit('update-module', 'icon', val)"
+            />
           </div>
-          <p class="text-xs text-slate-500 mt-1">可多选，支持组合样式效果</p>
-        </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >文本</label
+            >
+            <VariableTextInput
+              v-model="variableTextValue"
+              placeholder="例如: {{workDirName}}"
+              preview-mode="dropdown"
+              :show-tip="true"
+              :show-left-icon="false"
+              :multiline="true"
+              :resolve-variable="resolveVariable"
+              :available-variables="availableVariables"
+              :autocomplete-trigger-chars="['{', '[']"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >文字颜色</label
+            >
+            <ColorPicker
+              :model-value="props.selectedModule.color || null"
+              placeholder="选择文字颜色"
+              @update:model-value="
+                (val) => {
+                  emit('update-module', 'color', val || '');
+                }
+              "
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >背景颜色</label
+            >
+            <ColorPicker
+              :model-value="props.selectedModule.background || null"
+              placeholder="选择背景颜色"
+              @update:model-value="
+                (val) => {
+                  emit('update-module', 'background', val || '');
+                }
+              "
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >文本样式</label
+            >
+            <div class="grid grid-cols-3 gap-2">
+              <!-- 粗体 -->
+              <StyleButton
+                value="bold"
+                label="粗体"
+                description="加粗文本"
+                :is-selected="selectedStyles.includes('bold')"
+                @click="toggleStyle"
+              >
+                <template #icon>
+                  <svg
+                    class="w-4 h-4 shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
+                    <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
+                  </svg>
+                </template>
+              </StyleButton>
+
+              <!-- 暗淡 -->
+              <StyleButton
+                value="dim"
+                label="暗淡"
+                description="弱化文本"
+                :is-selected="selectedStyles.includes('dim')"
+                @click="toggleStyle"
+              >
+                <template #icon>
+                  <svg
+                    class="w-4 h-4 opacity-60 shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M4 12h16" />
+                    <path d="M4 16h12" />
+                    <path d="M4 8h14" />
+                  </svg>
+                </template>
+              </StyleButton>
+
+              <!-- 下划线 -->
+              <StyleButton
+                value="underline"
+                label="下划线"
+                description="添加下划线"
+                :is-selected="selectedStyles.includes('underline')"
+                @click="toggleStyle"
+              >
+                <template #icon>
+                  <svg
+                    class="w-4 h-4 shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M6 4v6a6 6 0 0 0 12 0V4" />
+                    <path d="M4 20h16" />
+                  </svg>
+                </template>
+              </StyleButton>
+
+              <!-- 反色 -->
+              <StyleButton
+                value="reverse"
+                label="反色"
+                description="前景色和背景色互换"
+                :is-selected="selectedStyles.includes('reverse')"
+                @click="toggleStyle"
+              >
+                <template #icon>
+                  <svg
+                    class="w-4 h-4 shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <path d="M8 21h8" />
+                    <path d="M12 17v4" />
+                    <path d="M7 8l5-5 5 5" />
+                  </svg>
+                </template>
+              </StyleButton>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">可多选，支持组合样式效果</p>
+          </div>
+        </template>
 
         <div v-if="props.selectedModule.type === 'script'" class="space-y-2">
-          <label class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+          <label
+            class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
             >脚本路径</label
           >
           <input
@@ -308,6 +321,126 @@ function toggleStyle(styleValue: string) {
               (e) => emit('update-module', 'scriptPath', (e.target as HTMLInputElement).value)
             "
           />
+        </div>
+
+        <div v-if="props.selectedModule.type === 'progress'" class="space-y-4">
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >输入变量</label
+            >
+            <VariableTextInput
+              :model-value="props.selectedModule.progressInput || ''"
+              placeholder="例如: {{totalInputTokens}}"
+              preview-mode="dropdown"
+              :show-tip="true"
+              :show-left-icon="false"
+              :multiline="false"
+              :resolve-variable="resolveVariable"
+              :available-variables="availableVariables"
+              :autocomplete-trigger-chars="['{', '[']"
+              @update:model-value="(val: string) => emit('update-module', 'progressInput', val)"
+            />
+            <p class="text-xs text-slate-500">当前进度值（如：2.11k）</p>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >输出变量</label
+            >
+            <VariableTextInput
+              :model-value="props.selectedModule.progressOutput || ''"
+              placeholder="例如: {{contextWindowSize}}"
+              preview-mode="dropdown"
+              :show-tip="true"
+              :show-left-icon="false"
+              :multiline="false"
+              :resolve-variable="resolveVariable"
+              :available-variables="availableVariables"
+              :autocomplete-trigger-chars="['{', '[']"
+              @update:model-value="(val: string) => emit('update-module', 'progressOutput', val)"
+            />
+            <p class="text-xs text-slate-500">最大值（如：200k）</p>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >进度条长度</label
+            >
+            <input
+              type="number"
+              :value="props.selectedModule.progressLength || 20"
+              class="input-base"
+              placeholder="20"
+              min="1"
+              max="100"
+              @input="
+                (e) =>
+                  emit(
+                    'update-module',
+                    'progressLength',
+                    (e.target as HTMLInputElement).value
+                  )
+              "
+            />
+            <p class="text-xs text-slate-500">进度条的字符长度（1-100）</p>
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >进度条背景颜色</label
+            >
+            <ColorPicker
+              :model-value="props.selectedModule.progressBgColor || null"
+              placeholder="选择背景颜色"
+              @update:model-value="
+                (val) => {
+                  emit('update-module', 'progressBgColor', val || '');
+                }
+              "
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >进度条颜色</label
+            >
+            <ColorPicker
+              :model-value="props.selectedModule.progressColor || null"
+              placeholder="选择进度条颜色"
+              @update:model-value="
+                (val) => {
+                  emit('update-module', 'progressColor', val || '');
+                }
+              "
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label
+              class="text-xs font-semibold text-slate-700 uppercase tracking-wider"
+              >进度条样式</label
+            >
+            <select
+              :value="props.selectedModule.progressStyle || 'block'"
+              class="input-base"
+              @change="
+                (e) =>
+                  emit('update-module', 'progressStyle', (e.target as HTMLSelectElement).value)
+              "
+            >
+              <option value="block">实心块 (█)</option>
+              <option value="thin">细块 (▏▎▍▌▋▊▉)</option>
+              <option value="smooth">平滑 (▁▂▃▄▅▆▇█)</option>
+              <option value="bar">条形 (=)</option>
+              <option value="dot">点状 (●)</option>
+            </select>
+            <p class="text-xs text-slate-500">选择进度条的显示风格</p>
+          </div>
         </div>
       </div>
       <div class="p-5 pt-0">

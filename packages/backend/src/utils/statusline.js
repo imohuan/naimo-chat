@@ -165,6 +165,141 @@ function replaceVariables(text, variables) {
 }
 
 /**
+ * 解析 token 字符串（如 "2.11k", "1.5M", "500"）为数字
+ * @param {string} tokenStr - token 字符串
+ * @returns {number} 解析后的数字
+ */
+function parseTokenString(tokenStr) {
+  if (!tokenStr || typeof tokenStr !== "string") return 0;
+
+  // 移除空格并转换为小写
+  const cleaned = tokenStr.trim().toLowerCase();
+
+  // 匹配数字和单位
+  const match = cleaned.match(/^([\d.]+)\s*([kmg]?)$/);
+  if (!match) {
+    // 如果没有匹配到，尝试直接解析为数字
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  }
+
+  const value = parseFloat(match[1]);
+  const unit = match[2] || "";
+
+  // 根据单位转换
+  switch (unit) {
+    case "k":
+      return value * 1000;
+    case "m":
+      return value * 1000000;
+    case "g":
+      return value * 1000000000;
+    default:
+      return value;
+  }
+}
+
+/**
+ * 生成进度条字符
+ * @param {number} percentage - 百分比 (0-100)
+ * @param {number} length - 进度条长度
+ * @param {string} style - 样式风格：block, thin, smooth, bar, dot
+ * @returns {string} 进度条字符串
+ */
+function generateProgressBar(percentage, length, style = "block") {
+  if (length <= 0) return "";
+  if (percentage < 0) percentage = 0;
+  if (percentage > 100) percentage = 100;
+
+  const filled = Math.floor((percentage / 100) * length);
+  const empty = length - filled;
+
+  // 计算部分填充（用于平滑过渡）
+  const partial = (percentage / 100) * length - filled;
+
+  switch (style) {
+    case "block":
+      // 实心块：█
+      return "█".repeat(filled) + "░".repeat(empty);
+
+    case "thin":
+      // 细块：▏▎▍▌▋▊▉
+      const thinChars = ["▏", "▎", "▍", "▌", "▋", "▊", "▉"];
+      const thinIndex = Math.floor(partial * 7);
+      const thinChar = thinIndex < 7 ? thinChars[thinIndex] : "█";
+      return "█".repeat(filled) + (filled < length ? thinChar : "") + "░".repeat(Math.max(0, empty - 1));
+
+    case "smooth":
+      // 平滑：▁▂▃▄▅▆▇█
+      const smoothChars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+      const smoothIndex = Math.floor(partial * 8);
+      const smoothChar = smoothIndex < 8 ? smoothChars[smoothIndex] : "█";
+      return "█".repeat(filled) + (filled < length ? smoothChar : "") + "░".repeat(Math.max(0, empty - 1));
+
+    case "bar":
+      // 条形：=
+      return "=".repeat(filled) + "-".repeat(empty);
+
+    case "dot":
+      // 点状：●
+      return "●".repeat(filled) + "○".repeat(empty);
+
+    default:
+      // 默认使用 block
+      return "█".repeat(filled) + "░".repeat(empty);
+  }
+}
+
+/**
+ * 渲染进度条模块
+ * @param {Object} module - 模块配置
+ * @param {Object} variables - 变量对象
+ * @returns {string} 渲染后的进度条字符串
+ */
+function renderProgressModule(module, variables) {
+  const {
+    progressInput = "",
+    progressOutput = "",
+    progressLength = 20,
+    progressBgColor = "",
+    progressColor = "",
+    progressStyle = "block",
+  } = module;
+
+  // 替换变量
+  const inputStr = replaceVariables(progressInput, variables);
+  const outputStr = replaceVariables(progressOutput, variables);
+
+  // 解析输入和输出值
+  const inputValue = parseTokenString(inputStr);
+  const outputValue = parseTokenString(outputStr);
+
+  // 计算百分比
+  let percentage = 0;
+  if (outputValue > 0) {
+    percentage = (inputValue / outputValue) * 100;
+  }
+
+  // 生成进度条
+  const progressBar = generateProgressBar(percentage, progressLength, progressStyle);
+
+  if (!progressBar) {
+    return "";
+  }
+
+  // 应用样式
+  const bgCode = progressBgColor
+    ? getBackgroundColorCode(progressBgColor)
+    : "";
+  const fgCode = progressColor ? getColorCode(progressColor) : "";
+
+  // 组合样式代码
+  const styleCodes = [bgCode, fgCode].filter(Boolean).join("");
+
+  return `${styleCodes}${progressBar}${RESET}`;
+}
+
+/**
  * 创建文本样式（组合颜色、背景色和样式）
  */
 function createTextStyle(options = {}) {
@@ -202,6 +337,11 @@ const RESET = "\u001b[0m";
  * @param {boolean} showIcon - 是否显示图标，默认为 true
  */
 function renderModule(module, variables, showIcon = true) {
+  // 如果是进度条类型，使用专门的渲染函数
+  if (module.type === "progress") {
+    return renderProgressModule(module, variables);
+  }
+
   const { icon = "", text = "", color, background, style } = module;
 
   // 替换变量

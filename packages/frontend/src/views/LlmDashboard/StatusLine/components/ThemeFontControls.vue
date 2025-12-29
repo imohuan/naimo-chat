@@ -25,6 +25,7 @@ const emit = defineEmits<{
   (e: "add-theme", name: string): void;
   (e: "delete-theme", name: string): void;
   (e: "rename-theme", oldName: string, newName: string): void;
+  (e: "duplicate-theme", name: string): void;
 }>();
 
 const editingThemeRefs = ref<Record<string, InstanceType<typeof ThemeItem> | null>>({});
@@ -47,6 +48,10 @@ function handleRenameTheme(oldName: string, newName: string) {
       ref.cancelEdit();
     }
   });
+}
+
+function handleDuplicateTheme(name: string) {
+  emit("duplicate-theme", name);
 }
 
 function handleThemeClick(name: string) {
@@ -140,6 +145,7 @@ function handleThemeClick(name: string) {
           "
           @click="() => handleThemeClick(name)"
           @delete="() => handleDeleteTheme(name)"
+          @duplicate="() => handleDuplicateTheme(name)"
         />
       </div>
     </div>

@@ -6,6 +6,13 @@ export interface StatusLineModuleConfig {
   background?: string;
   scriptPath?: string;
   style?: string | string[]; // ANSI 样式：bold, dim, normal, underline, noUnderline, reverse, noReverse
+  // 进度条相关配置
+  progressInput?: string; // 输入变量名，如 "inputTokens" 或 "{{inputTokens}}"
+  progressOutput?: string; // 输出变量名，如 "contextWindowSize" 或 "{{contextWindowSize}}"
+  progressLength?: number; // 进度条长度，默认 20
+  progressBgColor?: string; // 进度条背景颜色
+  progressColor?: string; // 进度条颜色
+  progressStyle?: string; // 进度条样式风格：block, thin, gradient 等
 }
 
 export interface StatusLineThemeConfig {

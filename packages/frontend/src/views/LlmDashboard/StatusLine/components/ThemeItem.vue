@@ -6,6 +6,7 @@ import {
   EditOutlined,
   CheckOutlined,
   CloseOutlined,
+  ContentCopyOutlined,
 } from "@vicons/material";
 
 type Mode = "add" | "edit";
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   (e: "click"): void;
   (e: "delete"): void;
   (e: "edit"): void;
+  (e: "duplicate"): void;
 }>();
 
 const isEditing = ref(false);
@@ -102,6 +104,10 @@ function handleEdit() {
   isEditing.value = true;
   inputValue.value = props.name || "";
   emit("edit");
+}
+
+function handleDuplicate() {
+  emit("duplicate");
 }
 
 // 暴露方法供父组件调用
@@ -213,6 +219,13 @@ defineExpose({
       <div
         class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
       >
+        <button
+          class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+          @click.stop="handleDuplicate"
+          title="复制"
+        >
+          <ContentCopyOutlined class="w-3.5 h-3.5" />
+        </button>
         <button
           class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
           @click.stop="handleEdit"
