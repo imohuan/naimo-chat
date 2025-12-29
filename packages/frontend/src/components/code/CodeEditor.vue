@@ -71,6 +71,20 @@ async function initEditor() {
     modelUri
   );
 
+  // 明確設置模型的縮排選項（tabSize / insertSpaces），否則 Monaco 會使用模型自己的預設值（通常是 4）
+  const normalizedTabSize =
+    (props.options as Monaco.editor.IStandaloneEditorConstructionOptions)
+      ?.tabSize ?? 2;
+  const normalizedInsertSpaces =
+    (props.options as Monaco.editor.IStandaloneEditorConstructionOptions)
+      ?.insertSpaces ?? true;
+
+  model.updateOptions({
+    tabSize: normalizedTabSize,
+    indentSize: normalizedTabSize,
+    insertSpaces: normalizedInsertSpaces,
+  });
+
   console.log(
     `✅ 创建编辑器模型: ${modelUri.toString()}, 语言: ${props.language}`
   );
@@ -84,7 +98,7 @@ async function initEditor() {
     minimap: {
       enabled: false,
     },
-    scrollBeyondLastLine: false,
+    scrollBeyondLastLine: true,
     fontSize: 14,
     fontWeight: "bold",
     // fontFamily:
@@ -95,7 +109,9 @@ async function initEditor() {
       verticalScrollbarSize: 10,
       horizontalScrollbarSize: 10,
     },
-    tabSize: 2,
+    // 這裡同樣保留一份，給沒有提前設定模型的情況使用
+    // tabSize: normalizedTabSize,
+    // insertSpaces: normalizedInsertSpaces,
     wordWrap: currentWordWrapState,
     // 启用完整的代码提示功能
     quickSuggestions: {
@@ -129,7 +145,6 @@ async function initEditor() {
     ...props.options,
   });
 
-
   editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyZ, function () {
     // 切换状态： off <-> on
     currentWordWrapState = currentWordWrapState === 'off' ? 'on' : "off"
@@ -139,6 +154,7 @@ async function initEditor() {
 
   // 添加 Ctrl+I 快捷键处理
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, function () {
+    debugger
     if (editor) {
       const code = editor.getValue();
       const selection = editor.getSelection();

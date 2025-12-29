@@ -584,7 +584,17 @@ defineExpose({
     const dryRun = applyDiff(baseCode, diffContent);
     if (!dryRun.success) {
       console.warn("⚠️ [ImmersiveCode] Diff (Dry Run) Failed:", dryRun.message);
-      // We can still choose to record it, but maybe warn?
+
+      // 没有找到可應用的內容時，直接退出 / 保持在非 diff 模式
+      // 不記錄這次 diff，並且主動調用 exitDiffMode 以確保從現有 diff 狀態中退出
+      exitDiffMode({ finalContent: baseCode, enableEmit: false });
+
+      console.groupEnd();
+      return {
+        success: false,
+        appliedCount: dryRun.appliedCount,
+        message: dryRun.message || "未找到可以應用的 Diff。",
+      };
     }
 
     // 3. Record new state:

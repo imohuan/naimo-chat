@@ -76,6 +76,18 @@ onMounted(async () => {
     props.language
   );
 
+  // 與 CodeEditor.vue 保持一致：明確設置模型的縮排選項
+  originalModel.updateOptions({
+    tabSize: 2,
+    indentSize: 2,
+    insertSpaces: true,
+  });
+  modifiedModel.updateOptions({
+    tabSize: 2,
+    indentSize: 2,
+    insertSpaces: true,
+  });
+
   // 与 CodeEditor.vue 保持一致的编辑器配置
   diffEditor.value = monaco.editor.createDiffEditor(container.value, {
     originalEditable: !props.readonly,
@@ -85,7 +97,7 @@ onMounted(async () => {
     automaticLayout: true,
     theme: props.theme,
     minimap: { enabled: false },
-    scrollBeyondLastLine: false,
+    scrollBeyondLastLine: true,
     fontSize: props.fontSize,
     fontWeight: "bold",
     roundedSelection: false,
@@ -109,7 +121,8 @@ onMounted(async () => {
   const commonEditorOptions = {
     fontSize: props.fontSize,
     fontWeight: "bold" as const,
-    scrollBeyondLastLine: false,
+    // 與 CodeEditor.vue 保持一致：允許滾動超過最後一行
+    scrollBeyondLastLine: true,
     roundedSelection: false,
     scrollbar: {
       verticalScrollbarSize: 10,
@@ -271,6 +284,74 @@ const clearAllWidgets = () => {
   activeWidgets.value = [];
 };
 
+// 根據 diff 資訊，推導一個在「修改後編輯器」中安全可用的行號和位置偏好
+// 1. 優先使用 modifiedStart/EndLineNumber
+// 2. 對於純刪除（modified 行號為 0），回退到 originalStart/EndLineNumber
+// 3. 最後根據編輯器實際行數做邊界裁剪，確保在 [1, lineCount] 範圍內
+const getEffectiveLineNumber = (
+  change: any,
+  modifiedEditor?: any
+): {
+  lineNumber: number;
+  positionPreference: Monaco.editor.ContentWidgetPositionPreference;
+} => {
+  // 根據優先級選擇有效行號（用於定位修改後編輯器中的位置）
+  let lineNumber: number;
+  let positionPreference: Monaco.editor.ContentWidgetPositionPreference =
+    monaco!.editor.ContentWidgetPositionPreference.BELOW;
+
+  // 删除该区域的代码块的时候 需要单独判断
+  if (
+    change.modifiedEndLineNumber === 0 &&
+    change.modifiedStartLineNumber > 0
+  ) {
+    lineNumber = change.modifiedStartLineNumber + 1;
+    // 删除代码块时，widget 显示在当前行中
+    positionPreference = monaco!.editor.ContentWidgetPositionPreference.EXACT;
+  }
+  // 優先級 1: 使用修改後的結束行號（當起始行號不可用時）
+  else if (change.modifiedEndLineNumber > 0) {
+    lineNumber = change.modifiedEndLineNumber;
+  }
+  // 優先級 2: 使用修改後的起始行號（適用於新增、修改操作）
+  else if (change.modifiedStartLineNumber > 0) {
+    lineNumber = change.modifiedStartLineNumber;
+  }
+  // 優先級 3: 使用原始起始行號（純刪除操作時，modified 行號可能為 0）
+  else if (change.originalStartLineNumber > 0) {
+    lineNumber = change.originalStartLineNumber;
+  }
+  // 優先級 4: 使用原始結束行號（當起始行號不可用時）
+  else if (change.originalEndLineNumber > 0) {
+    lineNumber = change.originalEndLineNumber;
+  }
+  // 默認值: 如果所有行號都無效（≤ 0），使用第 1 行
+  else {
+    lineNumber = 1;
+  }
+
+  if (modifiedEditor) {
+    const model = modifiedEditor.getModel?.();
+    if (model) {
+      const maxLine = model.getLineCount();
+      if (maxLine > 0) {
+        lineNumber = Math.min(Math.max(lineNumber, 1), maxLine);
+      } else {
+        lineNumber = 1;
+      }
+    }
+  }
+
+  if (lineNumber <= 0) {
+    return {
+      lineNumber: 1,
+      positionPreference,
+    };
+  }
+
+  return { lineNumber, positionPreference };
+};
+
 // 检测当前diff是否在可视区域内
 const checkDiffVisibility = () => {
   if (!diffEditor.value || totalChanges.value === 0) {
@@ -287,16 +368,7 @@ const checkDiffVisibility = () => {
   }
 
   const modifiedEditor = diffEditor.value.getModifiedEditor();
-  const lineNumber =
-    change.modifiedStartLineNumber > 0
-      ? change.modifiedStartLineNumber
-      : change.modifiedEndLineNumber;
-
-  if (lineNumber <= 0) {
-    isPrevDisabled.value = true;
-    isNextDisabled.value = true;
-    return;
-  }
+  const { lineNumber } = getEffectiveLineNumber(change, modifiedEditor);
 
   // 获取可视区域的行号范围
   const visibleRanges = modifiedEditor.getVisibleRanges();
@@ -318,8 +390,7 @@ const checkDiffVisibility = () => {
   const visibleBottom = visibleRange.endLineNumber;
 
   // 判断diff是否在可视区域内
-  const isInViewport =
-    lineNumber >= visibleTop && lineNumber <= visibleBottom;
+  const isInViewport = lineNumber >= visibleTop && lineNumber <= visibleBottom;
 
   if (totalChanges.value === 1) {
     // 只有一个diff时，根据位置决定按钮状态
@@ -369,9 +440,8 @@ const updateDiffInfo = () => {
 
   // Add buttons
   changes.forEach((change) => {
-    if (change.modifiedEndLineNumber > 0) {
-      addActionButtonsToChange(change);
-    }
+    // 也為「只有刪除」的 diff 添加操作按鈕
+    addActionButtonsToChange(change);
   });
 
   // Update Current Index based on cursor position or just clamp it
@@ -386,7 +456,9 @@ const updateDiffInfo = () => {
 
   // 如果所有变化都已处理完成（totalChanges 变为 0），自动退出 diff 模式
   if (previousTotalChanges > 0 && totalChanges.value === 0) {
-    console.log("✅ [ImmersiveDiffEditor] 所有 diff 变化已处理完成，自动退出 diff 模式");
+    console.log(
+      "✅ [ImmersiveDiffEditor] 所有 diff 变化已处理完成，自动退出 diff 模式"
+    );
     const originalModel = diffEditor.value.getOriginalEditor().getModel();
     if (originalModel) {
       // 获取最终的代码内容并触发保存事件
@@ -402,7 +474,10 @@ const addActionButtonsToChange = (change: any) => {
   if (props.readonly) return;
 
   const modifiedEditor = diffEditor.value.getModifiedEditor();
-  const lineNumber = change.modifiedEndLineNumber;
+  const { lineNumber, positionPreference } = getEffectiveLineNumber(
+    change,
+    modifiedEditor
+  );
 
   // Try to get width to align buttons
   let width = modifiedEditor.getLayoutInfo().contentWidth;
@@ -439,7 +514,7 @@ const addActionButtonsToChange = (change: any) => {
           column: 1,
         },
         positionAffinity: monaco!.editor.PositionAffinity.RightOfInjectedText,
-        preference: [monaco!.editor.ContentWidgetPositionPreference.BELOW],
+        preference: [positionPreference],
       };
     },
   };
@@ -743,10 +818,52 @@ defineExpose({
 
 /* 编辑器的宽度 */
 :deep(.monaco-diff-editor .monaco-editor.modified-in-monaco-diff-editor.vs),
-:deep(.monaco-diff-editor
-    .monaco-editor.modified-in-monaco-diff-editor.vs
-    .overflow-guard) {
+:deep(
+    .monaco-diff-editor
+      .monaco-editor.modified-in-monaco-diff-editor.vs
+      .overflow-guard
+  ) {
   width: 100% !important;
+}
+
+/* 光标 */
+:deep(
+    .monaco-diff-editor
+      .monaco-editor.modified-in-monaco-diff-editor.vs
+      .cursor.monaco-mouse-cursor-text
+  ) {
+  margin-left: 16px !important;
+}
+
+/** 对比条背景 */
+:deep(
+    .monaco-diff-editor
+      div.monaco-scrollable-element.editor-scrollable.vs
+      > div.lines-content.monaco-editor-background
+      > div.view-overlays
+  ) {
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+/** 对比条背景2 */
+:deep(
+    .monaco-diff-editor
+      .monaco-editor.modified-in-monaco-diff-editor.vs
+      .view-zones
+  ) {
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+/** 对比条背景3 */
+:deep(
+    .monaco-editor .view-overlays > div,
+    .monaco-editor .margin-view-overlays > div
+  ) {
+  width: 105 !important;
 }
 
 /** 编辑器内容的位置 */
@@ -776,10 +893,20 @@ defineExpose({
   display: none !important;
 }
 
-/* 
-editor modified
-monaco-editor modified-in-monaco-diff-editor no-user-select  showUnused showDeprecated vs
-overflow-guard
-monaco-scrollable-element editor-scrollable vs
-*/
+/**  顶部stick 栏 */
+:deep(.monaco-diff-editor .overlayWidgets .sticky-widget) {
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+}
+
+/**  顶部stick 栏 */
+:deep(
+    .monaco-diff-editor
+      .overlayWidgets
+      .sticky-widget
+      .sticky-widget-lines-scrollable
+  ) {
+  width: 100% !important;
+}
 </style>

@@ -505,5 +505,6 @@ function guessExtension(lang?: string) {
   padding-top: 2px !important;
   padding-bottom: 2px !important; */
   padding: 0 !important;
+  border-bottom: none !important;
 }
 </style>
