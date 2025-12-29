@@ -43,9 +43,7 @@ const props = withDefaults(
     readonly?: boolean;
     title?: string;
   }>(),
-  {
-    title: "Fixed Script",
-  }
+  {}
 );
 
 // Define emits for error notifications
@@ -901,6 +899,36 @@ const hasBackendDiffForCurrentRecord = computed(() => {
   return !!(record.originalCode && record.diffTarget);
 });
 
+// 从预览 HTML 代码中提取 title
+const previewHtmlTitle = computed(() => {
+  const code = previewCode.value;
+  if (!code) return "";
+
+  // 尝试匹配 <title>...</title> 标签
+  const titleMatch = code.match(/<title[^>]*>([^<]*)<\/title>/i);
+  if (titleMatch && titleMatch[1]) {
+    return titleMatch[1].trim();
+  }
+
+  return "";
+});
+
+// 计算显示的标题：优先使用 props.title，如果没有则使用预览 HTML 的 title，最后使用默认值
+const displayTitle = computed(() => {
+  // 如果 props.title 存在且不为空字符串，使用 props.title
+  if (props.title && props.title.trim() !== "") {
+    return props.title;
+  }
+
+  // 如果预览 HTML 有 title，使用预览 HTML 的 title
+  if (previewHtmlTitle.value) {
+    return previewHtmlTitle.value;
+  }
+
+  // 最后使用默认值
+  return "Fixed Script";
+});
+
 // 处理历史 diff 按钮点击：基于 originalCode + diffTarget 进入 / 退出 diff 模式
 function handleHistoryDiffToggle() {
   const historyRecord = currentRecord.value as
@@ -1070,7 +1098,7 @@ onBeforeUnmount(() => {
       <div class="flex items-center space-x-4">
         <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
           <Code2 class="w-5 h-5 text-purple-600" />
-          <span>{{ props.title }}</span>
+          <span class="max-w-[200px] truncate">{{ displayTitle }}</span>
         </div>
 
         <!-- History Controls -->
