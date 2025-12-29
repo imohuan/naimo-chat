@@ -1,10 +1,11 @@
-import { computed, type Ref } from "vue";
+import { computed, watch, type Ref } from "vue";
 import { useElementSize } from "@vueuse/core";
 
 /**
  * 聊天佈局配置類型
  */
 export type ChatLayoutConfig = {
+  containerWidth: number;
   isSmallScreen: boolean;
   messageMaxWidth: string;
   messageLayout: string;
@@ -20,13 +21,16 @@ export type ChatLayoutConfig = {
  * 提供統一的響應式寬度和佈局計算邏輯
  */
 export function useChatLayout(containerRef: Ref<HTMLElement | null>) {
-  const { width: containerWidth } = useElementSize(containerRef);
+  const { width: rawContainerWidth } = useElementSize(containerRef);
+
+  const containerWidth = computed(() => Math.round(rawContainerWidth.value));
 
   // 判斷是否為小屏幕（< 640px）
   const isSmallScreen = computed(() => containerWidth.value < 640);
 
   // 統一的佈局配置對象
   const layoutConfig = computed<ChatLayoutConfig>(() => ({
+    containerWidth: containerWidth.value,
     isSmallScreen: isSmallScreen.value,
     messageMaxWidth: isSmallScreen.value ? "max-w-full" : "max-w-[80%]",
     messageLayout: isSmallScreen.value ? "flex-col items-center" : "flex-row",

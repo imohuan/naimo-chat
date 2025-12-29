@@ -136,7 +136,7 @@ defineExpose({
           <button
             @click="handleClose"
             class="p-1.5 text-slate-400 hover:text-slate-600 transition rounded"
-            title="关闭画布"
+            title="折叠画布"
           >
             <X class="w-4 h-4" />
           </button>

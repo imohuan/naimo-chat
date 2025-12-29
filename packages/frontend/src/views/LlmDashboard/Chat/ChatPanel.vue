@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import type { ChatStatus } from "ai";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import type { LlmProvider } from "@/interface";
+import { PanelRightOpen } from "lucide-vue-next";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { useConversation } from "@/views/LlmDashboard/Chat/hooks/useConversation";
 import { useChatLayout } from "@/views/LlmDashboard/Chat/hooks/useChatLayout";
@@ -569,9 +570,20 @@ watch(activeConversationId, (_newId, oldId) => {
       />
 
       <!-- 右侧主对话区域 -->
-      <div ref="chatContainerRef" class="flex h-full w-full flex-1 overflow-hidden">
+      <div class="relative flex h-full w-full flex-1 overflow-hidden">
+        <!-- 画布折叠时的右上角悬浮展开按钮 -->
+        <button
+          v-if="selectedMode === 'canvas' && !showCanvas"
+          class="absolute right-2 top-2 z-20 p-1.5 text-slate-400 hover:text-slate-600 transition rounded bg-white/90 shadow-md hover:bg-white"
+          title="展开画布"
+          @click="showCanvas = true"
+        >
+          <PanelRightOpen class="w-4 h-4" />
+        </button>
+
         <!-- 左侧对话区域 -->
         <div
+          ref="chatContainerRef"
           class="flex h-full w-full py-4 md:py-6 overflow-hidden"
           :class="[
             hasMessages ? 'flex-col' : 'items-center justify-center',
