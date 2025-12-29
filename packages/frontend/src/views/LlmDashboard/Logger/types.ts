@@ -55,3 +55,44 @@ export interface LogChatMessage {
   content: string | Array<{ type: string; text: string }>;
 }
 
+/** 对话列表项 */
+export interface MessageListItem {
+  requestId: string;
+  hasRequest: boolean;
+  hasResponse: boolean;
+  hasStreamResponse: boolean;
+  timestamp: string | null;
+  model: string | null;
+  lastModified: string | null;
+}
+
+/** JSONL 流式响应事件类型 */
+export type StreamEventType =
+  | "message_start"
+  | "content_block_start"
+  | "content_block_delta"
+  | "content_block_stop"
+  | "message_delta"
+  | "message_stop";
+
+/** JSONL 流式响应事件 */
+export interface StreamEvent {
+  type: StreamEventType;
+  message?: any;
+  content_block?: any;
+  delta?: any;
+  index?: number;
+  usage?: any;
+}
+
+/** 对话详情 */
+export interface MessageDetail {
+  requestId: string;
+  request: any;
+  response: {
+    content: string | null; // Markdown 格式的响应内容
+    full: StreamEvent[] | null; // 完整的响应数据（JSONL 格式，流式响应）
+    isStream: boolean;
+  };
+}
+

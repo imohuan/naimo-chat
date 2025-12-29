@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch, onUnmounted, onMounted } from "vue";
+import {
+  computed,
+  ref,
+  useTemplateRef,
+  watch,
+  onUnmounted,
+  onMounted,
+} from "vue";
 import { useIntersectionObserver, useDebounceFn } from "@vueuse/core";
 import {
   VisibilityOutlined,
@@ -17,6 +24,7 @@ import MessageActionButtons from "./MessageActionButtons.vue";
 import ToolUseEdit from "./ToolUseEdit.vue";
 import ImageDisplay from "@/components/llm/ImageDisplay.vue";
 import QueueExample from "./QueueExample.vue";
+import MCPPreview from "./MCPPreview.vue";
 import type { LogRequest, LogChatMessage } from "../types";
 import { useCharLoading } from "@/hooks/useCharLoading";
 
@@ -25,6 +33,7 @@ const props = defineProps<{
 }>();
 
 const activeTab = ref<"preview" | "timeline" | "raw">("preview");
+const showMCPPreview = ref(false);
 const rawJson = computed(() => formatJson(props.request?.logs || []));
 
 const logsSource = computed(() => props.request?.logs || []);
@@ -106,9 +115,15 @@ const timelineLoading = useCharLoading(
 );
 
 const messageContainerRef = useTemplateRef<HTMLElement>("messageContainerRef");
-const timelineContainerRef = useTemplateRef<HTMLElement>("timelineContainerRef");
-const messageLoadTriggerRef = useTemplateRef<HTMLElement>("messageLoadTriggerRef");
-const timelineLoadTriggerRef = useTemplateRef<HTMLElement>("timelineLoadTriggerRef");
+const timelineContainerRef = useTemplateRef<HTMLElement>(
+  "timelineContainerRef"
+);
+const messageLoadTriggerRef = useTemplateRef<HTMLElement>(
+  "messageLoadTriggerRef"
+);
+const timelineLoadTriggerRef = useTemplateRef<HTMLElement>(
+  "timelineLoadTriggerRef"
+);
 
 // 使用字符加载hooks - 所有显示项
 const messageLoading = useCharLoading(
@@ -266,16 +281,13 @@ function formatTimeLong(ts: number): string {
 
 function formatTimeDetail(ts: number): string {
   const d = new Date(ts);
-  return `${d
-    .getHours()
-    .toString()
-    .padStart(2, "0")}:${d
+  return `${d.getHours().toString().padStart(2, "0")}:${d
     .getMinutes()
     .toString()
-    .padStart(2, "0")}:${d
-    .getSeconds()
+    .padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}.${d
+    .getMilliseconds()
     .toString()
-    .padStart(2, "0")}.${d.getMilliseconds().toString().padStart(3, "0")}`;
+    .padStart(3, "0")}`;
 }
 
 function computeTimeDelta(logs: any[], idx: number): number {
@@ -297,7 +309,8 @@ function formatJson(obj: any): string {
 
 function isChatRequest(req: LogRequest | null): boolean {
   return (
-    !!req && (req.url.includes("/messages") || req.url.includes("/chat/completions"))
+    !!req &&
+    (req.url.includes("/messages") || req.url.includes("/chat/completions"))
   );
 }
 
@@ -331,6 +344,44 @@ function getChatMessages(req: LogRequest): LogChatMessage[] {
 
   return messages;
 }
+
+// 提取 MCP 工具列表
+const mcpTools = computed(() => {
+  if (!props.request) return [];
+
+  // 首先从 request body 日志中查找
+  const bodyLog = props.request.logs.find(
+    (l) => l.type === "request body" && l.data
+  );
+
+  if (bodyLog && bodyLog.data.tools && Array.isArray(bodyLog.data.tools)) {
+    return bodyLog.data.tools.filter(
+      (tool: any) => tool.name && tool.name.startsWith("mcp__")
+    );
+  }
+
+  // 如果没有找到，尝试从其他日志中查找原始请求体
+  const finalReqLog = props.request.logs.find(
+    (l) => l.request && l.request.body
+  );
+  if (finalReqLog) {
+    try {
+      const parsedBody =
+        typeof finalReqLog.request.body === "string"
+          ? JSON.parse(finalReqLog.request.body)
+          : finalReqLog.request.body;
+      if (parsedBody.tools && Array.isArray(parsedBody.tools)) {
+        return parsedBody.tools.filter(
+          (tool: any) => tool.name && tool.name.startsWith("mcp__")
+        );
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return [];
+});
 
 function getLevelColor(level: number): string {
   if (level === 30) return "bg-blue-500";
@@ -417,7 +468,9 @@ function getDisplayContent(item: any): string {
     return content.trim();
   }
 
-  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+  const itemId = `${item.type}-${
+    item.data.time || item.data.role || Math.random()
+  }`;
   if (!isCollapsed(itemId)) {
     return content.trim();
   }
@@ -433,7 +486,9 @@ function getCollapsedCharCount(item: any): number {
 
 // 复制对象数据到剪贴板
 async function copyItemData(item: any) {
-  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+  const itemId = `${item.type}-${
+    item.data.time || item.data.role || Math.random()
+  }`;
 
   try {
     const dataToCopy = {
@@ -495,9 +550,7 @@ function isTodoWrite(toolData: any): boolean {
 }
 
 // 转换 TodoWrite 的 todos 格式为 QueueTodo 格式
-function convertTodosToQueueFormat(
-  todos: any[]
-): Array<{
+function convertTodosToQueueFormat(todos: any[]): Array<{
   id: string;
   title: string;
   description?: string;
@@ -524,7 +577,9 @@ onMounted(() => {
   handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       // 关闭所有打开的图片预览
-      const openPreviews = document.querySelectorAll('[data-preview-open="true"]');
+      const openPreviews = document.querySelectorAll(
+        '[data-preview-open="true"]'
+      );
       openPreviews.forEach((preview) => {
         (preview as any).closePreview?.();
       });
@@ -541,7 +596,8 @@ onUnmounted(() => {
 
 // 加载全部内容并滚动到底部
 async function loadAllAndScrollToBottom() {
-  const currentLoading = activeTab.value === "preview" ? messageLoading : timelineLoading;
+  const currentLoading =
+    activeTab.value === "preview" ? messageLoading : timelineLoading;
   const currentContainer =
     activeTab.value === "preview"
       ? messageContainerRef.value
@@ -563,16 +619,6 @@ async function loadAllAndScrollToBottom() {
     });
   }
 }
-
-// 计算是否还有更多内容需要加载
-const hasMoreToLoad = computed(() => {
-  if (activeTab.value === "preview") {
-    return messageLoading.hasMore.value;
-  } else if (activeTab.value === "timeline") {
-    return timelineLoading.hasMore.value;
-  }
-  return false;
-});
 </script>
 
 <template>
@@ -616,7 +662,7 @@ const hasMoreToLoad = computed(() => {
             <span>{{ request.id }}</span>
           </div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
           <button
             @click="activeTab = 'preview'"
             :disabled="!previewEnabled"
@@ -630,6 +676,15 @@ const hasMoreToLoad = computed(() => {
             ]"
           >
             <VisibilityOutlined class="w-4 h-4" /> 预览
+          </button>
+          <!-- MCP 标签 -->
+          <button
+            v-if="mcpTools.length > 0"
+            @click="showMCPPreview = true"
+            class="bg-purple-50 border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-xs font-mono shadow-sm hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
+            :title="`点击查看 ${mcpTools.length} 个 MCP 工具详情`"
+          >
+            MCP: <span class="font-bold">{{ mcpTools.length }}</span>
           </button>
           <button
             @click="activeTab = 'timeline'"
@@ -670,14 +725,20 @@ const hasMoreToLoad = computed(() => {
       </button>
       <!-- 预览 Tab -->
       <div v-if="activeTab === 'preview'" class="w-full h-full">
-        <div v-if="!isChatRequest(request)" class="text-center py-20 text-slate-400">
+        <div
+          v-if="!isChatRequest(request)"
+          class="text-center py-20 text-slate-400"
+        >
           <p class="text-lg">此请求不是聊天补全请求，无法预览对话。</p>
           <p class="text-sm mt-2">请切换到"时间轴"或"原始数据"查看详情。</p>
         </div>
 
         <div v-else class="h-full space-y-6">
           <!-- Messages (lazy loaded) -->
-          <div ref="messageContainerRef" class="max-h-full overflow-y-auto pr-1">
+          <div
+            ref="messageContainerRef"
+            class="max-h-full overflow-y-auto pr-1"
+          >
             <!-- Model Info -->
             <div v-if="request.model" class="flex justify-center mb-6">
               <span
@@ -740,16 +801,24 @@ const hasMoreToLoad = computed(() => {
                           class="mb-1 last:mb-0"
                         >
                           <!-- Text content -->
-                          <div v-if="part.type === 'text'" class="whitespace-pre-wrap">
+                          <div
+                            v-if="part.type === 'text'"
+                            class="whitespace-pre-wrap"
+                          >
                             <template
                               v-if="
                                 shouldShowCollapse(item) &&
                                 isCollapsed(
-                                  `${item.type}-${item.data.role || Math.random()}`
+                                  `${item.type}-${
+                                    item.data.role || Math.random()
+                                  }`
                                 )
                               "
                             >
-                              {{ (part.text?.trim() || "").substring(0, 200) + "..." }}
+                              {{
+                                (part.text?.trim() || "").substring(0, 200) +
+                                "..."
+                              }}
                             </template>
                             <template v-else>
                               {{ part.text?.trim() || "" }}
@@ -761,7 +830,9 @@ const hasMoreToLoad = computed(() => {
                             <!-- TodoWrite: 使用 QueueExample 组件 -->
                             <div v-if="isTodoWrite(part)" class="mb-1">
                               <QueueExample
-                                :todos="convertTodosToQueueFormat(part.input.todos)"
+                                :todos="
+                                  convertTodosToQueueFormat(part.input.todos)
+                                "
                                 :show-messages="false"
                                 :preview="true"
                               />
@@ -773,7 +844,9 @@ const hasMoreToLoad = computed(() => {
                               :is-collapsed="
                                 shouldShowCollapse(item) &&
                                 isCollapsed(
-                                  `${item.type}-${item.data.role || Math.random()}`
+                                  `${item.type}-${
+                                    item.data.role || Math.random()
+                                  }`
                                 )
                               "
                             />
@@ -785,7 +858,8 @@ const hasMoreToLoad = computed(() => {
                             class="bg-green-50 border border-green-200 rounded-lg p-3 mb-1 shadow-sm"
                           >
                             <div class="flex items-center gap-2 mb-1">
-                              <span class="text-xs font-bold text-green-600 uppercase"
+                              <span
+                                class="text-xs font-bold text-green-600 uppercase"
                                 >Tool Result:</span
                               >
                               <span
@@ -802,7 +876,9 @@ const hasMoreToLoad = computed(() => {
                                 v-if="
                                   shouldShowCollapse(item) &&
                                   isCollapsed(
-                                    `${item.type}-${item.data.role || Math.random()}`
+                                    `${item.type}-${
+                                      item.data.role || Math.random()
+                                    }`
                                   )
                                 "
                               >
@@ -832,7 +908,8 @@ const hasMoreToLoad = computed(() => {
                           <!-- Image content -->
                           <div v-else-if="part.type === 'image'" class="mb-1">
                             <div class="flex items-center gap-2 mb-2">
-                              <span class="text-xs font-bold text-purple-700 uppercase"
+                              <span
+                                class="text-xs font-bold text-purple-700 uppercase"
                                 >Image:</span
                               >
                             </div>
@@ -858,7 +935,8 @@ const hasMoreToLoad = computed(() => {
                             class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-1 shadow-sm"
                           >
                             <div class="flex items-center gap-2 mb-1">
-                              <span class="text-xs font-bold text-yellow-700 uppercase"
+                              <span
+                                class="text-xs font-bold text-yellow-700 uppercase"
                                 >{{ part.type }}:</span
                               >
                             </div>
@@ -880,7 +958,9 @@ const hasMoreToLoad = computed(() => {
                           </div>
                         </div>
                       </template>
-                      <template v-else> {{ getDisplayContent(item) }} </template>
+                      <template v-else>
+                        {{ getDisplayContent(item) }}
+                      </template>
 
                       <!-- 底部按钮组 -->
                       <MessageActionButtons
@@ -888,11 +968,15 @@ const hasMoreToLoad = computed(() => {
                         :item-data="item.data"
                         :should-show-collapse="shouldShowCollapse(item)"
                         :is-collapsed="
-                          isCollapsed(`${item.type}-${item.data.role || Math.random()}`)
+                          isCollapsed(
+                            `${item.type}-${item.data.role || Math.random()}`
+                          )
                         "
                         :collapsed-char-count="getCollapsedCharCount(item)"
                         :is-copy-success="
-                          isCopySuccess(`${item.type}-${item.data.role || Math.random()}`)
+                          isCopySuccess(
+                            `${item.type}-${item.data.role || Math.random()}`
+                          )
                         "
                         @toggle-collapse="
                           toggleCollapse(
@@ -922,13 +1006,16 @@ const hasMoreToLoad = computed(() => {
                         >Full Response (Reconstructed)</span
                       >
                       <span class="font-mono text-[10px] opacity-70"
-                        >Length: {{ item.data.data?.content?.length || 0 }} chars</span
+                        >Length:
+                        {{ item.data.data?.content?.length || 0 }} chars</span
                       >
                     </div>
                     <div
                       class="bg-white text-slate-800 border border-green-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm whitespace-pre-wrap font-mono select-text flex flex-col gap-1 relative"
                     >
-                      <div class="w-1 h-full bg-green-600 rounded-r-sm mr-2"></div>
+                      <div
+                        class="w-1 h-full bg-green-600 rounded-r-sm mr-2"
+                      ></div>
                       <div class="flex-1">
                         {{ getDisplayContent(item) }}
                       </div>
@@ -938,9 +1025,13 @@ const hasMoreToLoad = computed(() => {
                         :item-type="item.type"
                         :item-data="item.data"
                         :should-show-collapse="shouldShowCollapse(item)"
-                        :is-collapsed="isCollapsed(`${item.type}-${item.data.time}`)"
+                        :is-collapsed="
+                          isCollapsed(`${item.type}-${item.data.time}`)
+                        "
                         :collapsed-char-count="getCollapsedCharCount(item)"
-                        :is-copy-success="isCopySuccess(`${item.type}-${item.data.time}`)"
+                        :is-copy-success="
+                          isCopySuccess(`${item.type}-${item.data.time}`)
+                        "
                         @toggle-collapse="
                           toggleCollapse(`${item.type}-${item.data.time}`)
                         "
@@ -979,7 +1070,9 @@ const hasMoreToLoad = computed(() => {
                         >{{
                           isCollapsed(`${item.type}-${item.data.time}`) &&
                           shouldShowCollapse(item)
-                            ? formatJson(item.data.err).trim().substring(0, 500) + "..."
+                            ? formatJson(item.data.err)
+                                .trim()
+                                .substring(0, 500) + "..."
                             : formatJson(item.data.err).trim()
                         }}</pre
                       >
@@ -989,9 +1082,13 @@ const hasMoreToLoad = computed(() => {
                         :item-type="item.type"
                         :item-data="item.data"
                         :should-show-collapse="shouldShowCollapse(item)"
-                        :is-collapsed="isCollapsed(`${item.type}-${item.data.time}`)"
+                        :is-collapsed="
+                          isCollapsed(`${item.type}-${item.data.time}`)
+                        "
                         :collapsed-char-count="getCollapsedCharCount(item)"
-                        :is-copy-success="isCopySuccess(`${item.type}-${item.data.time}`)"
+                        :is-copy-success="
+                          isCopySuccess(`${item.type}-${item.data.time}`)
+                        "
                         @toggle-collapse="
                           toggleCollapse(`${item.type}-${item.data.time}`)
                         "
@@ -1060,10 +1157,14 @@ const hasMoreToLoad = computed(() => {
                 class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm"
               >
                 <div class="flex justify-between items-start mb-1">
-                  <span class="text-xs font-bold text-indigo-600" v-if="log.msg">{{
-                    log.msg
-                  }}</span>
-                  <span class="text-xs font-bold text-slate-500" v-else>Log Entry</span>
+                  <span
+                    class="text-xs font-bold text-indigo-600"
+                    v-if="log.msg"
+                    >{{ log.msg }}</span
+                  >
+                  <span class="text-xs font-bold text-slate-500" v-else
+                    >Log Entry</span
+                  >
                   <span
                     class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded"
                     >Level {{ log.level }}</span
@@ -1084,17 +1185,22 @@ const hasMoreToLoad = computed(() => {
                 >
                   <!-- Full Response Log -->
                   <div v-if="log.type === 'full_response' && log.data?.content">
-                    <span class="text-green-600 font-bold mb-1 flex items-center gap-2">
+                    <span
+                      class="text-green-600 font-bold mb-1 flex items-center gap-2"
+                    >
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Full Response:
                     </span>
                     <div
                       class="bg-white border border-green-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
                     >
-                      <div class="absolute top-0 left-0 w-1 h-full bg-green-600"></div>
-                      <pre class="text-slate-800 whitespace-pre-wrap select-text">{{
-                        log.data.content?.trim() || ""
-                      }}</pre>
+                      <div
+                        class="absolute top-0 left-0 w-1 h-full bg-green-600"
+                      ></div>
+                      <pre
+                        class="text-slate-800 whitespace-pre-wrap select-text"
+                        >{{ log.data.content?.trim() || "" }}</pre
+                      >
                       <div class="text-xs text-slate-500 mt-2 text-right">
                         Length: {{ log.data.content.length }} chars
                         <span v-if="log.data.model" class="ml-2"
@@ -1106,11 +1212,15 @@ const hasMoreToLoad = computed(() => {
 
                   <!-- Error Log -->
                   <div v-else-if="log.type === 'error'">
-                    <span class="text-red-600 font-bold mb-1 flex items-center gap-2">
+                    <span
+                      class="text-red-600 font-bold mb-1 flex items-center gap-2"
+                    >
                       <WarningOutlined class="w-4 h-4" />
                       > Error:
                     </span>
-                    <div class="bg-red-50 border border-red-200 p-3 rounded mt-2">
+                    <div
+                      class="bg-red-50 border border-red-200 p-3 rounded mt-2"
+                    >
                       <pre class="text-red-600 select-text">{{
                         formatJson(log.err).trim()
                       }}</pre>
@@ -1123,13 +1233,17 @@ const hasMoreToLoad = computed(() => {
                       <span class="text-blue-600 font-bold block mb-1"
                         >> Payload Data:</span
                       >
-                      <pre class="text-slate-700">{{ formatJson(log.data).trim() }}</pre>
+                      <pre class="text-slate-700">{{
+                        formatJson(log.data).trim()
+                      }}</pre>
                     </div>
                     <div v-if="log.req">
                       <span class="text-purple-600 font-bold block mb-1"
                         >> Request Info:</span
                       >
-                      <pre class="text-slate-700">{{ formatJson(log.req).trim() }}</pre>
+                      <pre class="text-slate-700">{{
+                        formatJson(log.req).trim()
+                      }}</pre>
                     </div>
                     <div v-if="log.request">
                       <span class="text-purple-600 font-bold block mb-1"
@@ -1148,13 +1262,17 @@ const hasMoreToLoad = computed(() => {
                       }}</pre>
                     </div>
                     <div v-if="log.type === 'recieved data'" class="opacity-70">
-                      <span class="text-teal-600 font-bold">> Stream Chunk Received</span>
+                      <span class="text-teal-600 font-bold"
+                        >> Stream Chunk Received</span
+                      >
                     </div>
                     <div v-if="log.err">
                       <span class="text-red-600 font-bold block mb-1"
                         >> Error Trace:</span
                       >
-                      <pre class="text-red-600">{{ formatJson(log.err).trim() }}</pre>
+                      <pre class="text-red-600">{{
+                        formatJson(log.err).trim()
+                      }}</pre>
                     </div>
                   </template>
                 </div>
@@ -1205,4 +1323,11 @@ const hasMoreToLoad = computed(() => {
       左侧列表展示了所有捕获的请求。点击任意条目可以查看时间轴、对话还原及原始日志数据。
     </p>
   </div>
+
+  <!-- MCP 预览组件 -->
+  <MCPPreview
+    :show="showMCPPreview"
+    :request="request"
+    @update:show="showMCPPreview = $event"
+  />
 </template>

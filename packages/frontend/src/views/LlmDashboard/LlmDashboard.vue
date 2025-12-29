@@ -26,7 +26,9 @@ import JSONEditorModal from "./Modal/JSONEditorModal.vue";
 import ProviderEditorModal from "./Modal/ProviderEditorModal.vue";
 import ClaudeSettingsModal from "./Modal/ClaudeSettingsModal.vue";
 
-const currentTab = ref<"chat" | "providers" | "logger" | "statusline" | "mcp">("chat");
+const currentTab = ref<"chat" | "providers" | "logger" | "statusline" | "mcp">(
+  "chat"
+);
 
 const messages = ref<ChatMessage[]>(
   JSON.parse(localStorage.getItem("llm_chat_history") || "[]")
@@ -214,10 +216,12 @@ async function handleReorderProviders(list: LlmProvider[]) {
 
     const config = await fetchConfig();
     const orderMap = new Map(withSort.map((p) => [p.name, p.sort]));
-    const mergedProviders = (config.Providers || config.providers || []).map((p: any) => {
-      const sort = orderMap.get(p.name);
-      return typeof sort === "number" ? { ...p, sort } : p;
-    });
+    const mergedProviders = (config.Providers || config.providers || []).map(
+      (p: any) => {
+        const sort = orderMap.get(p.name);
+        return typeof sort === "number" ? { ...p, sort } : p;
+      }
+    );
 
     withSort.forEach((p) => {
       if (!mergedProviders.some((item: any) => item.name === p.name)) {
@@ -238,7 +242,11 @@ async function handleReorderProviders(list: LlmProvider[]) {
 async function handleSaveProvider() {
   try {
     const payload = providerFromForm();
-    if (!payload.name || !payload.baseUrl || (payload.models || []).length === 0) {
+    if (
+      !payload.name ||
+      !payload.baseUrl ||
+      (payload.models || []).length === 0
+    ) {
       pushToast("请完善 Provider 信息", "error");
       return;
     }
@@ -503,9 +511,13 @@ onMounted(() => {
       <div class="flex items-center gap-8">
         <div class="flex items-center gap-2 text-primary">
           <StorageOutlined class="w-6 h-6" />
-          <span class="font-bold text-lg tracking-tight text-slate-800">LLM Server</span>
+          <span class="font-bold text-lg tracking-tight text-slate-800"
+            >LLM Server</span
+          >
         </div>
-        <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg scale-90">
+        <nav
+          class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg scale-90"
+        >
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
             :class="
@@ -570,50 +582,55 @@ onMounted(() => {
           </button>
         </nav>
       </div>
+
       <div class="flex items-center gap-3">
-        <button
-          class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40"
-          type="button"
-          @click="openClaudeSettings"
-        >
-          <ClaudeIcon class="w-5 h-5 rounded-md overflow-hidden" />
-          <span class="leading-1 font-mono">Claude CLI</span>
-        </button>
-
-        <button
-          class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-          :class="
-            isRestarting
-              ? 'bg-primary text-white border-primary shadow-sm'
-              : needsRestart
-              ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : 'bg-white text-slate-700 border-slate-200 hover:text-primary /40'
-          "
-          :disabled="isRestarting"
-          @click="handleRestart"
-        >
-          <AutorenewOutlined class="w-4 h-4" :class="{ 'animate-spin': isRestarting }" />
-          <span>{{ isRestarting ? "重启中..." : "重启服务" }}</span>
-          <span
-            v-if="needsRestart && !isRestarting"
-            class="text-amber-700 text-xs bg-amber-100 px-1.5 py-0.5 rounded-full"
+        <template v-if="currentTab !== 'logger'">
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40"
+            type="button"
+            @click="openClaudeSettings"
           >
-            需重启
-          </span>
-        </button>
+            <ClaudeIcon class="w-5 h-5 rounded-md overflow-hidden" />
+            <span class="leading-1 font-mono">Claude CLI</span>
+          </button>
 
-        <button
-          class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40"
-          type="button"
-          @click="openConfigJsonEditor"
-        >
-          <CodeOutlined class="w-4 h-4" />
-          <span>编辑配置</span>
-        </button>
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            :class="
+              isRestarting
+                ? 'bg-primary text-white border-primary shadow-sm'
+                : needsRestart
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-white text-slate-700 border-slate-200 hover:text-primary /40'
+            "
+            :disabled="isRestarting"
+            @click="handleRestart"
+          >
+            <AutorenewOutlined
+              class="w-4 h-4"
+              :class="{ 'animate-spin': isRestarting }"
+            />
+            <span>{{ isRestarting ? "重启中..." : "重启服务" }}</span>
+            <span
+              v-if="needsRestart && !isRestarting"
+              class="text-amber-700 text-xs bg-amber-100 px-1.5 py-0.5 rounded-full"
+            >
+              需重启
+            </span>
+          </button>
 
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40"
+            type="button"
+            @click="openConfigJsonEditor"
+          >
+            <CodeOutlined class="w-4 h-4" />
+            <span>编辑配置</span>
+          </button>
+        </template>
         <div class="h-6 w-px bg-slate-200 mx-1"></div>
         <!-- 通用右侧 Teleport 目标 -->
-        <div id="header-right-target"></div>
+        <div id="header-right-target" class="flex items-center gap-2"></div>
         <button class="btn-icon" title="设置" @click="openSettings">
           <SettingsOutlined class="w-5 h-5" />
         </button>
@@ -621,7 +638,7 @@ onMounted(() => {
     </header>
 
     <main class="flex-1 h-full overflow-hidden relative bg-slate-50">
-      <LoggerPanel v-show="currentTab === 'logger'" :current-tab="currentTab" />
+      <LoggerPanel v-if="currentTab === 'logger'" :current-tab="currentTab" />
       <MCPPanel v-show="currentTab === 'mcp'" :current-tab="currentTab" />
       <ChatPanel
         v-show="currentTab === 'chat'"

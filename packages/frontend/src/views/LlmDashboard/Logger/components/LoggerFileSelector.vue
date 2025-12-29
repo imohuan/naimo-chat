@@ -12,7 +12,7 @@ const props = defineProps<{
   logFiles: LogFile[];
   selectedLogFileObj: LogFile | null;
   isRefreshing: boolean;
-  currentTab: "chat" | "providers" | "logger" | "statusline";
+  currentTab: "chat" | "providers" | "logger" | "statusline" | "mcp";
 }>();
 
 const emit = defineEmits<{

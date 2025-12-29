@@ -398,6 +398,53 @@ export function useLlmApi() {
   }
 
   /**
+   * 获取对话列表
+   * @param limit 每页数量
+   * @param offset 偏移量
+   * @returns 对话列表
+   */
+  async function fetchMessages(
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<{
+    messages: Array<{
+      requestId: string;
+      hasRequest: boolean;
+      hasResponse: boolean;
+      hasStreamResponse: boolean;
+      timestamp: string | null;
+      model: string | null;
+      lastModified: string | null;
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+    return await apiCall(`/api/messages?${params.toString()}`);
+  }
+
+  /**
+   * 获取对话详情
+   * @param requestId 请求 ID
+   * @returns 对话详情
+   */
+  async function fetchMessageDetail(requestId: string): Promise<{
+    requestId: string;
+    request: any;
+    response: {
+      content: string | null;
+      full: any[] | null;
+      isStream: boolean;
+    };
+  }> {
+    return await apiCall(`/api/messages/${requestId}`);
+  }
+
+  /**
    * 发送消息
    * @param messages 对话消息
    * @param model 目标模型（格式：provider,model）
@@ -667,5 +714,7 @@ export function useLlmApi() {
     sendMessageStream,
     updateStatusLine,
     startClaudeCli,
+    fetchMessages,
+    fetchMessageDetail,
   };
 }
