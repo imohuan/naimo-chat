@@ -66,12 +66,22 @@ export function useConversation() {
     store.setError(null);
 
     try {
-      const conversation = await chatApi.fetchConversation(id);
-      store.upsertConversation(conversation);
+      const apiConversation = await chatApi.fetchConversation(id);
+      store.upsertConversation(apiConversation);
 
       // 如果对话不在列表中，设置为活跃对话
       if (!store.conversations.some((c) => c.id === id)) {
         store.setActiveConversationId(id);
+      }
+
+      // 从 store 中获取已转换的 conversation（确保类型正确）
+      const conversation = store.conversations.find((c) => c.id === id);
+      if (conversation) {
+        // 发送对话加载完成事件
+        eventBus.emit("conversation:loaded", {
+          id,
+          conversation,
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "加载对话失败";

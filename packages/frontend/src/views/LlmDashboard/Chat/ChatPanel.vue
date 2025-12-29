@@ -337,74 +337,71 @@ onMounted(() => {
     status.value = "streaming";
   });
 
+  // 监听对话加载完成事件，设置 selectedMode
+  eventBus.on("conversation:loaded", (data) => {
+    if (data.conversation.mode && data.conversation.mode !== selectedMode.value) {
+      selectedMode.value = data.conversation.mode;
+    }
+  });
+
   // Canvas 事件监听
-  eventBus.on("canvas:code_delta", (data: { conversationId: string; code: string }) => {
+  eventBus.on("canvas:code_delta", (data) => {
     if (data.conversationId !== activeConversationId.value) return;
     if (!canvasPanelRef.value?.immersiveCodeRef) return;
 
     const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
-    // 开始流式写入（如果还没开始）
-    if (!immersiveCode.isStreaming) {
+    // 开始流式写入（如果还没开始，直接调用 startStreaming 会设置内部状态）
+    if (immersiveCode && typeof immersiveCode.startStreaming === "function") {
       immersiveCode.startStreaming();
     }
     // 流式写入代码
-    immersiveCode.streamWrite(data.code);
+    if (immersiveCode && typeof immersiveCode.streamWrite === "function") {
+      immersiveCode.streamWrite(data.code);
+    }
   });
 
-  eventBus.on(
-    "canvas:diff_detected",
-    (data: {
-      conversationId: string;
-      diff: string;
-      recordId: string;
-      originalCode?: string;
-    }) => {
-      if (data.conversationId !== activeConversationId.value) return;
-      if (!canvasPanelRef.value?.immersiveCodeRef) return;
+  eventBus.on("canvas:diff_detected", (data) => {
+    if (data.conversationId !== activeConversationId.value) return;
+    if (!canvasPanelRef.value?.immersiveCodeRef) return;
 
-      const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
-      // 保存记录 ID 和原始代码
-      currentRecordId.value = data.recordId;
-      currentOriginalCode.value = data.originalCode || null;
+    const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
+    // 保存记录 ID 和原始代码
+    currentRecordId.value = data.recordId;
+    currentOriginalCode.value = data.originalCode || null;
 
-      // 显示 diff 编辑器
-      immersiveCode.setDiffTarget(data.originalCode || immersiveCode.getCurrentCode(), data.diff);
+    // 显示 diff 编辑器（使用 diff 方法）
+    if (immersiveCode && typeof immersiveCode.diff === "function") {
+      const originalCode = data.originalCode || immersiveCode.getCurrentCode?.() || "";
+      immersiveCode.diff(data.diff, originalCode);
     }
-  );
+  });
 
-  eventBus.on("canvas:show_editor", (data: { conversationId: string }) => {
+  eventBus.on("canvas:show_editor", (data) => {
     if (data.conversationId !== activeConversationId.value) return;
     showCanvas.value = true;
   });
 
-  eventBus.on(
-    "canvas:code_complete",
-    (data: {
-      conversationId: string;
-      recordId: string;
-      codeType: "full" | "diff";
-      code?: string;
-    }) => {
-      if (data.conversationId !== activeConversationId.value) return;
-      if (!canvasPanelRef.value?.immersiveCodeRef) return;
+  eventBus.on("canvas:code_complete", (data) => {
+    if (data.conversationId !== activeConversationId.value) return;
+    if (!canvasPanelRef.value?.immersiveCodeRef) return;
 
-      const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
+    const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
 
-      if (data.codeType === "full" && data.code) {
-        // 完整代码模式：结束流式写入
-        immersiveCode.endStreaming();
-      }
-      // diff 模式：等待用户确认应用
+    if (data.codeType === "full" && data.code) {
+      // 完整代码模式：结束流式写入
+      immersiveCode.endStreaming();
     }
-  );
+    // diff 模式：等待用户确认应用
+  });
 
-  eventBus.on("canvas:record_created", (data: { conversationId: string; recordId: string }) => {
+  eventBus.on("canvas:record_created", (data) => {
     if (data.conversationId !== activeConversationId.value) return;
     // 记录 ID 已保存，等待 diff 应用后使用
   });
 });
 
-// 处理 diff 应用后的保存
+// 处理 diff 应用后的保存（暂时未使用，保留以备将来需要）
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
@@ -444,6 +441,7 @@ watch(
 onUnmounted(() => {
   eventBus.off("message:complete");
   eventBus.off("message:streaming");
+  eventBus.off("conversation:loaded");
   eventBus.off("canvas:code_delta");
   eventBus.off("canvas:diff_detected");
   eventBus.off("canvas:show_editor");
