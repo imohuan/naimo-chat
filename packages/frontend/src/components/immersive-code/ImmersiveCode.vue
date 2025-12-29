@@ -961,9 +961,7 @@ onBeforeUnmount(() => {
       class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-100 z-20"
     >
       <div class="flex items-center space-x-4">
-        <div
-          class="flex items-center space-x-2 text-slate-700 font-semibold select-none"
-        >
+        <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
           <Code2 class="w-5 h-5 text-purple-600" />
           <span>{{ props.title }}</span>
         </div>
@@ -993,7 +991,7 @@ onBeforeUnmount(() => {
           <!-- Versions Dropdown -->
           <Select v-model="versionValue">
             <SelectTrigger
-              class="w-[160px] h-8 text-xs border-none bg-transparent hover:bg-slate-50 focus:ring-0 shadow-none px-2"
+              class="w-[160px] h-8 text-xs border-none bg-slate-50 px-4 hover:bg-slate-100 focus:ring-0 shadow-none"
             >
               <SelectValue placeholder="Select Version" />
             </SelectTrigger>
@@ -1012,6 +1010,8 @@ onBeforeUnmount(() => {
               </SelectItem>
             </SelectContent>
           </Select>
+
+          <!-- diff history -->
         </div>
       </div>
 

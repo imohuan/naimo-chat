@@ -9,6 +9,7 @@ import { useChatLayout } from "@/views/LlmDashboard/Chat/hooks/useChatLayout";
 import { getContext } from "@/core/context";
 import { useToasts } from "@/hooks/useToasts";
 import { useChatApi } from "@/hooks/useChatApi";
+import { useConversationStore } from "@/stores/conversation";
 import ChatHeaderActions from "./components/ChatHeaderActions.vue";
 import ChatSidebar from "./components/ChatSidebar.vue";
 import ChatMessages from "./components/ChatMessages.vue";
@@ -46,6 +47,7 @@ const {
 const { pushToast } = useToasts();
 const { eventBus } = getContext();
 const chatApi = useChatApi();
+const conversationStore = useConversationStore();
 
 // 本地状态
 const selectedMode = ref<ConversationMode>("chat");
@@ -137,6 +139,8 @@ watch(
     if (codeVersion !== undefined && codeHistory) {
       const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
       showCanvas.value = hasCodeHistory || false;
+      // 设置侧边栏为折叠状态
+      conversationStore.sidebarCollapsed = true;
     } else {
       // 如果 codeVersion 不存在，说明还没有加载，不显示 canvas
       showCanvas.value = false;
@@ -611,6 +615,10 @@ watch(activeConversationId, (_newId, oldId) => {
             </div>
           </div>
         </div>
+
+        <!-- <pre class="select-all">
+          {{ activeConversation?.codeHistory }}
+        </pre> -->
 
         <!-- 右侧 Canvas 面板 -->
         <CanvasPanel

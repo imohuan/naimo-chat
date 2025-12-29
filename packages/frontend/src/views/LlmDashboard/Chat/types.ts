@@ -57,8 +57,10 @@ export interface CodeHistory {
     label: string;
     records: Array<{
       id: string;
-      code: string;
-      diffTarget?: string;
+      code?: string; // 可選，如果沒有則使用 originalCode
+      diffTarget?: string; // 前端格式
+      diff?: string; // 後端格式（與 diffTarget 等價）
+      originalCode?: string; // 後端格式，當沒有 code 時使用此作為 code
       timestamp: number;
     }>;
     currentIndex: number;

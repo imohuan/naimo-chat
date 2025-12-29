@@ -43,9 +43,7 @@ export function useCodeHistory(initialCode: string = "") {
   const currentVersionIndex = ref(0);
   const lastNavigationTime = ref(0); // 记录最近一次历史导航的时间戳
 
-  const currentVersion = computed(
-    () => versions.value[currentVersionIndex.value]
-  );
+  const currentVersion = computed(() => versions.value[currentVersionIndex.value]);
 
   const currentRecord = computed(() => {
     const v = currentVersion.value;
@@ -139,8 +137,7 @@ export function useCodeHistory(initialCode: string = "") {
     // Remove future history if we are in the middle (Standard Undo/Redo behavior)
     if (v.currentIndex < v.records.length - 1) {
       console.log(
-        `✂️ [ImmersiveHistory] Truncating future history from index ${v.currentIndex + 1
-        }`
+        `✂️ [ImmersiveHistory] Truncating future history from index ${v.currentIndex + 1}`
       );
       v.records = v.records.slice(0, v.currentIndex + 1);
     }
@@ -246,6 +243,7 @@ export function useCodeHistory(initialCode: string = "") {
   /**
    * 设置历史版本数据（用于恢复）
    * 如果版本没有 records 字段，会为每个版本创建一个默认的 record
+   * 支持后端返回的 diff 和 originalCode 格式
    */
   function setHistory(history: {
     versions: Array<{
@@ -253,7 +251,14 @@ export function useCodeHistory(initialCode: string = "") {
       timestamp: number;
       label: string;
       currentIndex?: number;
-      records?: HistoryRecord[];
+      records?: Array<{
+        id: string;
+        code?: string;
+        diffTarget?: string;
+        diff?: string; // 后端格式
+        originalCode?: string; // 后端格式
+        timestamp: number;
+      }>;
     }>;
     currentVersionIndex: number;
   }) {
@@ -263,16 +268,51 @@ export function useCodeHistory(initialCode: string = "") {
         id: v.id,
         timestamp: v.timestamp,
         label: v.label,
-        // 如果有 records，使用它；否则创建一个默认的 record
-        records: v.records && v.records.length > 0
-          ? v.records
-          : [
-            {
-              id: generateId(),
-              code: currentCode.value || "", // 使用当前代码或空字符串
-              timestamp: v.timestamp,
-            },
-          ],
+        // 如果有 records，转换格式；否则创建一个默认的 record
+        records:
+          v.records && v.records.length > 0
+            ? v.records.map((r) => {
+                // 处理后端格式：如果有 diff 和 originalCode，但没有 code
+                // 使用 originalCode 作为 code，diff 作为 diffTarget
+                let code = r.code;
+                let diffTarget = r.diffTarget;
+
+                // 如果记录有 diff 和 originalCode，但没有 code（或 code 为空）
+                if (r.diff && r.originalCode && (!r.code || r.code.trim() === "")) {
+                  code = r.originalCode;
+                  diffTarget = r.diff;
+                  console.log(
+                    "🔄 [ImmersiveHistory] Converting diff record to diff mode",
+                    {
+                      recordId: r.id,
+                      hasOriginalCode: !!r.originalCode,
+                      hasDiff: !!r.diff,
+                    }
+                  );
+                } else if (r.diff && !diffTarget) {
+                  // 如果只有 diff 字段，使用它作为 diffTarget
+                  diffTarget = r.diff;
+                }
+
+                // 如果仍然没有 code，使用 originalCode 或空字符串
+                if (!code || code.trim() === "") {
+                  code = r.originalCode || "";
+                }
+
+                return {
+                  id: r.id,
+                  code: code || "",
+                  diffTarget: diffTarget,
+                  timestamp: r.timestamp,
+                } as HistoryRecord;
+              })
+            : [
+                {
+                  id: generateId(),
+                  code: currentCode.value || "", // 使用当前代码或空字符串
+                  timestamp: v.timestamp,
+                },
+              ],
         currentIndex: v.currentIndex ?? 0,
       }));
       const validIndex = Math.max(

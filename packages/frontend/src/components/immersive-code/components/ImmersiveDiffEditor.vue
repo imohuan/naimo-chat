@@ -157,8 +157,11 @@ onMounted(async () => {
   });
 
   // Listen to original model changes to sync back
+  // 但只有在用戶手動編輯時才觸發，而不是通過程序化更新（如 acceptSpecificChange）
   originalModel.onDidChangeContent(() => {
     if (isUpdating) return;
+    // 檢查是否是通過用戶編輯觸發的（而不是程序化更新）
+    // 如果是用戶編輯，才 emit update:original
     emit("update:original", originalModel.getValue());
   });
 
@@ -341,7 +344,7 @@ const acceptSpecificChange = (change: any) => {
   const modifiedModel = diffEditor.value.getModifiedEditor().getModel();
   if (!originalModel || !modifiedModel) return;
 
-  isUpdating = true; // Prevent loop
+  isUpdating = true; // Prevent triggering onDidChangeContent event
 
   const originalContent = originalModel.getValue();
   const modifiedContent = modifiedModel.getValue();
@@ -360,14 +363,22 @@ const acceptSpecificChange = (change: any) => {
     ...originalLines.slice(originalEnd),
   ];
 
-  originalModel.setValue(newLines.join("\n"));
-  isUpdating = false;
+  const newContent = newLines.join("\n");
 
-  // Emit update
-  emit("update:original", originalModel.getValue());
+  // 更新原始模型（這會觸發 diff 重新計算）
+  originalModel.setValue(newContent);
 
-  // Wait for diff to update
-  setTimeout(() => updateDiffInfo(), 100);
+  // 等待 Monaco 重新計算 diff，然後重置標誌
+  setTimeout(() => {
+    isUpdating = false;
+
+    // 手動觸發更新，但這次是為了同步父組件的狀態
+    // 注意：這裡應該只更新當前的 accepted 變更，不應該清除 diffTarget
+    emit("update:original", newContent);
+
+    // Wait for diff to update
+    setTimeout(() => updateDiffInfo(), 100);
+  }, 0);
 };
 
 const undoSpecificChange = (change: any) => {
@@ -574,11 +585,9 @@ defineExpose({
 
 /* 编辑器的宽度 */
 :deep(.monaco-diff-editor .monaco-editor.modified-in-monaco-diff-editor.vs),
-:deep(
-    .monaco-diff-editor
-      .monaco-editor.modified-in-monaco-diff-editor.vs
-      .overflow-guard
-  ) {
+:deep(.monaco-diff-editor
+    .monaco-editor.modified-in-monaco-diff-editor.vs
+    .overflow-guard) {
   width: 100% !important;
 }
 
