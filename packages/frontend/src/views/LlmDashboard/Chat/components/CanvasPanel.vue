@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, watch, nextTick } from "vue";
 import { X } from "lucide-vue-next";
 import { ImmersiveCode } from "@/components/immersive-code";
 import type { CodeHistory } from "@/views/LlmDashboard/Chat/types";
@@ -8,6 +8,7 @@ const props = defineProps<{
   show: boolean;
   readonly?: boolean;
   codeHistory?: CodeHistory;
+  codeVersion?: number; // codeHistory 的版本号，用于判断 codeHistory 是否已加载
 }>();
 
 const emit = defineEmits<{
@@ -26,19 +27,20 @@ const emit = defineEmits<{
 
 const immersiveCodeRef = ref<InstanceType<typeof ImmersiveCode> | null>(null);
 
-// 监听代码历史变化，恢复代码历史
+// 监听 codeVersion 和 codeHistory 的变化，恢复代码历史
 watch(
-  () => props.codeHistory,
-  async (newHistory) => {
-    if (!newHistory || !immersiveCodeRef.value) return;
+  () => [props.codeVersion, props.codeHistory] as const,
+  async ([codeVersion, codeHistory]) => {
+    // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才处理
+    if (codeVersion === undefined || !codeHistory || !immersiveCodeRef.value) return;
 
     // 检查 codeHistory 是否有 versions
-    const hasCodeHistory = newHistory.versions && newHistory.versions.length > 0;
+    const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
 
     if (hasCodeHistory) {
       try {
         await nextTick();
-        immersiveCodeRef.value.setHistory(newHistory);
+        immersiveCodeRef.value.setHistory(codeHistory);
         await nextTick();
       } catch (error) {
         console.error("恢复代码历史失败:", error);
@@ -55,7 +57,9 @@ watch(
   async (newRef, oldRef) => {
     // 只在组件从 null 变为非 null 时执行（组件刚挂载）
     if (!newRef || oldRef !== null) return;
-    if (!props.codeHistory) return;
+
+    // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才处理
+    if (props.codeVersion === undefined || !props.codeHistory) return;
 
     const hasCodeHistory =
       props.codeHistory.versions && props.codeHistory.versions.length > 0;

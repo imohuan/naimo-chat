@@ -109,11 +109,8 @@ watch(
 // 监听模式变化
 watch(selectedMode, async (newMode) => {
   if (newMode === "canvas") {
-    const conversation = activeConversation.value;
-    const hasCodeHistory =
-      conversation?.codeHistory?.versions && conversation.codeHistory.versions.length > 0;
-    showCanvas.value = hasCodeHistory || false;
     refreshImmersiveCode.value = true;
+    // 不在这里判断 showCanvas，而是等待 codeVersion 和 codeHistory 的 watch 来处理
   } else {
     showCanvas.value = false;
   }
@@ -123,6 +120,30 @@ watch(selectedMode, async (newMode) => {
     updateMode(activeConversationId.value, newMode);
   }
 });
+
+// 监听 codeVersion 和 codeHistory 的变化，判断是否显示 canvas
+watch(
+  () =>
+    [
+      activeConversation.value?.codeVersion,
+      activeConversation.value?.codeHistory,
+      selectedMode.value,
+    ] as const,
+  ([codeVersion, codeHistory, mode]) => {
+    // 只在 canvas 模式下处理
+    if (mode !== "canvas") return;
+
+    // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才显示
+    if (codeVersion !== undefined && codeHistory) {
+      const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
+      showCanvas.value = hasCodeHistory || false;
+    } else {
+      // 如果 codeVersion 不存在，说明还没有加载，不显示 canvas
+      showCanvas.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 // 处理消息提交
 async function handleSubmit(message: PromptInputMessage) {
@@ -421,18 +442,17 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
 
 // 监听对话切换，加载 canvas 数据
 watch(
-  activeConversationId,
-  async (newId) => {
-    if (!newId || selectedMode.value !== "canvas") return;
-
+  [activeConversationId, activeConversation],
+  async ([newId, conversation]) => {
+    if (!newId || !conversation || conversation.mode !== "canvas") return;
     try {
       const canvasData = await chatApi.fetchCanvas(newId);
-      if (canvasData && canvasData.codeHistory) {
-        // 更新对话的 codeHistory
-        updateCodeHistory(newId, canvasData.codeHistory);
-      }
+      // 无论是否有 codeHistory，都更新（用于设置 codeVersion 标记已加载）
+      updateCodeHistory(newId, canvasData?.codeHistory);
     } catch (error) {
       console.error("加载 Canvas 数据失败:", error);
+      // 即使加载失败，也设置 codeVersion 为已加载状态（但 codeHistory 为 undefined）
+      updateCodeHistory(newId, undefined);
     }
   },
   { immediate: true }
@@ -599,6 +619,7 @@ watch(activeConversationId, (_newId, oldId) => {
           :show="showCanvas"
           :readonly="isCanvasReadonly"
           :code-history="activeConversation?.codeHistory"
+          :code-version="activeConversation?.codeVersion"
           @update:show="showCanvas = $event"
           @error="(msg) => pushToast(`错误: ${msg}`, 'error')"
           @element-selected="handleElementSelected"

@@ -243,8 +243,22 @@ export const useConversationStore = defineStore("conversation", () => {
   ) {
     const conversation = conversations.value.find((c) => c.id === conversationId);
     if (conversation) {
+      // 判断 codeHistory 是否发生变化
+      const oldCodeHistory = conversation.codeHistory;
+      const codeHistoryChanged =
+        !oldCodeHistory !== !codeHistory ||
+        (oldCodeHistory &&
+          codeHistory &&
+          JSON.stringify(oldCodeHistory) !== JSON.stringify(codeHistory));
+
       conversation.codeHistory = codeHistory;
       conversation.updatedAt = Date.now();
+
+      // 如果 codeVersion 未设置或 codeHistory 发生变化，更新版本号
+      // 这样即使 codeHistory 为空，也能标记为已加载
+      if (conversation.codeVersion === undefined || codeHistoryChanged) {
+        conversation.codeVersion = (conversation.codeVersion || 0) + 1;
+      }
     }
   }
 

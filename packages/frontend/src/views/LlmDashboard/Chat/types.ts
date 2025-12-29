@@ -127,6 +127,7 @@ export interface Conversation {
   pending?: boolean;
   mode?: ConversationMode;
   codeHistory?: CodeHistory;
+  codeVersion?: number; // codeHistory 的版本号，用于判断 codeHistory 是否已加载
 }
 
 /**
