@@ -425,8 +425,7 @@ onMounted(() => {
   });
 });
 
-// 处理 diff 应用后的保存（暂时未使用，保留以备将来需要）
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// 处理 diff 应用后的保存
 async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
@@ -442,6 +441,22 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
       "error"
     );
   }
+}
+
+// 处理 diff 退出事件
+function handleDiffExited(code: string, recordId?: string) {
+  // 优先使用事件传递的 recordId，否则使用 currentRecordId
+  const finalRecordId = recordId || currentRecordId.value;
+
+  if (!finalRecordId) {
+    console.warn("diff-exited 事件触发，但没有 recordId", {
+      eventRecordId: recordId,
+      currentRecordId: currentRecordId.value,
+    });
+    return;
+  }
+
+  handleDiffApplied(finalRecordId, code);
 }
 
 // 监听对话切换，加载 canvas 数据
@@ -632,6 +647,7 @@ watch(activeConversationId, (_newId, oldId) => {
           @error="(msg) => pushToast(`错误: ${msg}`, 'error')"
           @element-selected="handleElementSelected"
           @ctrl-i-pressed="handleCtrlIPressed"
+          @diff-exited="handleDiffExited"
         />
       </div>
     </div>

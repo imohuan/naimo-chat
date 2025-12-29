@@ -30,10 +30,7 @@ export function useChatApi() {
   /**
    * 通用 API 调用函数
    */
-  async function apiCall<T>(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  async function apiCall<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${endpoint.value}${path}`;
     const headers: Record<string, string> = {};
 
@@ -176,12 +173,9 @@ export function useChatApi() {
    * 删除对话
    */
   async function deleteConversation(id: string): Promise<void> {
-    await apiCall<{ success: boolean }>(
-      `/api/ai_chat/conversations/${id}`,
-      {
-        method: "DELETE",
-      }
-    );
+    await apiCall<{ success: boolean }>(`/api/ai_chat/conversations/${id}`, {
+      method: "DELETE",
+    });
   }
 
   /**
@@ -238,6 +232,7 @@ export function useChatApi() {
     recordId: string,
     code: string
   ): Promise<{ success: boolean; recordId: string }> {
+    debugger;
     return apiCall<{ success: boolean; recordId: string }>(
       `/api/ai_chat/conversations/${conversationId}/canvas/records/${recordId}/apply`,
       {
@@ -259,4 +254,3 @@ export function useChatApi() {
     applyCanvasDiff,
   };
 }
-

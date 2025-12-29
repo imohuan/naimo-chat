@@ -23,6 +23,7 @@ const emit = defineEmits<{
       fileName?: string;
     }
   ];
+  "diff-exited": [code: string, recordId?: string];
 }>();
 
 const immersiveCodeRef = ref<InstanceType<typeof ImmersiveCode> | null>(null);
@@ -96,6 +97,10 @@ function handleCtrlIPressed(data: {
   emit("ctrl-i-pressed", data);
 }
 
+function handleDiffExited(code: string, recordId?: string) {
+  emit("diff-exited", code, recordId);
+}
+
 function handleClose() {
   emit("update:show", false);
 }
@@ -124,6 +129,7 @@ defineExpose({
         @error="handleError"
         @element-selected="handleElementSelected"
         @ctrl-i-pressed="handleCtrlIPressed"
+        @diff-exited="handleDiffExited"
         class="immersive-code-full-height"
       >
         <template #right-actions>

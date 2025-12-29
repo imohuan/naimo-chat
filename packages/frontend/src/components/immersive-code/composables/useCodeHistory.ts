@@ -6,6 +6,11 @@ export interface HistoryRecord {
   diffTarget?: string; // If present, implies we are in diff mode
   timestamp: number;
   isStreamingRecord?: boolean; // 标识是否由流式写入产生的记录
+  /**
+   * backend 原始字段，仅在通过 setHistory 注入时存在
+   * originalCode: 进入 diff 模式时左侧（原始代码）
+   */
+  originalCode?: string;
 }
 
 export interface MajorVersion {
@@ -272,47 +277,47 @@ export function useCodeHistory(initialCode: string = "") {
         records:
           v.records && v.records.length > 0
             ? v.records.map((r) => {
-                // 处理后端格式：如果有 diff 和 originalCode，但没有 code
-                // 使用 originalCode 作为 code，diff 作为 diffTarget
-                let code = r.code;
-                let diffTarget = r.diffTarget;
+              // 处理后端格式：如果有 diff 和 originalCode，但没有 code
+              // 使用 originalCode 作为 code，diff 作为 diffTarget
+              let code = r.code;
+              let diffTarget = r.diffTarget;
+              // 如果记录有 diff 和 originalCode，但没有 code（或 code 为空）
+              if (r.diff && r.originalCode && (!r.code || r.code.trim() === "")) {
+                code = r.originalCode;
+                diffTarget = r.diff;
+                console.log(
+                  "🔄 [ImmersiveHistory] Converting diff record to diff mode",
+                  {
+                    recordId: r.id,
+                    hasOriginalCode: !!r.originalCode,
+                    hasDiff: !!r.diff,
+                  }
+                );
+              } else if (r.diff && !diffTarget) {
+                // 如果只有 diff 字段，使用它作为 diffTarget
+                diffTarget = r.diff;
+              }
 
-                // 如果记录有 diff 和 originalCode，但没有 code（或 code 为空）
-                if (r.diff && r.originalCode && (!r.code || r.code.trim() === "")) {
-                  code = r.originalCode;
-                  diffTarget = r.diff;
-                  console.log(
-                    "🔄 [ImmersiveHistory] Converting diff record to diff mode",
-                    {
-                      recordId: r.id,
-                      hasOriginalCode: !!r.originalCode,
-                      hasDiff: !!r.diff,
-                    }
-                  );
-                } else if (r.diff && !diffTarget) {
-                  // 如果只有 diff 字段，使用它作为 diffTarget
-                  diffTarget = r.diff;
-                }
+              // 如果仍然没有 code，使用 originalCode 或空字符串
+              if (!code || code.trim() === "") {
+                code = r.originalCode || "";
+              }
 
-                // 如果仍然没有 code，使用 originalCode 或空字符串
-                if (!code || code.trim() === "") {
-                  code = r.originalCode || "";
-                }
-
-                return {
-                  id: r.id,
-                  code: code || "",
-                  diffTarget: diffTarget,
-                  timestamp: r.timestamp,
-                } as HistoryRecord;
-              })
+              return {
+                id: r.id,
+                code: code || "",
+                diffTarget: diffTarget,
+                timestamp: r.timestamp,
+                originalCode: r.originalCode,
+              } as HistoryRecord;
+            })
             : [
-                {
-                  id: generateId(),
-                  code: currentCode.value || "", // 使用当前代码或空字符串
-                  timestamp: v.timestamp,
-                },
-              ],
+              {
+                id: generateId(),
+                code: currentCode.value || "", // 使用当前代码或空字符串
+                timestamp: v.timestamp,
+              },
+            ],
         currentIndex: v.currentIndex ?? 0,
       }));
       const validIndex = Math.max(

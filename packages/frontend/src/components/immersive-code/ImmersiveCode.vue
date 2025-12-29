@@ -15,6 +15,7 @@ import {
   RefreshCcw,
   Terminal,
   MousePointer2,
+  History,
 } from "lucide-vue-next";
 import { useCodeHistory } from "./composables/useCodeHistory";
 import { useCodeDiff } from "./composables/useCodeDiff";
@@ -54,6 +55,7 @@ const emit = defineEmits<{
   "ctrl-i-pressed": [
     data: { code: string; startLine: number; endLine: number }
   ];
+  "diff-exited": [code: string, recordId?: string];
 }>();
 
 const {
@@ -61,6 +63,7 @@ const {
   currentVersionIndex,
   currentCode,
   currentDiffTarget, // Added
+  currentRecord, // Added: 获取当前记录以获取 recordId
   canUndo,
   canRedo,
   record,
@@ -187,15 +190,45 @@ watch(
       return;
     }
 
+    const record = currentRecord.value as
+      | (typeof currentRecord.value & { originalCode?: string })
+      | null;
+
+    const currentCodeValue = currentCode.value;
+
+    // 如果同时存在 originalCode 和 code，且二者不相等，说明当前 code
+    // 已经是「应用 diff 之后」的结果，此时不应该再基于当前 code 自动应用一次 diff。
+    // 这种记录通常来自后端已经应用过 diff 并把最终代码保存在 code 字段的情况。
+    if (
+      record?.originalCode &&
+      currentCodeValue.trim() !== "" &&
+      currentCodeValue.trim() !== record.originalCode.trim()
+    ) {
+      console.log(
+        "🔄 [ImmersiveCode] Skip auto diff: code already includes applied diff",
+        {
+          recordId: record.id,
+        }
+      );
+      // 保持 diffResult.content 与当前代码一致，避免右侧为空白
+      diffResult.value = { content: currentCodeValue, success: true };
+      return;
+    }
+
+    // 默认情况下，如果有 originalCode，则以 originalCode 作为 diff 的基准；
+    // 否则以当前代码作为基准。
+    const baseCode = record?.originalCode ?? currentCodeValue;
+
     console.log("🔄 [ImmersiveCode] Applying diff:", {
-      currentCodeLength: currentCode.value.length,
+      baseCodeLength: baseCode.length,
+      currentCodeLength: currentCodeValue.length,
       diffTargetLength: currentDiffTarget.value.length,
       diffTargetPreview: currentDiffTarget.value.substring(0, 200),
       fullDiffTarget: currentDiffTarget.value,
     });
 
     // 执行一次 diff 应用
-    const result = applyDiff(currentCode.value, currentDiffTarget.value);
+    const result = applyDiff(baseCode, currentDiffTarget.value);
     diffResult.value = result;
 
     console.log("📊 [ImmersiveCode] Diff application result:", {
@@ -798,14 +831,20 @@ function handleDiffUpdate(newOriginal: string) {
 /**
  * Handle "Save" or "Close" from Diff Editor.
  * This should EXIT diff mode by recording a state with content but NO diffTarget.
- * @param finalContent Optional content to save. If null, uses current.
+ * @param options Configuration options
+ * @param options.finalContent Optional content to save. If null, uses current.
+ * @param options.enableEmit Whether to emit the diff-exited event. Defaults to true.
  */
-function exitDiffMode(finalContent?: string) {
+function exitDiffMode(options?: { finalContent?: string; enableEmit?: boolean }) {
   console.group("👋 [ImmersiveCode] Exiting Diff Mode");
   const codeToSave =
-    finalContent !== undefined ? finalContent : currentCode.value;
+    options?.finalContent !== undefined ? options.finalContent : currentCode.value;
+  const enableEmit = options?.enableEmit !== undefined ? options.enableEmit : false;
 
   console.log("Saving Final Content:", codeToSave.substring(0, 30) + "...");
+
+  // 获取当前记录的 ID（如果有 diffTarget，说明当前记录有 recordId）
+  const currentRecordId = currentRecord.value?.id;
 
   // Explicitly record a state with NO diffTarget to exit Diff Mode in history
   // This allows "Undo" to return to the Diff state later
@@ -814,6 +853,10 @@ function exitDiffMode(finalContent?: string) {
   // Also switch UI mode just in case (though computed mode handles it)
   uiMode.value = "code";
   refreshPreview();
+
+  // 触发 diff-exited 事件，通知父组件 diff 操作已完成，传递 recordId
+  if (enableEmit) emit("diff-exited", codeToSave, currentRecordId);
+
   console.groupEnd();
 }
 
@@ -826,6 +869,56 @@ const versionValue = computed({
 // Format time for dropdown
 function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString();
+}
+
+// 当前记录是否包含后端 diff 信息（originalCode + diffTarget）
+const hasBackendDiffForCurrentRecord = computed(() => {
+  const record = currentRecord.value as
+    | (typeof currentRecord.value & {
+        originalCode?: string;
+        diffTarget?: string;
+      })
+    | null;
+
+  if (!record) return false;
+  console.log("record", currentRecord.value);
+
+  return !!(record.originalCode && record.diffTarget);
+});
+
+// 处理历史 diff 按钮点击：基于 originalCode + diffTarget 进入 / 退出 diff 模式
+function handleHistoryDiffToggle() {
+  const historyRecord = currentRecord.value as
+    | (typeof currentRecord.value & {
+        originalCode?: string;
+        diffTarget?: string;
+      })
+    | null;
+
+  if (!historyRecord || !historyRecord.originalCode || !historyRecord.diffTarget)
+    return;
+
+  // 如果当前已经在 diff 模式，则退出（保持默认的保存行为）
+  if (mode.value === "diff") {
+    exitDiffMode();
+    return;
+  }
+
+  // 使用 originalCode 作为左侧代码，diffTarget 作为 diff 字符串，进入 diff 模式
+  const baseCode = historyRecord.originalCode;
+  const diffContent = historyRecord.diffTarget;
+
+  const dryRun = applyDiff(baseCode, diffContent);
+  if (!dryRun.success) {
+    console.warn(
+      "⚠️ [ImmersiveCode] Backend diff (dry run) failed when toggling history diff:",
+      dryRun.message
+    );
+  }
+
+  // 记录一个新的历史记录：code = originalCode, diffTarget = diff
+  // 这会让 currentDiffTarget 有值，从而自动进入 diff 模式
+  record(baseCode, diffContent);
 }
 
 // Keyboard shortcuts handler
@@ -1011,7 +1104,15 @@ onBeforeUnmount(() => {
             </SelectContent>
           </Select>
 
-          <!-- diff history -->
+          <!-- 历史 diff 按钮：基于 originalCode + diff 进入 / 退出 diff 模式 -->
+          <button
+            v-if="hasBackendDiffForCurrentRecord"
+            @click="handleHistoryDiffToggle"
+            class="p-1.5 rounded-md hover:text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition text-slate-400"
+            title="查看历史 Diff"
+          >
+            <History class="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -1136,8 +1237,8 @@ onBeforeUnmount(() => {
           :readonly="props.readonly"
           :font-size="fontSize"
           @update:original="handleDiffUpdate"
-          @save="exitDiffMode"
-          @close="exitDiffMode"
+          @save="(finalContent: string) => exitDiffMode({ finalContent, enableEmit: true })"
+          @close="() => exitDiffMode()"
           @font-size-change="handleFontSizeChange"
         />
       </div>

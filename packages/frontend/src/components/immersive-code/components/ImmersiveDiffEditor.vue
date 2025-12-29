@@ -269,6 +269,7 @@ const updateDiffInfo = () => {
 
   // Filter relevant changes (actually modifying lines)
   allChanges.value = changes;
+  const previousTotalChanges = totalChanges.value;
   totalChanges.value = changes.length;
 
   // Add buttons
@@ -281,6 +282,17 @@ const updateDiffInfo = () => {
   // Update Current Index based on cursor position or just clamp it
   if (currentIndex.value >= totalChanges.value) {
     currentIndex.value = Math.max(0, totalChanges.value - 1);
+  }
+
+  // 如果所有变化都已处理完成（totalChanges 变为 0），自动退出 diff 模式
+  if (previousTotalChanges > 0 && totalChanges.value === 0) {
+    console.log("✅ [ImmersiveDiffEditor] 所有 diff 变化已处理完成，自动退出 diff 模式");
+    const originalModel = diffEditor.value.getOriginalEditor().getModel();
+    if (originalModel) {
+      // 获取最终的代码内容并触发保存事件
+      const finalContent = originalModel.getValue();
+      emit("save", finalContent);
+    }
   }
 };
 
