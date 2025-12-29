@@ -67,5 +67,9 @@ export type ConversationEvents = {
     conversationId: string;
     history: unknown; // CodeHistory type
   };
+  /** 代码块应用 diff 事件 */
+  "codeblock:apply-diff": {
+    code: string;
+  };
 }
 

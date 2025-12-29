@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { ref, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { X } from "lucide-vue-next";
 import { ImmersiveCode } from "@/components/immersive-code";
 import type { CodeHistory } from "@/views/LlmDashboard/Chat/types";
+import { getContext } from "@/core/context";
 
 const props = defineProps<{
   show: boolean;
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const immersiveCodeRef = ref<InstanceType<typeof ImmersiveCode> | null>(null);
+const { eventBus } = getContext();
 
 // 监听 codeVersion 和 codeHistory 的变化，恢复代码历史
 watch(
@@ -104,6 +106,29 @@ function handleDiffExited(code: string, recordId?: string) {
 function handleClose() {
   emit("update:show", false);
 }
+
+// 监听 codeblock:apply-diff 事件
+const handleApplyDiff = (data: { code: string }) => {
+  if (!immersiveCodeRef.value || !data?.code) return;
+
+  // 获取当前代码作为原始代码
+  const currentCode = immersiveCodeRef.value.getCurrentCode() || "";
+
+  // 调用 ImmersiveCode 的 diff 方法
+  if (typeof immersiveCodeRef.value.diff === "function") {
+    immersiveCodeRef.value.diff(data.code, currentCode);
+  }
+};
+
+// 组件挂载时监听事件
+onMounted(() => {
+  eventBus.on("codeblock:apply-diff", handleApplyDiff);
+});
+
+// 组件卸载时移除监听
+onBeforeUnmount(() => {
+  eventBus.off("codeblock:apply-diff", handleApplyDiff);
+});
 
 // 暴露 ref 供父组件使用
 defineExpose({

@@ -10,6 +10,15 @@
 
       <div class="header-actions">
         <button
+          v-if="showApplyDiffButton"
+          class="icon-btn"
+          type="button"
+          @click="applyDiff"
+          title="应用diff"
+        >
+          <GitMerge class="icon-btn__icon" />
+        </button>
+        <button
           class="icon-btn"
           type="button"
           @click="copy"
@@ -21,12 +30,7 @@
         <button class="icon-btn" type="button" @click="preview" title="Preview">
           <Eye class="icon-btn__icon" />
         </button>
-        <button
-          class="icon-btn"
-          type="button"
-          @click="download"
-          title="Download"
-        >
+        <button class="icon-btn" type="button" @click="download" title="Download">
           <Download class="icon-btn__icon" />
         </button>
       </div>
@@ -34,17 +38,38 @@
     <div
       ref="element"
       v-show="!collapsed"
-      class="custom-code-block__body"
-      v-html="html"
-    />
+      :class="[
+        'custom-code-block__body',
+        { 'custom-code-block__body--diff': isDiffBlock },
+      ]"
+    >
+      <!-- diff 格式时，使用 TextDiffViewer 渲染 -->
+      <template v-if="isDiffBlock">
+        <TextDiffViewer
+          :old-text="diffOldText"
+          :new-text="diffNewText"
+          :show-indicators="false"
+          :show-footer="false"
+          :font-size="14"
+          :line-height="1.4"
+        />
+      </template>
+      <!-- 否则使用语法高亮后的 HTML -->
+      <template v-else>
+        <div v-html="html" />
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useShikiHighlighter } from "streamdown-vue";
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { Check, Copy, Download, Eye } from "lucide-vue-next";
+import { computed, nextTick, onBeforeUnmount, ref, watch, toRef } from "vue";
+import { Check, Copy, Download, Eye, GitMerge } from "lucide-vue-next";
 import { useMessageBranchWidth } from "@/components/ai-elements/message/context";
+import { getContext } from "@/core/context";
+import TextDiffViewer from "@/components/llm/TextDiffViewer.vue";
+import { useDiffCodeBlock } from "./useDiffCodeBlock";
 
 const branchWidth = useMessageBranchWidth();
 const maxWidthStyle = computed(() => {
@@ -66,10 +91,30 @@ const highlighterPromise = useShikiHighlighter();
 let highlightTimer: number | null = null;
 const element = ref<HTMLDivElement>();
 
+// diff 相关逻辑抽象为 hook
+const codeRef = toRef(props, "code");
+const { isDiffBlock, diffOldText, diffNewText } = useDiffCodeBlock(codeRef);
+
 // 检测是否在 .model-canvas 容器内
 const isInModelCanvas = (): boolean => {
   if (!element.value) return false;
   return element.value.closest(".model-canvas") !== null;
+};
+
+// 计算是否显示应用diff按钮
+const showApplyDiffButton = computed(() => {
+  return isInModelCanvas() && isDiffBlock.value;
+});
+
+const { eventBus } = getContext();
+
+// 处理应用diff按钮点击
+const applyDiff = () => {
+  if (!props.code) return;
+  // 通过 eventBus 发送 diff 事件
+  eventBus.emit("codeblock:apply-diff", {
+    code: props.code,
+  });
 };
 
 // 只保留代码的最后 4 行
@@ -79,15 +124,31 @@ const limitCodeToLastLines = (code: string, lines: number = 4): string => {
   return codeLines.slice(-lines).join("\n");
 };
 
+// 在画布模式下，代码渲染完成后滚动到底部
+const scrollToBottomIfInModelCanvas = async () => {
+  if (!isInModelCanvas()) return;
+  await nextTick();
+  const container = element.value;
+  const pre = container?.querySelector("pre");
+  if (pre) {
+    pre.scrollTop = pre.scrollHeight;
+  }
+};
+
 const runHighlight = async () => {
   try {
+    // diff 代码块使用 TextDiffViewer，不需要语法高亮
+    if (isDiffBlock.value) {
+      html.value = `<pre><code>${props.code || ""}</code></pre>`;
+      await scrollToBottomIfInModelCanvas();
+      return;
+    }
     // 确保 DOM 已挂载后再检测
     await nextTick();
 
     const highlighter = await highlighterPromise;
     const lang = (props.language || "text").toLowerCase();
-    let code =
-      typeof props.code === "string" ? props.code : String(props.code ?? "");
+    let code = typeof props.code === "string" ? props.code : String(props.code ?? "");
 
     // 如果是在 .model-canvas 内，只渲染最后 3 行
     // if (isInModelCanvas()) {
@@ -97,6 +158,8 @@ const runHighlight = async () => {
     // 对超大代码块做降级，避免严重卡顿
     if (code.length > 200_000) {
       html.value = `<pre><code>${code}</code></pre>`;
+
+      await scrollToBottomIfInModelCanvas();
       return;
     }
 
@@ -104,6 +167,8 @@ const runHighlight = async () => {
       lang,
       themes: { light: "github-light", dark: "github-dark" },
     });
+
+    await scrollToBottomIfInModelCanvas();
   } catch (err) {
     console.error("代码高亮失败", err);
     html.value = `<pre><code>${props.code || ""}</code></pre>`;
@@ -119,8 +184,7 @@ watch(
     }
 
     // 更小的防抖间隔，兼顾流式体验与性能
-    const delay =
-      typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
+    const delay = typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
 
     highlightTimer = window.setTimeout(() => {
       runHighlight();
@@ -153,8 +217,7 @@ const preview = () => {
     return;
   }
 
-  const code =
-    typeof props.code === "string" ? props.code : String(props.code ?? "");
+  const code = typeof props.code === "string" ? props.code : String(props.code ?? "");
 
   const isFullHtml = /<!doctype html>/i.test(code) || /<html[\s>]/i.test(code);
   const html = isFullHtml
@@ -274,6 +337,8 @@ function guessExtension(lang?: string) {
 
 <style scoped>
 .custom-code-block {
+  width: 100%;
+  min-width: 100%; /* 突破父容器 w-fit 的限制 */
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   background: #ffffff;
   border-bottom-left-radius: 16px;
@@ -310,8 +375,7 @@ function guessExtension(lang?: string) {
   letter-spacing: 0.02em;
   cursor: pointer;
   border: none;
-  transition: color 120ms ease, border-color 120ms ease,
-    background-color 120ms ease;
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
 }
 
 .collapse-btn:hover {
@@ -379,7 +443,17 @@ function guessExtension(lang?: string) {
   color: #0f172a;
 }
 
-.custom-code-block__body :deep(pre) {
+/* 嵌入 TextDiffViewer 时，减小内边距、保证文字颜色正确 */
+.custom-code-block__body :deep(.code-row td) {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.custom-code-block__body :deep(.code-row pre) {
+  color: #0f172a;
+}
+
+.custom-code-block__body > div:not(.diff-wrapper) :deep(pre) {
   margin: 0;
   padding: 1.1rem 1.2rem;
   overflow-x: auto;
@@ -390,6 +464,10 @@ function guessExtension(lang?: string) {
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   --sd-font-size-base: 16px !important;
   line-height: 1.4 !important;
+}
+
+.custom-code-block__body > .diff-wrapper :deep(pre) {
+  padding-bottom: 0;
 }
 
 .custom-code-block__body :deep(pre::-webkit-scrollbar) {
@@ -403,5 +481,29 @@ function guessExtension(lang?: string) {
 
 .custom-code-block__body :deep(pre::-webkit-scrollbar-track) {
   background: transparent;
+}
+
+/* diff 模式下：去掉 body 圆角 / 额外内边距，由内部 TextDiffViewer 自己控制 */
+.custom-code-block__body--diff {
+  padding: 0 !important;
+}
+
+.custom-code-block__body--diff :deep(.diff-wrapper .diff-container.code-font) {
+  border-radius: 0 !important;
+  border: none !important;
+}
+
+.custom-code-block__body--diff :deep(.diff-wrapper pre) {
+  padding-bottom: 0 !important;
+  overflow: hidden;
+  border-radius: 0 !important;
+}
+
+.custom-code-block__body--diff :deep(.diff-wrapper td) {
+  /* padding-left: 0px !important;
+  padding-right: 0px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important; */
+  padding: 0 !important;
 }
 </style>

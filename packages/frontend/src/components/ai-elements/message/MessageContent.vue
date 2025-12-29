@@ -13,7 +13,8 @@ const props = defineProps<Props>();
   <div
     :class="
       cn(
-        'is-user:dark flex w-fit flex-col gap-2 text-sm',
+        // 預設訊息內容佔滿可用寬度；只有使用者訊息才縮到內容寬度
+        'is-user:dark flex flex-col gap-2 text-sm w-full group-[.is-user]:w-fit',
         'group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground',
         'group-[.is-assistant]:text-foreground',
         props.class
