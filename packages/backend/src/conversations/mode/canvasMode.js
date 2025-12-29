@@ -78,7 +78,8 @@ async function processCanvasMode(context) {
       }
 
       // 如果不是 diff 格式，尝试增量提取 HTML 代码
-      if (!hasDetectedDiff && !isStreamingCode) {
+      // 注意：需要在流式写入过程中持续提取和发送代码增量
+      if (!hasDetectedDiff) {
         const htmlCode = extractHtmlCodeIncremental(accumulatedContent);
         if (htmlCode && htmlCode !== lastHtmlCode) {
           // 检查是否以 diff 标记开头（避免误判）
@@ -88,22 +89,30 @@ async function processCanvasMode(context) {
             isStreamingCode = false;
           } else {
             // 发送代码增量更新事件
-            isStreamingCode = true;
+            // 首次检测到代码时，设置 isStreamingCode 并发送 show_editor 事件
+            if (!isStreamingCode) {
+              isStreamingCode = true;
+              // 发送 canvas:show_editor 事件（首次检测到代码时）
+              if (requestId) {
+                sendEvent(requestId, {
+                  type: "canvas:show_editor",
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            }
+
+            // 更新 lastHtmlCode 并发送代码增量
             lastHtmlCode = htmlCode;
 
-            // 发送 canvas:code_delta 事件
+            // 发送 canvas:code_delta 事件（每次代码更新都发送）
             if (requestId) {
+              console.log("🌊 [Canvas Mode] Sending code delta:", {
+                codeLength: htmlCode.length,
+                codePreview: htmlCode.substring(0, 50),
+              });
               sendEvent(requestId, {
                 type: "canvas:code_delta",
                 code: htmlCode,
-                timestamp: new Date().toISOString(),
-              });
-            }
-
-            // 发送 canvas:show_editor 事件（首次检测到代码时）
-            if (requestId) {
-              sendEvent(requestId, {
-                type: "canvas:show_editor",
                 timestamp: new Date().toISOString(),
               });
             }

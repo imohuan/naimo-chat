@@ -858,11 +858,17 @@ function handleDiffUpdate(newOriginal: string) {
  * @param options.finalContent Optional content to save. If null, uses current.
  * @param options.enableEmit Whether to emit the diff-exited event. Defaults to true.
  */
-function exitDiffMode(options?: { finalContent?: string; enableEmit?: boolean }) {
+function exitDiffMode(options?: {
+  finalContent?: string;
+  enableEmit?: boolean;
+}) {
   console.group("👋 [ImmersiveCode] Exiting Diff Mode");
   const codeToSave =
-    options?.finalContent !== undefined ? options.finalContent : currentCode.value;
-  const enableEmit = options?.enableEmit !== undefined ? options.enableEmit : false;
+    options?.finalContent !== undefined
+      ? options.finalContent
+      : currentCode.value;
+  const enableEmit =
+    options?.enableEmit !== undefined ? options.enableEmit : false;
 
   console.log("Saving Final Content:", codeToSave.substring(0, 30) + "...");
 
@@ -948,7 +954,11 @@ function handleHistoryDiffToggle() {
       })
     | null;
 
-  if (!historyRecord || !historyRecord.originalCode || !historyRecord.diffTarget)
+  if (
+    !historyRecord ||
+    !historyRecord.originalCode ||
+    !historyRecord.diffTarget
+  )
     return;
 
   // 如果当前已经在 diff 模式，则退出（保持默认的保存行为）
@@ -1106,7 +1116,9 @@ onBeforeUnmount(() => {
       class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-100 z-20"
     >
       <div class="flex items-center space-x-4">
-        <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
+        <div
+          class="flex items-center space-x-2 text-slate-700 font-semibold select-none"
+        >
           <Code2 class="w-5 h-5 text-purple-600" />
           <span class="max-w-[200px] truncate">{{ displayTitle }}</span>
         </div>
