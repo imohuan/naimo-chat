@@ -11,6 +11,7 @@ export function useMessages() {
   const filterTag = ref<"all" | "completed" | "pending" | "error">("all");
   const isLoading = ref(false);
   const isLoadingDetail = ref(false);
+  const isRefreshing = ref(false);
   const limit = ref(100);
   const offset = ref(0);
 
@@ -19,6 +20,9 @@ export function useMessages() {
     if (isLoading.value) return;
 
     isLoading.value = true;
+    if (reset) {
+      isRefreshing.value = true;
+    }
     try {
       if (reset) {
         offset.value = 0;
@@ -37,6 +41,9 @@ export function useMessages() {
       console.error("Error loading messages:", error);
     } finally {
       isLoading.value = false;
+      if (reset) {
+        isRefreshing.value = false;
+      }
     }
   }
 
@@ -114,6 +121,7 @@ export function useMessages() {
     filterTag,
     isLoading,
     isLoadingDetail,
+    isRefreshing,
     filteredMessages,
     loadMessages,
     loadMessageDetail,

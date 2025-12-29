@@ -38,10 +38,16 @@ const {
   filterTag,
   isLoading: isLoadingMessages,
   isLoadingDetail,
+  isRefreshing: isRefreshingMessages,
   filteredMessages,
   loadMessages,
   selectMessage,
 } = useMessages();
+
+// 刷新对话列表
+async function refreshMessages() {
+  await loadMessages(true);
+}
 
 // 加载普通日志内容
 async function loadLogContent(filePath: string) {
@@ -230,10 +236,12 @@ onUnmounted(() => {
       :log-files="logFiles"
       :selected-log-file-obj="selectedLogFileObj"
       :is-refreshing="isRefreshing"
+      :is-refreshing-messages="isRefreshingMessages"
       :current-tab="currentTab"
       @update:active-mode="(mode) => (activeMode = mode)"
       @select-file="selectLogFile"
       @refresh="refreshLogFile"
+      @refresh-messages="refreshMessages"
       @clear-log="clearCurrentLogFile"
     />
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import {
   CloseOutlined,
   InfoOutlined,
@@ -178,6 +178,15 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
+// 监听 ESC 键
+onMounted(() => {
+  document.addEventListener("keydown", handleKeyDown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleKeyDown);
+});
+
 // 监听搜索关键词变化，如果当前选中的工具不在过滤结果中，清除选中状态
 watch(
   () => filteredTools.value,
@@ -212,7 +221,6 @@ watch(
       v-if="show"
       class="modal-backdrop fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       @click="handleBackdropClick"
-      @keydown="handleKeyDown"
     >
       <div
         class="relative bg-white rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200"
@@ -309,10 +317,10 @@ watch(
               >
                 <!-- 右上角标签 -->
                 <div
-                  class="absolute top-0 right-0 w-32 h-32 overflow-hidden pointer-events-none"
+                  class="absolute top-0 right-0 w-24 h-24 overflow-hidden pointer-events-none"
                 >
                   <span
-                    class="absolute top-4 right-0 w-40 text-center text-[10px] px-2 py-1 font-bold transform rotate-45 origin-center"
+                    class="absolute top-3 -right-1/2 w-32 text-center text-[11px] px-3 py-1 font-bold transform rotate-45 origin-center whitespace-nowrap"
                     :class="
                       isMCPTool(tool.name)
                         ? 'bg-purple-200 text-purple-800'
@@ -442,9 +450,7 @@ watch(
                   v-if="currentDetailTab === 'info'"
                   class="flex-1 overflow-y-auto"
                 >
-                  <div
-                    class="bg-slate-50 rounded-lg p-4 space-y-3 border border-slate-200"
-                  >
+                  <div class="space-y-3">
                     <div class="flex items-center gap-2 mb-3">
                       <span
                         class="text-xs px-3 py-1 rounded font-bold"
@@ -485,7 +491,7 @@ watch(
                     </div>
                     <div
                       v-if="Object.keys(toolProperties).length === 0"
-                      class="mt-4 pt-4 border-t border-slate-200"
+                      class="mt-4 pt-4"
                     >
                       <p class="text-slate-500 text-sm text-center">
                         此工具不需要参数
@@ -506,7 +512,7 @@ watch(
                     <div
                       v-for="(prop, key) in toolProperties"
                       :key="key"
-                      class="bg-white border border-slate-200 rounded-lg p-4"
+                      class="p-4"
                     >
                       <div class="flex items-center gap-2 mb-2">
                         <span
@@ -555,7 +561,7 @@ watch(
                           查看完整定义
                         </summary>
                         <pre
-                          class="mt-2 text-xs font-mono bg-slate-50 p-2 rounded overflow-x-auto"
+                          class="mt-2 text-xs font-mono p-2 overflow-x-auto"
                           >{{ formatJson(prop) }}</pre
                         >
                       </details>
@@ -568,9 +574,7 @@ watch(
                   v-if="currentDetailTab === 'json'"
                   class="flex-1 min-h-0 flex flex-col"
                 >
-                  <div
-                    class="bg-white shadow rounded-lg overflow-hidden flex-1 min-h-0"
-                  >
+                  <div class="overflow-hidden flex-1 min-h-0">
                     <CodeEditor
                       class="h-full"
                       :model-value="formatJson(selectedTool)"

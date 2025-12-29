@@ -96,3 +96,9 @@ export interface MessageDetail {
   };
 }
 
+/** 时间范围 */
+export interface TimeRange {
+  start: Date | null;
+  end: Date | null;
+}
+

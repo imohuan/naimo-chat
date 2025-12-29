@@ -10,7 +10,6 @@ import {
 import { useIntersectionObserver, useDebounceFn } from "@vueuse/core";
 import {
   VisibilityOutlined,
-  ListOutlined,
   CodeOutlined,
   PersonOutlined,
   SmartToyOutlined,
@@ -34,7 +33,7 @@ const props = defineProps<{
 
 const activeTab = ref<"preview" | "timeline" | "raw">("preview");
 const showMCPPreview = ref(false);
-const rawJson = computed(() => formatJson(props.request?.logs || []));
+const rawJson = computed(() => formatJson(props.request || {}));
 
 const logsSource = computed(() => props.request?.logs || []);
 
@@ -177,16 +176,6 @@ const debouncedMessageLoadMore = useDebounceFn(() => {
     messageLoading.loadMore();
   }
 }, 66);
-
-watch(
-  () => messageLoading.lastIndex.value,
-  () => {
-    console.log(
-      "messageLoading.visibleItems",
-      messageLoading.visibleItems.value.slice(-10)
-    );
-  }
-);
 
 // 设置底部触发器的可见性监听
 const { stop: stopTimelineObserver } = useIntersectionObserver(
@@ -345,8 +334,8 @@ function getChatMessages(req: LogRequest): LogChatMessage[] {
   return messages;
 }
 
-// 提取 MCP 工具列表
-const mcpTools = computed(() => {
+// 提取所有工具列表
+const allTools = computed(() => {
   if (!props.request) return [];
 
   // 首先从 request body 日志中查找
@@ -355,9 +344,7 @@ const mcpTools = computed(() => {
   );
 
   if (bodyLog && bodyLog.data.tools && Array.isArray(bodyLog.data.tools)) {
-    return bodyLog.data.tools.filter(
-      (tool: any) => tool.name && tool.name.startsWith("mcp__")
-    );
+    return bodyLog.data.tools;
   }
 
   // 如果没有找到，尝试从其他日志中查找原始请求体
@@ -371,9 +358,7 @@ const mcpTools = computed(() => {
           ? JSON.parse(finalReqLog.request.body)
           : finalReqLog.request.body;
       if (parsedBody.tools && Array.isArray(parsedBody.tools)) {
-        return parsedBody.tools.filter(
-          (tool: any) => tool.name && tool.name.startsWith("mcp__")
-        );
+        return parsedBody.tools;
       }
     } catch (e) {
       // ignore
@@ -381,6 +366,13 @@ const mcpTools = computed(() => {
   }
 
   return [];
+});
+
+// 提取 MCP 工具列表（仅以 mcp__ 开头的工具）
+const mcpTools = computed(() => {
+  return allTools.value.filter(
+    (tool: any) => tool.name && tool.name.startsWith("mcp__")
+  );
 });
 
 function getLevelColor(level: number): string {
@@ -639,9 +631,10 @@ async function loadAllAndScrollToBottom() {
               "
               >{{ request.method }}</span
             >
-            <span class="text-sm text-slate-700 break-all font-mono">{{
-              request.url
-            }}</span>
+            <span
+              class="max-w-[200px] truncate text-base text-blue-700 underline break-all font-mono"
+              >{{ request.url }}</span
+            >
             <span
               v-if="request.status"
               class="px-2 py-1 rounded text-xs font-bold"
@@ -653,6 +646,15 @@ async function loadAllAndScrollToBottom() {
             >
               {{ request.status }}
             </span>
+
+            <!-- Model Info -->
+            <div v-if="request.model" class="flex justify-center">
+              <span
+                class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1 rounded text-xs font-mono shadow-sm"
+              >
+                <span class="font-bold">{{ request.model }}</span>
+              </span>
+            </div>
           </div>
           <div class="flex gap-6 text-xs text-slate-500 font-mono">
             <span>Start: {{ formatTimeLong(request.startTime) }}</span>
@@ -677,16 +679,19 @@ async function loadAllAndScrollToBottom() {
           >
             <VisibilityOutlined class="w-4 h-4" /> 预览
           </button>
-          <!-- MCP 标签 -->
+          <!-- Tools 标签 -->
           <button
-            v-if="mcpTools.length > 0"
+            v-if="allTools.length > 0"
             @click="showMCPPreview = true"
             class="bg-purple-50 border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-xs font-mono shadow-sm hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
-            :title="`点击查看 ${mcpTools.length} 个 MCP 工具详情`"
+            :title="`点击查看 ${allTools.length} 个工具详情 (${mcpTools.length} 个 MCP 工具)`"
           >
-            MCP: <span class="font-bold">{{ mcpTools.length }}</span>
+            Tools: <span class="font-bold">{{ allTools.length }}</span>
+            <span v-if="mcpTools.length > 0" class="ml-1 opacity-70"
+              >({{ mcpTools.length }} MCP)</span
+            >
           </button>
-          <button
+          <!-- <button
             @click="activeTab = 'timeline'"
             :class="[
               'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
@@ -696,7 +701,7 @@ async function loadAllAndScrollToBottom() {
             ]"
           >
             <ListOutlined class="w-4 h-4" /> 时间轴
-          </button>
+          </button> -->
           <button
             @click="activeTab = 'raw'"
             :class="[
@@ -739,15 +744,6 @@ async function loadAllAndScrollToBottom() {
             ref="messageContainerRef"
             class="max-h-full overflow-y-auto pr-1"
           >
-            <!-- Model Info -->
-            <div v-if="request.model" class="flex justify-center mb-6">
-              <span
-                class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-full text-xs font-mono shadow-sm"
-              >
-                Model: <span class="font-bold">{{ request.model }}</span>
-              </span>
-            </div>
-
             <div>
               <template v-for="(item, index) in visibleItems" :key="index">
                 <!-- Message Item -->

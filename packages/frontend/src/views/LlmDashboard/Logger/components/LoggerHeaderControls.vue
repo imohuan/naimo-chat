@@ -13,6 +13,7 @@ const props = defineProps<{
   logFiles: LogFile[];
   selectedLogFileObj: LogFile | null;
   isRefreshing: boolean;
+  isRefreshingMessages?: boolean;
   currentTab: "chat" | "providers" | "logger" | "statusline" | "mcp";
 }>();
 
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   "update:activeMode": [mode: "logs" | "messages"];
   selectFile: [file: LogFile];
   refresh: [];
+  refreshMessages: [];
   clearLog: [];
 }>();
 
@@ -182,22 +184,33 @@ function setActiveMode(mode: "logs" | "messages") {
         <div class="h-6 w-px bg-slate-200 mx-2"></div>
       </template>
 
+      <!-- 对话模式刷新按钮 -->
+      <template v-if="activeMode === 'messages'">
+        <!-- 刷新按钮 -->
+        <button
+          @click="emit('refreshMessages')"
+          type="button"
+          class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-all text-xs font-medium flex items-center gap-1.5 shadow-sm hover:shadow h-8"
+          title="刷新对话列表"
+        >
+          <RefreshOutlined
+            :class="[
+              'w-3.5 h-3.5 text-slate-600',
+              { 'animate-spin': isRefreshingMessages },
+            ]"
+          />
+          <span class="text-slate-700">刷新</span>
+        </button>
+
+        <!-- 分割线（始终显示） -->
+        <div class="h-6 w-px bg-slate-200 mx-2"></div>
+      </template>
+
       <!-- Tab 切换（始终显示） -->
       <nav class="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
         <button
-          @click="setActiveMode('logs')"
-          class="px-4 py-1 text-xs rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-          :class="
-            activeMode === 'logs'
-              ? 'bg-white text-primary shadow-sm border border-primary/20'
-              : 'text-slate-500 hover:text-slate-700'
-          "
-        >
-          普通日志
-        </button>
-        <button
           @click="setActiveMode('messages')"
-          class="px-4 py-1 text-xs rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
+          class="px-4 py-1 text-xs rounded-md font-medium transition-all flex items-center gap-2 border border-transparent"
           :class="
             activeMode === 'messages'
               ? 'bg-white text-primary shadow-sm border border-primary/20'
@@ -205,6 +218,18 @@ function setActiveMode(mode: "logs" | "messages") {
           "
         >
           对话查询
+        </button>
+
+        <button
+          @click="setActiveMode('logs')"
+          class="px-4 py-1 text-xs rounded-md font-medium transition-all flex items-center gap-2 border border-transparent"
+          :class="
+            activeMode === 'logs'
+              ? 'bg-white text-primary shadow-sm border border-primary/20'
+              : 'text-slate-500 hover:text-slate-700'
+          "
+        >
+          完整日志
         </button>
       </nav>
     </div>
