@@ -528,6 +528,44 @@ watch(
   }
 );
 
+// 切换版本时观看原始和修改后的道具以更新编辑器内容
+watch(
+  () => [props.original, props.modified],
+  ([newOriginal, newModified]) => {
+    if (!diffEditor.value) return;
+
+    const originalModel = diffEditor.value.getOriginalEditor().getModel();
+    const modifiedModel = diffEditor.value.getModifiedEditor().getModel();
+
+    if (originalModel && modifiedModel) {
+      // 确保值不为 undefined
+      const safeOriginal = newOriginal ?? "";
+      const safeModified = newModified ?? "";
+
+      // 更新模型内容
+      const currentOriginal = originalModel.getValue();
+      const currentModified = modifiedModel.getValue();
+
+      // 只有在内容真正变化时才更新，避免不必要的更新
+      if (currentOriginal !== safeOriginal) {
+        isUpdating = true; // 防止触发 onDidChangeContent 事件
+        originalModel.setValue(safeOriginal);
+        isUpdating = false;
+      }
+
+      if (currentModified !== safeModified) {
+        modifiedModel.setValue(safeModified);
+      }
+
+      // 更新 diff 信息
+      setTimeout(() => {
+        updateDiffInfo();
+      }, 100);
+    }
+  },
+  { deep: true }
+);
+
 // 获取当前字体大小
 function getFontSize(): number {
   if (!diffEditor.value || !monaco) return props.fontSize;
