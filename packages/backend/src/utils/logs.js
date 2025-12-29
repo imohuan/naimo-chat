@@ -461,6 +461,64 @@ const getMessageDetail = (requestId) => {
   }
 };
 
+/**
+ * 删除消息
+ * 根据 requestId 删除相关的所有文件（请求文件、响应文件等）
+ * @param {string|string[]} requestIds - 请求 ID 或请求 ID 数组
+ * @returns {{success: boolean, deleted: number, failed: number, message: string}} 操作结果对象
+ * @throws {Error} 当删除文件失败时抛出错误
+ */
+const deleteMessages = (requestIds) => {
+  try {
+    const messageDir = CHAT_MESSAGE_DIR;
+    const ids = Array.isArray(requestIds) ? requestIds : [requestIds];
+    let deleted = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const requestId of ids) {
+      if (!requestId || typeof requestId !== "string") {
+        failed++;
+        continue;
+      }
+
+      const filesToDelete = [
+        join(messageDir, `${requestId}-req.json`),
+        join(messageDir, `${requestId}-res.md`),
+        join(messageDir, `${requestId}-res-full.jsonl`),
+      ];
+
+      let messageDeleted = false;
+      for (const filePath of filesToDelete) {
+        if (existsSync(filePath)) {
+          try {
+            require("fs").unlinkSync(filePath);
+            messageDeleted = true;
+          } catch (error) {
+            errors.push(`Failed to delete ${filePath}: ${error.message}`);
+          }
+        }
+      }
+
+      if (messageDeleted) {
+        deleted++;
+      } else {
+        failed++;
+      }
+    }
+
+    return {
+      success: deleted > 0,
+      deleted,
+      failed,
+      message: `成功删除 ${deleted} 条消息，失败 ${failed} 条${errors.length > 0 ? `。错误：${errors.join("; ")}` : ""}`,
+    };
+  } catch (error) {
+    console.error("Failed to delete messages:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   getLogFiles,
   readLogContent,
@@ -470,4 +528,5 @@ module.exports = {
   createLoggerConfig,
   getMessageList,
   getMessageDetail,
+  deleteMessages,
 };

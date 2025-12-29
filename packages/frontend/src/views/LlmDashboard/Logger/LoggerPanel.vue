@@ -13,7 +13,7 @@ const props = defineProps<{
 }>();
 
 // Tab 切换：普通日志 / 对话
-const activeMode = ref<"logs" | "messages">("logs");
+const activeMode = ref<"logs" | "messages">("messages");
 
 // 普通日志相关
 const {
@@ -47,6 +47,18 @@ const {
 // 刷新对话列表
 async function refreshMessages() {
   await loadMessages(true);
+}
+
+// 加载 messages 并自动选择第一个
+async function loadMessagesAndSelectFirst() {
+  await loadMessages(true);
+  // 加载完成后，如果 filteredMessages 有数据且当前没有选中，就选择第一个
+  if (filteredMessages.value.length > 0 && !selectedMessageId.value) {
+    const firstMessage = filteredMessages.value[0];
+    if (firstMessage?.requestId) {
+      await selectMessage(firstMessage.requestId);
+    }
+  }
 }
 
 // 加载普通日志内容
@@ -199,7 +211,7 @@ watch(
 // 监听模式切换
 watch(activeMode, async (mode) => {
   if (mode === "messages") {
-    await loadMessages(true);
+    await loadMessagesAndSelectFirst();
   } else if (mode === "logs") {
     await loadLogFiles(true);
     if (selectedLogFileObj.value) {
@@ -216,9 +228,14 @@ function handleClickOutside(e: MouseEvent) {
 }
 
 onMounted(async () => {
-  await loadLogFiles(true);
-  if (selectedLogFileObj.value) {
-    await loadLogContent(selectedLogFileObj.value.path);
+  // 根據當前默認 tab 來調用對應的方法
+  if (activeMode.value === "messages") {
+    await loadMessagesAndSelectFirst();
+  } else if (activeMode.value === "logs") {
+    await loadLogFiles(true);
+    if (selectedLogFileObj.value) {
+      await loadLogContent(selectedLogFileObj.value.path);
+    }
   }
   document.addEventListener("click", handleClickOutside);
 });
@@ -284,6 +301,7 @@ onUnmounted(() => {
             @update:selected-message-id="(id) => (selectedMessageId = id)"
             @update:filter-tag="(tag) => (filterTag = tag)"
             @update:search-query="(query) => (messageSearchQuery = query)"
+            @refresh="refreshMessages"
           />
         </div>
 

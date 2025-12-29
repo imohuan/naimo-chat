@@ -4,6 +4,7 @@ const {
   clearLogContent,
   getMessageList,
   getMessageDetail,
+  deleteMessages,
 } = require("../utils/logs");
 
 function registerLogRoutes(server) {
@@ -126,6 +127,30 @@ function registerLogRoutes(server) {
     } catch (error) {
       console.error("获取对话详情失败:", error);
       reply.status(500).send({ error: "获取对话详情失败" });
+    }
+  });
+
+  // 删除消息
+  app.delete("/api/messages", async (req, reply) => {
+    try {
+      const { requestIds } = req.body;
+
+      if (!requestIds) {
+        reply.status(400).send({ error: "缺少 requestIds 参数" });
+        return;
+      }
+
+      const ids = Array.isArray(requestIds) ? requestIds : [requestIds];
+      if (ids.length === 0) {
+        reply.status(400).send({ error: "requestIds 不能为空" });
+        return;
+      }
+
+      const result = deleteMessages(ids);
+      return result;
+    } catch (error) {
+      console.error("删除消息失败:", error);
+      reply.status(500).send({ error: "删除消息失败" });
     }
   });
 }

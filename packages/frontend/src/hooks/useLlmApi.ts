@@ -445,6 +445,27 @@ export function useLlmApi() {
   }
 
   /**
+   * 删除消息
+   * @param requestIds 请求 ID 或请求 ID 数组
+   * @returns 删除结果
+   */
+  async function deleteMessages(
+    requestIds: string | string[]
+  ): Promise<{
+    success: boolean;
+    deleted: number;
+    failed: number;
+    message: string;
+  }> {
+    return await apiCall(`/api/messages`, {
+      method: "DELETE",
+      body: JSON.stringify({
+        requestIds: Array.isArray(requestIds) ? requestIds : [requestIds],
+      }),
+    });
+  }
+
+  /**
    * 发送消息
    * @param messages 对话消息
    * @param model 目标模型（格式：provider,model）
@@ -716,5 +737,6 @@ export function useLlmApi() {
     startClaudeCli,
     fetchMessages,
     fetchMessageDetail,
+    deleteMessages,
   };
 }
