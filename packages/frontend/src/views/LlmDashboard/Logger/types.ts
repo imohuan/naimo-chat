@@ -47,6 +47,8 @@ export interface LogRequest {
   error: any;
   /** 用于搜索的聚合文本，包含请求/响应/错误等关键信息 */
   searchText?: string;
+  /** 完整的流式响应事件列表 */
+  responseFull?: StreamEvent[];
 }
 
 /** 聊天消息（用于预览） */

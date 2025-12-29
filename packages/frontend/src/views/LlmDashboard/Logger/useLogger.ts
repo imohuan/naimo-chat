@@ -65,6 +65,13 @@ export function useLogger() {
       await apiClearLogs(selectedLogFile.value);
       // 刷新文件列表以更新大小/修改时间
       await loadLogFiles();
+      // 更新选中的文件对象，确保 watch 能触发
+      const updatedFile = logFiles.value.find(
+        (f) => f.path === selectedLogFile.value
+      );
+      if (updatedFile) {
+        selectedLogFileObj.value = updatedFile;
+      }
     } catch (error) {
       console.error("Error clearing log content:", error);
     }

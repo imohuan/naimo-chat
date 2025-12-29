@@ -49,6 +49,27 @@ async function refreshMessages() {
   await loadMessages(true);
 }
 
+// 刷新日志文件并重新加载内容
+async function handleRefreshLogFile() {
+  await refreshLogFile();
+  // 刷新后重新加载当前文件的内容
+  if (selectedLogFileObj.value) {
+    await loadLogContent(selectedLogFileObj.value.path);
+  }
+}
+
+// 清空当前日志文件并更新显示
+async function handleClearLogFile() {
+  await clearCurrentLogFile();
+  // 清空后重新加载文件列表，并重新加载当前文件内容（应该是空的）
+  if (selectedLogFileObj.value) {
+    await loadLogContent(selectedLogFileObj.value.path);
+  } else {
+    // 如果没有选中的文件，清空显示内容
+    selectedLogContent.value = "";
+  }
+}
+
 // 加载 messages 并自动选择第一个
 async function loadMessagesAndSelectFirst() {
   await loadMessages(true);
@@ -188,6 +209,7 @@ function convertMessageDetailToLogRequest(
     fullResponse: detail.response?.content || "",
     hasError: false,
     error: null,
+    responseFull: detail.response?.full || undefined,
   };
 
   return logRequest;
@@ -257,9 +279,9 @@ onUnmounted(() => {
       :current-tab="currentTab"
       @update:active-mode="(mode) => (activeMode = mode)"
       @select-file="selectLogFile"
-      @refresh="refreshLogFile"
+      @refresh="handleRefreshLogFile"
       @refresh-messages="refreshMessages"
-      @clear-log="clearCurrentLogFile"
+      @clear-log="handleClearLogFile"
     />
 
     <!-- 主内容区域 -->
