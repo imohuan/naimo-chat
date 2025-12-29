@@ -60,6 +60,24 @@ export function useConversation() {
 
   /**
    * 加载单个对话详情
+   * 
+loadConversation()
+  ↓
+store.upsertConversation() 
+  ↓
+conversations.value[index] = newConversationObject  // 新对象引用
+  ↓
+activeConversation computed 返回新对象引用
+  ↓
+ChatPanel.vue 的 watch([activeConversationId, activeConversation]) 触发
+  ↓
+ChatPanel.vue 的 watch([codeVersion, codeHistory]) 触发
+  ↓
+CanvasPanel.vue 的 watch([codeVersion, codeHistory]) 触发（deep: true）
+  ↓
+immersiveCodeRef.value.setHistory(codeHistory)  // 重新加载整个历史
+  ↓
+Canvas 被强制刷新 ❌
    */
   async function loadConversation(id: string) {
     store.setLoading(true);
@@ -247,9 +265,9 @@ export function useConversation() {
         );
 
         // 重新加载对话以获取最新状态
-        loadConversation(conversationId).catch((error) => {
-          console.error("重新加载对话失败:", error);
-        });
+        // loadConversation(conversationId).catch((error) => {
+        //   console.error("重新加载对话失败:", error);
+        // });
 
         // 发送完成事件
         eventBus.emit("message:complete", {

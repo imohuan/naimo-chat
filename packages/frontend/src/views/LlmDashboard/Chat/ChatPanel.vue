@@ -92,7 +92,8 @@ watch(
     // 恢复代码历史（仅在 canvas 模式下）
     if (selectedMode.value === "canvas" && conversation.codeHistory) {
       const hasCodeHistory =
-        conversation.codeHistory.versions && conversation.codeHistory.versions.length > 0;
+        conversation.codeHistory.versions &&
+        conversation.codeHistory.versions.length > 0;
 
       if (hasCodeHistory) {
         showCanvas.value = true;
@@ -138,7 +139,8 @@ watch(
 
     // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才显示
     if (codeVersion !== undefined && codeHistory) {
-      const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
+      const hasCodeHistory =
+        codeHistory.versions && codeHistory.versions.length > 0;
       showCanvas.value = hasCodeHistory || false;
       // 设置侧边栏为折叠状态
       conversationStore.sidebarCollapsed = true;
@@ -263,7 +265,11 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (codeRef && typeof codeRef === "object" && "setCodeAndSelectLines" in codeRef) {
+    if (
+      codeRef &&
+      typeof codeRef === "object" &&
+      "setCodeAndSelectLines" in codeRef
+    ) {
       (codeRef as any).setCodeAndSelectLines(code, startLine, endLine);
     }
   }
@@ -271,7 +277,9 @@ function handleTagClick(data: {
   // 如果是浏览器标签（元素选择器标签），处理预览跳转
   if (
     data.data?.selector ||
-    (data.icon && typeof data.icon === "string" && data.icon.includes("browser"))
+    (data.icon &&
+      typeof data.icon === "string" &&
+      data.icon.includes("browser"))
   ) {
     const selector = data.data?.selector || data.data?.text || data.label;
     if (!selector) return;
@@ -280,7 +288,11 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (codeRef && typeof codeRef === "object" && "selectElementInPreview" in codeRef) {
+    if (
+      codeRef &&
+      typeof codeRef === "object" &&
+      "selectElementInPreview" in codeRef
+    ) {
       (codeRef as any).selectElementInPreview(selector);
     }
   }
@@ -365,7 +377,10 @@ onMounted(() => {
 
   // 监听对话加载完成事件，设置 selectedMode
   eventBus.on("conversation:loaded", (data) => {
-    if (data.conversation.mode && data.conversation.mode !== selectedMode.value) {
+    if (
+      data.conversation.mode &&
+      data.conversation.mode !== selectedMode.value
+    ) {
       selectedMode.value = data.conversation.mode;
     }
   });
@@ -397,7 +412,8 @@ onMounted(() => {
 
     // 显示 diff 编辑器（使用 diff 方法）
     if (immersiveCode && typeof immersiveCode.diff === "function") {
-      const originalCode = data.originalCode || immersiveCode.getCurrentCode?.() || "";
+      const originalCode =
+        data.originalCode || immersiveCode.getCurrentCode?.() || "";
       immersiveCode.diff(data.diff, originalCode);
     }
   });
@@ -431,9 +447,15 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
   try {
-    await chatApi.applyCanvasDiff(activeConversationId.value, recordId, appliedCode);
-    // 重新加载对话以获取最新的 canvas 数据
-    await loadConversation(activeConversationId.value);
+    await chatApi.applyCanvasDiff(
+      activeConversationId.value,
+      recordId,
+      appliedCode
+    );
+    // 不重新加载对话，避免强制刷新页面和canvas
+    // 代码已经在本地更新，后端也已保存，无需重新加载
+    // await loadConversation(activeConversationId.value);
+
     pushToast("代码已保存", "success");
   } catch (error) {
     console.error("保存应用后的代码失败:", error);
@@ -505,7 +527,8 @@ function saveCodeHistory() {
           );
 
           if (streamingRecords.length > 0) {
-            const lastStreamingRecord = streamingRecords[streamingRecords.length - 1];
+            const lastStreamingRecord =
+              streamingRecords[streamingRecords.length - 1];
             if (lastStreamingRecord) {
               return {
                 id: version.id,
@@ -592,7 +615,9 @@ watch(activeConversationId, (_newId, oldId) => {
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
+            :class="
+              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
+            "
           >
             <!-- 消息列表 -->
             <ChatMessages
