@@ -1130,7 +1130,7 @@ onBeforeUnmount(() => {
             >
               <SelectValue placeholder="Select Version" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent class="max-h-[300px]">
               <SelectItem
                 v-for="(ver, idx) in versions"
                 :key="ver.id"
