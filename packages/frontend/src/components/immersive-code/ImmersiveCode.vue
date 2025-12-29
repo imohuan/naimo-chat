@@ -105,8 +105,25 @@ const previewFrameRef = ref<InstanceType<typeof PreviewFrame> | null>(null);
 
 // Computed Mode based on History
 const mode = computed<"code" | "preview" | "diff">(() => {
-  // If we have a diff target, we are in diff mode
+  // If we have a diff target, check if we should be in diff mode
   if (currentDiffTarget.value) {
+    const record = currentRecord.value as
+      | (typeof currentRecord.value & { originalCode?: string })
+      | null;
+    const currentCodeValue = currentCode.value;
+
+    // 参考第 205-209 行的逻辑：如果同时存在 originalCode 和 code，且二者不相等，
+    // 说明当前 code 已经是「应用 diff 之后」的结果，此时不应该进入 diff 模式。
+    // 这种记录通常来自后端已经应用过 diff 并把最终代码保存在 code 字段的情况。
+    if (
+      record?.originalCode &&
+      currentCodeValue.trim() !== "" &&
+      currentCodeValue.trim() !== record.originalCode.trim()
+    ) {
+      // 代码已经应用过 diff，不应该进入 diff 模式
+      return uiMode.value;
+    }
+    // 否则，进入 diff 模式
     return "diff";
   }
   // Otherwise, use the UI mode selected by the user
@@ -187,31 +204,29 @@ watch(
   () => {
     if (!currentDiffTarget.value) {
       diffResult.value = { content: "", success: true };
+      // 退出 diff 模式
+      exitDiffMode();
       return;
     }
 
     const record = currentRecord.value as
       | (typeof currentRecord.value & { originalCode?: string })
       | null;
-
     const currentCodeValue = currentCode.value;
 
-    // 如果同时存在 originalCode 和 code，且二者不相等，说明当前 code
-    // 已经是「应用 diff 之后」的结果，此时不应该再基于当前 code 自动应用一次 diff。
-    // 这种记录通常来自后端已经应用过 diff 并把最终代码保存在 code 字段的情况。
-    if (
-      record?.originalCode &&
-      currentCodeValue.trim() !== "" &&
-      currentCodeValue.trim() !== record.originalCode.trim()
-    ) {
+    // 复用 mode 计算属性的逻辑：如果 mode 不是 "diff"，说明不应该进入 diff 模式
+    // 这通常是因为代码已经应用过 diff（存在 originalCode 且当前代码不等于 originalCode）
+    if (mode.value !== "diff") {
       console.log(
         "🔄 [ImmersiveCode] Skip auto diff: code already includes applied diff",
         {
-          recordId: record.id,
+          recordId: record?.id,
         }
       );
       // 保持 diffResult.content 与当前代码一致，避免右侧为空白
       diffResult.value = { content: currentCodeValue, success: true };
+      // 退出 diff 模式
+      exitDiffMode();
       return;
     }
 
@@ -907,7 +922,6 @@ function handleHistoryDiffToggle() {
   // 使用 originalCode 作为左侧代码，diffTarget 作为 diff 字符串，进入 diff 模式
   const baseCode = historyRecord.originalCode;
   const diffContent = historyRecord.diffTarget;
-
   const dryRun = applyDiff(baseCode, diffContent);
   if (!dryRun.success) {
     console.warn(

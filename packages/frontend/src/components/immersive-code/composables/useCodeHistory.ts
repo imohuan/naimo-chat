@@ -125,12 +125,28 @@ export function useCodeHistory(initialCode: string = "") {
     const v = currentVersion.value;
     if (!v || !v.records) return;
 
+    // 2. 如果代码相同，但只是要清除 diffTarget（退出 diff 模式），更新当前记录而不是添加新记录
+    const isCodeUnchanged = last && code === last.code;
+    const isClearingDiffTarget = last?.diffTarget && !diffTarget;
+
+    if (isCodeUnchanged && isClearingDiffTarget) {
+      console.log(
+        "🔄 [ImmersiveHistory] Code unchanged, updating current record to clear diffTarget"
+      );
+      // 更新当前记录的 diffTarget 为 undefined，避免重复添加历史记录
+      // const currentRecordIndex = v.currentIndex;
+      // if (v.records[currentRecordIndex]) {
+      //   v.records[currentRecordIndex].diffTarget = undefined;
+      //   v.records[currentRecordIndex].timestamp = Date.now();
+      // }
+      return;
+    }
+
     // 保护机制：如果当前不在历史末尾，且新代码与当前记录相同，且最近刚导航过历史（1秒内）
     // 这很可能是切换历史导致的同步，而不是真正的编辑，应该忽略
     const now = Date.now();
     const timeSinceNavigation = now - lastNavigationTime.value;
     const isInMiddleOfHistory = v.currentIndex < v.records.length - 1;
-    const isCodeUnchanged = last && code === last.code;
 
     if (isInMiddleOfHistory && isCodeUnchanged && timeSinceNavigation < 1000) {
       console.log(
