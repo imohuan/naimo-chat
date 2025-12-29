@@ -26,6 +26,7 @@ export function useSSEStream() {
     eventSource.value = es;
 
     let accumulatedContent = "";
+    let isCompleted = false; // 标记是否已经正常完成
 
     es.onmessage = (event) => {
       try {
@@ -50,11 +51,21 @@ export function useSSEStream() {
 
           case "message_complete":
             // 标记消息完成
+            isCompleted = true;
             callbacks.onComplete?.();
-            // 延迟关闭连接，确保最后的事件被处理
-            setTimeout(() => {
-              disconnect();
-            }, 1000);
+            // 立即关闭连接，避免服务器关闭时触发错误事件
+            disconnect();
+            break;
+
+          case "session_end":
+            // 服务器端会话结束事件（在 closeSession 时发送）
+            // 如果还没完成，说明是异常关闭
+            if (!isCompleted) {
+              console.warn("SSE 会话意外结束:", data);
+            }
+            // 标记为已完成，避免 onerror 触发错误回调
+            isCompleted = true;
+            disconnect();
             break;
 
           case "error":
@@ -107,10 +118,49 @@ export function useSSEStream() {
       }
     };
 
-    es.onerror = (error) => {
-      console.error("SSE 连接错误:", error);
-      // 注意：EventSource 在错误时会自动重连，这里只记录错误
-      // 如果确实是致命错误，会通过 message_complete 或 error 事件处理
+    es.onerror = (event) => {
+      // EventSource 的错误事件不包含详细的错误信息
+      // 需要检查 readyState 来判断连接状态
+      const state = es.readyState;
+
+      // 如果已经正常完成，忽略错误事件（可能是服务器正常关闭连接）
+      if (isCompleted) {
+        console.log("SSE 连接已正常完成，忽略关闭时的错误事件");
+        return;
+      }
+
+      if (state === EventSource.CLOSED) {
+        // 连接已关闭，且不是正常完成的情况
+        const errorMessage = "SSE 连接意外关闭";
+        console.error("SSE 连接错误:", {
+          message: errorMessage,
+          readyState: state,
+          url: streamUrl,
+          event: event
+        });
+        callbacks.onError?.(errorMessage);
+        disconnect();
+      } else if (state === EventSource.CONNECTING) {
+        // 连接失败，正在重连
+        console.warn("SSE 连接失败，正在重连...", {
+          readyState: state,
+          url: streamUrl,
+          event: event
+        });
+        // EventSource 会自动重连，这里只记录警告，不触发错误回调
+      } else {
+        // 其他错误状态
+        console.error("SSE 连接错误:", {
+          message: "SSE 连接错误",
+          readyState: state,
+          url: streamUrl,
+          event: event
+        });
+        // 只有在 OPEN 状态出错时才触发错误回调
+        if (state === EventSource.OPEN) {
+          callbacks.onError?.("SSE 连接错误");
+        }
+      }
     };
   }
 

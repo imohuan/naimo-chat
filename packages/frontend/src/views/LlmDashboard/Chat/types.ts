@@ -165,6 +165,7 @@ export type SSEEventType =
   | "content_block_delta"
   | "message_delta"
   | "message_complete"
+  | "session_end"
   | "error"
   | "request_id"
   | "canvas:code_delta"

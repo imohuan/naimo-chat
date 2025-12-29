@@ -232,7 +232,6 @@ export function useChatApi() {
     recordId: string,
     code: string
   ): Promise<{ success: boolean; recordId: string }> {
-    debugger;
     return apiCall<{ success: boolean; recordId: string }>(
       `/api/ai_chat/conversations/${conversationId}/canvas/records/${recordId}/apply`,
       {
