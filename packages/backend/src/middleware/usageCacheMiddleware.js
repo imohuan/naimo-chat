@@ -50,18 +50,18 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
             }
 
             // append agent tools
-            if (agent.tools && agent.tools.size) {
-              if (!req.body?.tools?.length) {
-                req.body.tools = [];
-              }
-              req.body.tools.unshift(...Array.from(agent.tools.values()).map(item => {
-                return {
-                  name: item.name,
-                  description: item.description,
-                  input_schema: item.input_schema
-                };
-              }));
-            }
+            // if (agent.tools && agent.tools.size) {
+            //   if (!req.body?.tools?.length) {
+            //     req.body.tools = [];
+            //   }
+            //   req.body.tools.unshift(...Array.from(agent.tools.values()).map(item => {
+            //     return {
+            //       name: item.name,
+            //       description: item.description,
+            //       input_schema: item.input_schema
+            //     };
+            //   }));
+            // }
           }
         }
       }
@@ -125,6 +125,18 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                     currentToolIndex = data.data.index;              // 记录工具在内容块中的索引
                     currentToolName = data.data.content_block.name;   // 记录工具名称
                     currentToolId = data.data.content_block.id;      // 记录工具调用 ID
+
+                    // 发送 tool:start 事件通知前端工具调用开始
+                    controller.enqueue({
+                      event: "tool:start",
+                      data: {
+                        type: "tool:start",
+                        tool_id: currentToolId,
+                        tool_name: currentToolName,
+                        timestamp: new Date().toISOString(),
+                      },
+                    });
+
                     // 返回 undefined 表示不将此事件传递给下游（隐藏工具调用开始事件）
                     return undefined;
                   }
@@ -172,21 +184,46 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                     "content": toolResult           // 工具执行的结果
                   });
 
+                  // 发送 tool:result 事件通知前端工具执行成功
+                  controller.enqueue({
+                    event: "tool:result",
+                    data: {
+                      type: "tool:result",
+                      tool_id: currentToolId,
+                      tool_name: currentToolName,
+                      result: toolResult,
+                      timestamp: new Date().toISOString(),
+                    },
+                  });
+                } catch (e) {
+                  console.error("Error processing tool call:", e);
+
+                  // 发送 tool:error 事件通知前端工具执行失败
+                  controller.enqueue({
+                    event: "tool:error",
+                    data: {
+                      type: "tool:error",
+                      tool_id: currentToolId,
+                      tool_name: currentToolName,
+                      error: e.message || String(e),
+                      timestamp: new Date().toISOString(),
+                    },
+                  });
+                } finally {
                   // ========== 重置状态变量 ==========
+                  // 无论成功还是失败，都要重置状态变量
                   currentAgent = undefined;
                   currentToolIndex = -1;
                   currentToolName = '';
                   currentToolArgs = '';
                   currentToolId = '';
-                } catch (e) {
-                  console.error("Error processing tool call:", e);
                 }
                 // 返回 undefined 表示不传递工具调用停止事件
                 return undefined;
               }
 
               // ========== 阶段 4：工具执行完成，发送新请求继续对话 ==========
-              // 当收到 message_delta 事件且已有工具消息时，说明模型已完成工具调用
+              // 当收到 message_delta 事件且已有工具消息时，说明模型已完成工具调用   "delta": {"stop_reason": "tool_use","stop_sequence": null}
               // 此时需要将工具结果发送回模型，让模型基于工具结果继续生成回复
               if (data.event === 'message_delta' && toolMessages.length) {
                 // 将助手工具调用消息和工具结果消息添加到请求历史中
@@ -218,14 +255,25 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                   body: JSON.stringify(req.body),
                 });
 
-                // 如果请求失败，不传递任何数据
+                // 如果请求失败，发送 tool:continue_error 事件并返回
                 if (!response.ok) {
+                  const errorText = await response.text().catch(() => 'Unknown error');
+                  controller.enqueue({
+                    event: "tool:continue_error",
+                    data: {
+                      type: "tool:continue_error",
+                      error: `Request failed with status ${response.status}: ${errorText}`,
+                      timestamp: new Date().toISOString(),
+                    },
+                  });
                   return undefined;
                 }
 
                 // 解析新响应的 SSE 流
                 const stream = response.body.pipeThrough(new SSEParserTransform());
                 const reader = stream.getReader();
+
+                let receivedMessageComplete = false;
 
                 // 读取并转发新响应的所有事件（模型基于工具结果的回复）
                 while (true) {
@@ -240,6 +288,23 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                       continue;
                     }
 
+                    // 检测 message_complete 事件，发送 tool:continue_complete 事件
+                    if (
+                      value.event === "message_complete" ||
+                      (value.data && value.data.type === "message_complete")
+                    ) {
+                      receivedMessageComplete = true;
+                      // 发送 tool:continue_complete 事件通知前端工具继续完成
+                      controller.enqueue({
+                        event: "tool:continue_complete",
+                        data: {
+                          type: "tool:continue_complete",
+                          timestamp: new Date().toISOString(),
+                        },
+                      });
+                      // 继续转发原始的 message_complete 事件
+                    }
+
                     // 检查流是否仍然可写（背压控制）
                     // 如果 desiredSize <= 0，说明下游处理不过来，停止读取
                     if (controller.desiredSize !== null && controller.desiredSize <= 0) {
@@ -252,10 +317,41 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                     // 处理流提前关闭的情况
                     if (readError.name === 'AbortError' || readError.code === 'ERR_STREAM_PREMATURE_CLOSE') {
                       abortController.abort();
+                      // 如果流提前关闭且未收到 message_complete，发送 tool:continue_error
+                      if (!receivedMessageComplete) {
+                        controller.enqueue({
+                          event: "tool:continue_error",
+                          data: {
+                            type: "tool:continue_error",
+                            error: "Stream closed prematurely",
+                            timestamp: new Date().toISOString(),
+                          },
+                        });
+                      }
                       break;
                     }
+                    // 其他错误也发送 tool:continue_error
+                    controller.enqueue({
+                      event: "tool:continue_error",
+                      data: {
+                        type: "tool:continue_error",
+                        error: readError.message || String(readError),
+                        timestamp: new Date().toISOString(),
+                      },
+                    });
                     throw readError;
                   }
+                }
+
+                // 如果流正常结束但未收到 message_complete，发送 tool:continue_complete
+                if (!receivedMessageComplete) {
+                  controller.enqueue({
+                    event: "tool:continue_complete",
+                    data: {
+                      type: "tool:continue_complete",
+                      timestamp: new Date().toISOString(),
+                    },
+                  });
                 }
 
                 // 清空工具消息数组，避免重复发送

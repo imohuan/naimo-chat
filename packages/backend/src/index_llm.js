@@ -225,35 +225,42 @@ async function startService() {
 
   const appLogger = server.app?.log || console;
 
+  /**
+   * 给每一个 provider 设置 api_keys 和 limit 自定义字段
+   * @param {Object} server - 服务器实例
+   * @param {Object} config - 配置对象
+   * @param {Object} logger - 日志对象
+   */
+  function setProviderCustomFields(server, config, logger) {
+    const { getProviderService } = require("./utils");
+    const providerService = getProviderService(server);
+    if (!providerService) {
+      return;
+    }
+
+    try {
+      providerService.getProviders().forEach((provider) => {
+        const cfgProvider = config.Providers.find(
+          (p) => p.name === provider.name
+        );
+        if (cfgProvider && !provider?.apiKeys) {
+          provider.apiKeys = cfgProvider.api_keys;
+          provider.limit = cfgProvider.limit;
+          provider.sort = cfgProvider.sort;
+          provider.enabled = cfgProvider.enabled;
+        }
+      });
+    } catch (error) {
+      logger.error("设置 provider 字段时出错:", error);
+    }
+  }
+
   // 注入配置
   server.addHook("preHandler", (req, _reply) => {
     return new Promise((resolve, _reject) => {
       // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
       if (req.url === "/providers" && req.method === "GET") {
-        // 检查 providerService 是否存在
-        const { getProviderService } = require("./utils");
-        const providerService = getProviderService(server);
-        if (!providerService) {
-          // 如果 providerService 不存在，直接返回，不阻塞请求
-          return resolve();
-        }
-
-        // 给每一个 provider 设置 api_keys 和 limit 自定义字段
-        try {
-          providerService.getProviders().forEach((provider) => {
-            const cfgProvider = config.Providers.find(
-              (p) => p.name === provider.name
-            );
-            if (cfgProvider && !provider?.apiKeys) {
-              provider.apiKeys = cfgProvider.api_keys;
-              provider.limit = cfgProvider.limit;
-              provider.sort = cfgProvider.sort;
-              provider.enabled = cfgProvider.enabled;
-            }
-          });
-        } catch (error) {
-          appLogger.error("设置 provider 字段时出错:", error);
-        }
+        setProviderCustomFields(server, config, appLogger);
       }
       // 不返回值，让请求继续处理
       resolve();
@@ -378,6 +385,10 @@ async function startService() {
 
   const serviceUrl = `http://${HOST}:${servicePort}/ui/`;
   console.log(`[llm-server] 服务已启动，地址: ${serviceUrl}`);
+
+  // 初始化时设置 provider 自定义字段
+  setProviderCustomFields(server, config, appLogger);
+
 }
 
 // 如果直接运行此文件，则启动服务
