@@ -30,7 +30,12 @@
         <button class="icon-btn" type="button" @click="preview" title="Preview">
           <Eye class="icon-btn__icon" />
         </button>
-        <button class="icon-btn" type="button" @click="download" title="Download">
+        <button
+          class="icon-btn"
+          type="button"
+          @click="download"
+          title="Download"
+        >
           <Download class="icon-btn__icon" />
         </button>
       </div>
@@ -129,10 +134,14 @@ const scrollToBottomIfInModelCanvas = async () => {
   if (!isInModelCanvas()) return;
   await nextTick();
   const container = element.value;
-  const pre = container?.querySelector("pre");
-  if (pre) {
-    pre.scrollTop = pre.scrollHeight;
+  if (container) {
+    container.scrollTop = container.scrollHeight;
   }
+
+  // const pre = container?.querySelector("pre");
+  // if (pre) {
+  //   pre.scrollTop = pre.scrollHeight;
+  // }
 };
 
 const runHighlight = async () => {
@@ -148,7 +157,8 @@ const runHighlight = async () => {
 
     const highlighter = await highlighterPromise;
     const lang = (props.language || "text").toLowerCase();
-    let code = typeof props.code === "string" ? props.code : String(props.code ?? "");
+    let code =
+      typeof props.code === "string" ? props.code : String(props.code ?? "");
 
     // 如果是在 .model-canvas 内，只渲染最后 3 行
     // if (isInModelCanvas()) {
@@ -184,7 +194,8 @@ watch(
     }
 
     // 更小的防抖间隔，兼顾流式体验与性能
-    const delay = typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
+    const delay =
+      typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
 
     highlightTimer = window.setTimeout(() => {
       runHighlight();
@@ -217,7 +228,8 @@ const preview = () => {
     return;
   }
 
-  const code = typeof props.code === "string" ? props.code : String(props.code ?? "");
+  const code =
+    typeof props.code === "string" ? props.code : String(props.code ?? "");
 
   const isFullHtml = /<!doctype html>/i.test(code) || /<html[\s>]/i.test(code);
   const html = isFullHtml
@@ -375,7 +387,8 @@ function guessExtension(lang?: string) {
   letter-spacing: 0.02em;
   cursor: pointer;
   border: none;
-  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  transition: color 120ms ease, border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 .collapse-btn:hover {
