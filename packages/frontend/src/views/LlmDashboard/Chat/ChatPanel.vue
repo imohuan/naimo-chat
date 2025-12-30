@@ -439,12 +439,24 @@ onMounted(() => {
     currentRecordId.value = data.recordId;
     currentOriginalCode.value = data.originalCode || null;
 
-    // 显示 diff 编辑器（使用 diff 方法）
-    if (immersiveCode && typeof immersiveCode.diff === "function") {
-      const originalCode =
-        data.originalCode || immersiveCode.getCurrentCode?.() || "";
-      immersiveCode.diff(data.diff, originalCode);
+    // 获取原始代码，用于添加历史记录和diff操作
+    const originalCode =
+      data.originalCode || immersiveCode.getCurrentCode?.() || "";
+
+    // 在diff操作前添加历史记录，创建一个新的major version，并添加一个使用recordId的记录
+    // addMajorDiffVersion 内部会处理 diff 验证和 UI 更新
+    if (
+      immersiveCode &&
+      typeof immersiveCode.addMajorDiffVersion === "function" &&
+      data.recordId
+    ) {
+      immersiveCode.addMajorDiffVersion(originalCode, data.diff, data.recordId);
     }
+
+    // // 显示 diff 编辑器（使用 diff 方法）
+    // if (immersiveCode && typeof immersiveCode.diff === "function") {
+    //   immersiveCode.diff(data.diff, originalCode);
+    // }
   });
 
   eventBus.on("canvas:show_editor", (data) => {

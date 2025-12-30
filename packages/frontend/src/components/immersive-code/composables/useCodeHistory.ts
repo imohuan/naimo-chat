@@ -175,16 +175,48 @@ export function useCodeHistory(initialCode: string = "") {
    * Add a new Major Version.
    * This effectively starts a new history chain.
    */
-  function addMajorVersion(code: string, label?: string) {
+  function addMajorVersion(code: string, label?: string, recordId?: string) {
     console.group("🌟 [ImmersiveHistory] New Major Version");
+    const id = recordId || generateId()
     const newVersion: MajorVersion = {
-      id: generateId(),
+      id,
       timestamp: Date.now(),
       label: label || `版本 ${versions.value.length + 1}`,
       records: [
         {
-          id: generateId(),
+          id,
           code: code,
+          timestamp: Date.now(),
+        },
+      ],
+      currentIndex: 0,
+    };
+
+    versions.value.push(newVersion);
+    currentVersionIndex.value = versions.value.length - 1;
+    console.log("Created:", newVersion);
+    console.groupEnd();
+  }
+
+  /**
+   * Add a new Major Version with diff record.
+   * This creates a new version and adds a record with diffTarget.
+   * @param code The original code
+   * @param diffTarget The diff content
+   * @param recordId The record ID (will be used as both version id and record id)
+   * @param label Optional label for the version
+   */
+  function addMajorDiffVersion(code: string, diffTarget: string, recordId: string, label?: string) {
+    console.group("🌟 [ImmersiveHistory] New Major Diff Version");
+    const newVersion: MajorVersion = {
+      id: recordId,
+      timestamp: Date.now(),
+      label: label || `版本 ${versions.value.length + 1}`,
+      records: [
+        {
+          id: recordId,
+          code: code,
+          diffTarget: diffTarget,
           timestamp: Date.now(),
         },
       ],
@@ -349,6 +381,7 @@ export function useCodeHistory(initialCode: string = "") {
     canRedo,
     record,
     addMajorVersion,
+    addMajorDiffVersion,
     undo,
     redo,
     switchVersion,

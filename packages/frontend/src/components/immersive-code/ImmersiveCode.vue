@@ -66,6 +66,7 @@ const {
   canRedo,
   record,
   addMajorVersion,
+  addMajorDiffVersion,
   undo,
   redo,
   switchVersion,
@@ -562,6 +563,38 @@ defineExpose({
     const codeToUse = code || editorValue.value || currentCode.value;
     return addMajorVersion(codeToUse, label);
   },
+  addMajorDiffVersion: (
+    code: string,
+    diffTarget: string,
+    recordId: string,
+    label?: string
+  ) => {
+    console.group("🔄 [ImmersiveCode] Adding Major Diff Version");
+
+    // 1. Validate the Diff
+    const dryRun = applyDiff(code, diffTarget);
+    if (!dryRun.success) {
+      console.warn("⚠️ [ImmersiveCode] Diff (Dry Run) Failed:", dryRun.message);
+      console.groupEnd();
+      return {
+        success: false,
+        appliedCount: dryRun.appliedCount,
+        message: dryRun.message || "未找到可以應用的 Diff。",
+      };
+    }
+
+    // 2. Create new major version with diff record
+    addMajorDiffVersion(code, diffTarget, recordId, label);
+
+    // 3. Set diff success flag to trigger UI update
+    diffSuccess.value = true;
+
+    console.log(
+      "✅ [ImmersiveCode] Major Diff Version created and diff mode activated"
+    );
+    console.groupEnd();
+    return { success: true, message: "Major Diff Version created." };
+  },
   getCurrentCode: () => {
     return editorValue.value || currentCode.value;
   },
@@ -587,7 +620,7 @@ defineExpose({
 
       // 没有找到可應用的內容時，直接退出 / 保持在非 diff 模式
       // 不記錄這次 diff，並且主動調用 exitDiffMode 以確保從現有 diff 狀態中退出
-      exitDiffMode({ finalContent: baseCode, enableEmit: false });
+      exitDiffMode({ finalContent: baseCode });
 
       console.groupEnd();
       return {
@@ -884,7 +917,8 @@ function exitDiffMode(options?: {
   refreshPreview();
 
   // 触发 diff-exited 事件，通知父组件 diff 操作已完成，传递 recordId
-  if (enableEmit) emit("diff-exited", codeToSave, currentRecordId);
+  if (enableEmit && currentVersionIndex.value === 0)
+    emit("diff-exited", codeToSave, currentRecordId);
 
   console.groupEnd();
 }
