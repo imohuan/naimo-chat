@@ -46,6 +46,7 @@ async function requestLLM(options) {
 
   // 构建请求头 - 使用 Authorization: Bearer 格式（与 useLlmApi.ts 保持一致）
   const headers = {
+    "Model-Full": model,
     "Content-Type": "application/json",
   };
   if (config.APIKEY) {
