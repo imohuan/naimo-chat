@@ -81,6 +81,7 @@ const htmlIconSvg = `<svg t="1766772789014"  viewBox="0 0 1024 1024" version="1.
 
 const suggestions: string[] = [
   "开发一个hello world 的网页，极简",
+  "获取 https://yunwu.apifox.cn/llms.txt 的内容",
   "修改标题",
   "完成重构，不使用修改格式，实现一个 hello world的极简页面， 设置一个随机名称的大标题",
 ];
@@ -104,8 +105,7 @@ watch(
     // 恢复代码历史（仅在 canvas 模式下）
     if (selectedMode.value === "canvas" && conversation.codeHistory) {
       const hasCodeHistory =
-        conversation.codeHistory.versions &&
-        conversation.codeHistory.versions.length > 0;
+        conversation.codeHistory.versions && conversation.codeHistory.versions.length > 0;
 
       if (hasCodeHistory) {
         showCanvas.value = true;
@@ -151,8 +151,7 @@ watch(
 
     // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才显示
     if (codeVersion !== undefined && codeHistory) {
-      const hasCodeHistory =
-        codeHistory.versions && codeHistory.versions.length > 0;
+      const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
       showCanvas.value = hasCodeHistory || false;
       // 设置侧边栏为折叠状态
       conversationStore.sidebarCollapsed = true;
@@ -168,10 +167,7 @@ const mcpStore = useMcpStore();
 const { serverTools } = storeToRefs(mcpStore);
 
 // 处理消息提交
-async function handleSubmit(
-  message: PromptInputMessage,
-  config?: ChatModelConfig
-) {
+async function handleSubmit(message: PromptInputMessage, config?: ChatModelConfig) {
   const text = message.text.trim();
   const hasText = text.length > 0;
   const hasAttachments = message.files.length > 0;
@@ -300,7 +296,7 @@ function handleRetry(messageKey: string) {
   }
 
   // 查找前一条用户消息
-  let userMessage: (typeof messages)[0] | undefined;
+  let userMessage: typeof messages[0] | undefined;
   for (let i = messageIndex - 1; i >= 0 && i < messages.length; i--) {
     const candidate = messages[i];
     if (candidate && candidate.from === "user") {
@@ -364,11 +360,7 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (
-      codeRef &&
-      typeof codeRef === "object" &&
-      "setCodeAndSelectLines" in codeRef
-    ) {
+    if (codeRef && typeof codeRef === "object" && "setCodeAndSelectLines" in codeRef) {
       (codeRef as any).setCodeAndSelectLines(code, startLine, endLine);
     }
   }
@@ -377,9 +369,7 @@ function handleTagClick(data: {
   if (
     data.data?.type === "browser_selector" ||
     data.data?.selector ||
-    (data.icon &&
-      typeof data.icon === "string" &&
-      data.icon.includes("browser"))
+    (data.icon && typeof data.icon === "string" && data.icon.includes("browser"))
   ) {
     const selector = data.data?.selector || data.data?.text || data.label;
     if (!selector) return;
@@ -388,11 +378,7 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (
-      codeRef &&
-      typeof codeRef === "object" &&
-      "selectElementInPreview" in codeRef
-    ) {
+    if (codeRef && typeof codeRef === "object" && "selectElementInPreview" in codeRef) {
       (codeRef as any).selectElementInPreview(selector);
     }
   }
@@ -485,10 +471,7 @@ onMounted(() => {
 
   // 监听对话加载完成事件，设置 selectedMode
   eventBus.on("conversation:loaded", (data) => {
-    if (
-      data.conversation.mode &&
-      data.conversation.mode !== selectedMode.value
-    ) {
+    if (data.conversation.mode && data.conversation.mode !== selectedMode.value) {
       selectedMode.value = data.conversation.mode;
     }
   });
@@ -530,8 +513,7 @@ onMounted(() => {
     currentOriginalCode.value = data.originalCode || null;
 
     // 获取原始代码，用于添加历史记录和diff操作
-    const originalCode =
-      data.originalCode || immersiveCode.getCurrentCode?.() || "";
+    const originalCode = data.originalCode || immersiveCode.getCurrentCode?.() || "";
 
     // 在diff操作前添加历史记录，创建一个新的major version，并添加一个使用recordId的记录
     // addMajorDiffVersion 内部会处理 diff 验证和 UI 更新
@@ -581,11 +563,7 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
   try {
-    await chatApi.applyCanvasDiff(
-      activeConversationId.value,
-      recordId,
-      appliedCode
-    );
+    await chatApi.applyCanvasDiff(activeConversationId.value, recordId, appliedCode);
     // 不重新加载对话，避免强制刷新页面和canvas
     // 代码已经在本地更新，后端也已保存，无需重新加载
     // await loadConversation(activeConversationId.value);
@@ -661,8 +639,7 @@ function saveCodeHistory() {
           );
 
           if (streamingRecords.length > 0) {
-            const lastStreamingRecord =
-              streamingRecords[streamingRecords.length - 1];
+            const lastStreamingRecord = streamingRecords[streamingRecords.length - 1];
             if (lastStreamingRecord) {
               return {
                 id: version.id,
@@ -749,9 +726,7 @@ watch(activeConversationId, (_newId, oldId) => {
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="
-              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
-            "
+            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
           >
             <!-- 消息列表 -->
             <ChatMessages
@@ -773,7 +748,7 @@ watch(activeConversationId, (_newId, oldId) => {
                   : 'flex flex-col items-center justify-center',
               ]"
             >
-              <Suggestions v-if="hasMessages" class="px-4 md:px-6 mt-2">
+              <Suggestions v-if="true || hasMessages" class="px-4 md:px-6 mt-2">
                 <Suggestion
                   v-for="suggestion in suggestions"
                   :key="suggestion"
