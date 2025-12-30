@@ -9,11 +9,15 @@ export const useMcpStore = defineStore("mcp", () => {
   const { pushToast } = useToasts();
   const {
     fetchServers,
-    fetchTools,
+    // fetchTools, // 旧版 SSE API，已改用直接 API 调用
     updateServer,
     deleteServer,
   } = useMcpApi();
-  const { fetchConfig } = useLlmApi();
+  const {
+    fetchConfig,
+    fetchMcpServerTools,
+    refreshMcpServerTools,
+  } = useLlmApi();
 
   const servers = ref<McpServer[]>([]);
   const isLoading = ref(false);
@@ -70,11 +74,17 @@ export const useMcpStore = defineStore("mcp", () => {
       serverToolsLoading.value[serverName] = true;
       // 先清空工具列表
       serverTools.value[serverName] = [];
-      const server = servers.value.find((s) => s.name === serverName);
-      const tools = await fetchTools(serverName, server?.config);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // 使用新的直接 API 调用（不通过 SSE）
+      const tools = await fetchMcpServerTools(serverName);
+
       // 然后设置新数据
       serverTools.value[serverName] = tools;
+
+      // 旧版 SSE API 调用（已注释）
+      // const server = servers.value.find((s) => s.name === serverName);
+      // const tools = await fetchTools(serverName, server?.config);
+      // await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (err) {
       console.error(`加载工具列表失败 (${serverName}):`, err);
       serverTools.value[serverName] = [];
@@ -89,12 +99,27 @@ export const useMcpStore = defineStore("mcp", () => {
 
   // 刷新所有服务器的工具列表
   async function refreshAllTools() {
-    for (const server of servers.value) {
-      if (server.config.enabled !== false) {
-        await loadToolsForServer(server.name);
+    try {
+      for (const server of servers.value) {
+        if (server.config.enabled !== false) {
+          try {
+            serverToolsLoading.value[server.name] = true;
+            // 使用新的刷新 API（直接调用后端刷新接口）
+            const tools = await refreshMcpServerTools(server.name);
+            serverTools.value[server.name] = tools;
+          } catch (err) {
+            console.error(`刷新工具列表失败 (${server.name}):`, err);
+            // 如果刷新失败，尝试使用普通获取
+            await loadToolsForServer(server.name);
+          } finally {
+            serverToolsLoading.value[server.name] = false;
+          }
+        }
       }
+      pushToast("已刷新所有工具列表", "success");
+    } catch (err) {
+      pushToast(`刷新工具列表失败: ${(err as Error).message}`, "error");
     }
-    pushToast("已刷新所有工具列表", "success");
   }
 
   // 切换服务器启用状态

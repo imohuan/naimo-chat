@@ -57,6 +57,9 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
           const toolMessages = [];           // 存储工具执行结果消息（tool_result）
           const assistantMessages = [];      // 存储助手工具调用消息（tool_use）
 
+          // ========== Agent 请求处理器跟踪 ==========
+          const processedAgents = new Set(); // 跟踪已经调用过 reqHandler 的 agent
+
           // 使用 rewriteStream 重写流，在流传输过程中拦截和处理事件
           return done(null, rewriteStream(eventStream, async (data, controller) => {
             try {
@@ -70,14 +73,28 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                   return agentInstance?.tools?.get(data.data.content_block.name);
                 });
 
-                // 如果找到对应的 agent，记录工具调用信息
+                // 如果找到对应的 agent，检查是否应该处理该请求
                 if (agent) {
-                  currentAgent = agentsManager.getAgent(agent);
-                  currentToolIndex = data.data.index;              // 记录工具在内容块中的索引
-                  currentToolName = data.data.content_block.name;   // 记录工具名称
-                  currentToolId = data.data.content_block.id;      // 记录工具调用 ID
-                  // 返回 undefined 表示不将此事件传递给下游（隐藏工具调用开始事件）
-                  return undefined;
+                  const agentInstance = agentsManager.getAgent(agent);
+                  // 调用 shouldHandle 判断是否应该处理该请求
+                  if (agentInstance && agentInstance.shouldHandle && agentInstance.shouldHandle(req, config)) {
+                    // 如果该 agent 还没有调用过 reqHandler，则调用一次
+                    if (!processedAgents.has(agent) && agentInstance.reqHandler) {
+                      try {
+                        agentInstance.reqHandler(req, config);
+                        processedAgents.add(agent);
+                      } catch (error) {
+                        console.error(`[usageCacheMiddleware] Agent ${agent} reqHandler 执行失败:`, error);
+                      }
+                    }
+                    currentAgent = agentInstance;
+                    currentToolIndex = data.data.index;              // 记录工具在内容块中的索引
+                    currentToolName = data.data.content_block.name;   // 记录工具名称
+                    currentToolId = data.data.content_block.id;      // 记录工具调用 ID
+                    // 返回 undefined 表示不将此事件传递给下游（隐藏工具调用开始事件）
+                    return undefined;
+                  }
+                  // 如果 shouldHandle 返回 false，不处理该工具调用，让事件继续传递
                 }
               }
 

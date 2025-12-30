@@ -4,6 +4,7 @@ import type {
   ClipboardWatchStatus,
   HealthStatus,
   LlmProvider,
+  McpTool,
 } from "../interface";
 
 const BASE_URL_KEY = "llm_base_url";
@@ -466,6 +467,36 @@ export function useLlmApi() {
   }
 
   /**
+   * 获取指定 MCP 服务器的工具列表（直接 API 调用，不通过 SSE）
+   * @param serverName 服务器名称
+   * @returns 工具列表
+   */
+  async function fetchMcpServerTools(serverName: string): Promise<McpTool[]> {
+    const data = await apiCall<{ tools: McpTool[] }>(
+      `/api/mcp/servers/${encodeURIComponent(serverName)}/tools`,
+      {
+        method: "GET",
+      }
+    );
+    return data.tools || [];
+  }
+
+  /**
+   * 刷新指定 MCP 服务器的工具列表（直接 API 调用，不通过 SSE）
+   * @param serverName 服务器名称
+   * @returns 刷新后的工具列表
+   */
+  async function refreshMcpServerTools(serverName: string): Promise<McpTool[]> {
+    const data = await apiCall<{ success: boolean; tools: McpTool[] }>(
+      `/api/mcp/servers/${encodeURIComponent(serverName)}/tools/refresh`,
+      {
+        method: "POST",
+      }
+    );
+    return data.tools || [];
+  }
+
+  /**
    * 发送消息
    * @param messages 对话消息
    * @param model 目标模型（格式：provider,model）
@@ -738,5 +769,7 @@ export function useLlmApi() {
     fetchMessages,
     fetchMessageDetail,
     deleteMessages,
+    fetchMcpServerTools,
+    refreshMcpServerTools,
   };
 }

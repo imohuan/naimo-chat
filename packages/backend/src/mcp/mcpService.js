@@ -97,6 +97,42 @@ class McpService {
     }
   }
 
+  /**
+   * 刷新指定服务器的工具列表
+   * @param {string} serverName 服务器名称
+   * @returns {Promise<Array>} 工具列表
+   */
+  async refreshServerTools(serverName) {
+    const client = this.upstreamClients.get(serverName);
+    if (!client) {
+      throw new Error(`服务器 ${serverName} 未连接`);
+    }
+
+    try {
+      // 重新获取工具列表
+      const result = await client.listTools();
+      const tools = result.tools || [];
+
+      // 保存到 serverTools Map 中
+      this.serverTools.set(serverName, tools);
+
+      console.log(`已刷新服务器 ${serverName} 的工具列表，找到 ${tools.length} 个工具`);
+      return tools;
+    } catch (error) {
+      console.error(`刷新服务器 ${serverName} 的工具列表失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取指定服务器的工具列表（从缓存中）
+   * @param {string} serverName 服务器名称
+   * @returns {Array} 工具列表，如果服务器不存在则返回空数组
+   */
+  getServerTools(serverName) {
+    return this.serverTools.get(serverName) || [];
+  }
+
   async getMcpServer(sessionId, group) {
     // group 参数直接对应 mcpServers[name] 中的 name
     // 如果提供了 group，只返回该服务器的工具；否则返回所有服务器的工具

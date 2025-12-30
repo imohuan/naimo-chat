@@ -1,4 +1,4 @@
-import type { FileUIPart } from "ai";
+import type { FileUIPart, ToolUIPart } from "ai";
 import type { McpTool } from "@/interface";
 
 /**
@@ -76,6 +76,7 @@ export interface MessageVersion {
   id: string;
   content: string;
   files?: FileUIPart[];
+  toolCalls?: ToolUIPart[];
 }
 
 /**
@@ -187,7 +188,9 @@ export interface SendMessageParams {
  * SSE 流式事件类型
  */
 export type SSEEventType =
+  | "content_block_start"
   | "content_block_delta"
+  | "content_block_stop"
   | "message_delta"
   | "message_complete"
   | "session_end"
@@ -207,8 +210,17 @@ export type SSEEventType =
 export interface SSEEvent {
   type: SSEEventType;
   requestId?: string;
+  index?: number;
   delta?: {
     text?: string;
+    type?: string;
+    partial_json?: string;
+  };
+  content_block?: {
+    type?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
   };
   error?: string;
   timestamp?: string;

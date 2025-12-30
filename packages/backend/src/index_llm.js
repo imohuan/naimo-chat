@@ -27,6 +27,9 @@ const {
   createMessageLoggerMiddleware,
 } = require("./middleware");
 const { runStatusLine } = require("./utils/statusline");
+const agentsManager = require("./agents");
+const { refreshMcpAgentTools } = require("./agents");
+const { mcpAgent } = require("./agents/mcp.agent");
 
 const sessionUsageCache = new SimpleLRUCache(100);
 
@@ -339,11 +342,23 @@ async function startService() {
   server.addHook("preHandler", messageLogger.preHandler);
   server.addHook("onSend", messageLogger.onSend);
 
+  // 初始化 agentsManager 和注册 MCP agent
+  // 注意：mcpService.initUpstreamServers() 在 registerMcpRoutes 中异步执行
+  // 这里先注册 agent，工具将在 mcpService 初始化完成后自动加载
+  try {
+    // 注册 MCP agent
+    agentsManager.registerAgent(mcpAgent);
+    // 刷新 MCP agent 工具
+    refreshMcpAgentTools(appLogger);
+  } catch (error) {
+    appLogger.error("初始化 agentsManager 失败:", error);
+  }
+
   // 添加 onSend hook 用于处理响应和缓存用量
-  // 注意：如果需要 agents 支持，需要传递 agentsManager 参数
+  // 传递 agentsManager 以支持工具调用
   server.addHook(
     "onSend",
-    createUsageCacheMiddleware(sessionUsageCache, config, null)
+    createUsageCacheMiddleware(sessionUsageCache, config, agentsManager)
   );
   // onSend 释放 key 并发占用
   server.addHook("onSend", keyMiddleware.onSend);

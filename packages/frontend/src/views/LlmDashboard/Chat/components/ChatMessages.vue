@@ -34,6 +34,13 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { MessageType } from "@/views/LlmDashboard/Chat/types";
 import type { ChatLayoutConfig } from "@/views/LlmDashboard/Chat/hooks/useChatLayout";

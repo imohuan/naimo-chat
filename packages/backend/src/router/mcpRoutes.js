@@ -156,6 +156,60 @@ function registerMcpRoutes(server) {
     }
   });
 
+  // API：获取指定服务器的工具列表（直接获取，不通过 SSE）
+  app.get("/api/mcp/servers/:name/tools", async (req, reply) => {
+    try {
+      const serverName = req.params.name;
+
+      // 检查服务器是否存在
+      const config = configService.getServer(serverName);
+      if (!config) {
+        reply.code(404).send({ error: "服务器未找到" });
+        return;
+      }
+
+      // 检查服务器是否已连接
+      const tools = mcpService.getServerTools(serverName);
+
+      // 如果工具列表为空且服务器已启用，尝试刷新
+      if (tools.length === 0 && config.enabled !== false) {
+        try {
+          const refreshedTools = await mcpService.refreshServerTools(serverName);
+          return { tools: refreshedTools };
+        } catch (error) {
+          // 刷新失败，返回空列表
+          console.warn(`获取服务器 ${serverName} 的工具列表失败:`, error);
+          return { tools: [] };
+        }
+      }
+
+      return { tools };
+    } catch (error) {
+      reply.code(500).send({ error: error.message });
+    }
+  });
+
+  // API：刷新指定服务器的工具列表
+  app.post("/api/mcp/servers/:name/tools/refresh", async (req, reply) => {
+    try {
+      const serverName = req.params.name;
+
+      // 检查服务器是否存在
+      const config = configService.getServer(serverName);
+      if (!config) {
+        reply.code(404).send({ error: "服务器未找到" });
+        return;
+      }
+
+      // 检查服务器是否已连接
+      const tools = await mcpService.refreshServerTools(serverName);
+
+      return { success: true, tools };
+    } catch (error) {
+      reply.code(500).send({ error: error.message });
+    }
+  });
+
   app.get("/mcp/:group", async (req, reply) => {
     applyMcpCors(req, reply);
 
