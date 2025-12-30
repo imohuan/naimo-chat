@@ -18,6 +18,7 @@ const fetch =
  * @param {string} options.apiKey - API Key（可选，用于临时覆盖）
  * @param {Function} options.onStreamEvent - 流式事件回调函数 (event) => void
  * @param {string} options.requestId - 自定义请求ID（可选，用于日志记录）
+ * @param {string} [options.sessionId] - 会话ID（可选，用于用量缓存）
  * @param {number} [options.temperature] - 温度参数
  * @param {number} [options.topP] - Top P 参数
  * @param {number} [options.maxTokens] - 最大 token 数
@@ -32,6 +33,7 @@ async function requestLLM(options) {
     apiKey,
     onStreamEvent,
     requestId: customRequestId,
+    sessionId,
     temperature,
     topP,
     maxTokens,
@@ -62,6 +64,13 @@ async function requestLLM(options) {
   };
   if (apiKey) {
     body.apiKey = apiKey.trim();
+  }
+  // 如果提供了 sessionId，添加到 metadata 中，以便 routeMiddleware 提取并设置 req.sessionId
+  // 格式：chat_session_{sessionId}，routeMiddleware 会提取 {sessionId} 部分
+  if (sessionId) {
+    body.metadata = {
+      user_id: `chat_session_${sessionId}`,
+    };
   }
   // 添加扩展配置参数
   if (typeof temperature === "number") {
@@ -309,10 +318,11 @@ async function requestLLM(options) {
  * @param {Array} options.messages - 消息数组
  * @param {string} options.model - 模型ID
  * @param {string} options.apiKey - API Key（可选）
+ * @param {string} [options.sessionId] - 会话ID（可选，用于用量缓存）
  * @returns {Promise<string>} 返回完整响应文本
  */
 async function requestLLMSync(options) {
-  const { messages, model, apiKey } = options;
+  const { messages, model, apiKey, sessionId } = options;
   const config = await getClaudeConfig();
   const port = config.PORT || 3457;
   const host = config.HOST || "127.0.0.1";
@@ -332,6 +342,13 @@ async function requestLLMSync(options) {
   };
   if (apiKey) {
     body.apiKey = apiKey.trim();
+  }
+  // 如果提供了 sessionId，添加到 metadata 中，以便 routeMiddleware 提取并设置 req.sessionId
+  // 格式：chat_session_{sessionId}，routeMiddleware 会提取 {sessionId} 部分
+  if (sessionId) {
+    body.metadata = {
+      user_id: `chat_session_${sessionId}`,
+    };
   }
 
   const url = `http://${host}:${port}/v1/messages`;

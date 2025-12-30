@@ -14,8 +14,12 @@
 const { SSEParserTransform } = require("../utils/SSEParser.transform");
 const { SSESerializerTransform } = require("../utils/SSESerializer.transform");
 const { rewriteStream } = require("../utils/rewriteStream");
-const fetch = require("node-fetch");
 const JSON5 = require("json5");
+
+// 兼容 Node.js 环境的 fetch
+const fetch =
+  globalThis.fetch ||
+  ((...args) => import("node-fetch").then(({ default: f }) => f(...args)));
 
 /**
  * 创建用量缓存中间件
@@ -23,10 +27,52 @@ const JSON5 = require("json5");
  * @param {Object} sessionUsageCache - 会话用量缓存对象，提供 put(sessionId, usage) 方法
  * @param {Object} config - 配置对象，包含 PORT（端口）和 APIKEY（API 密钥）等
  * @param {Object} agentsManager - Agents 管理器，提供 getAgent(name) 方法获取 agent 实例
- * @returns {Function} Fastify 中间件函数
+ * @returns {Object} 包含 preHandler 和 onSend 方法的对象
  */
 function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsManager = null) {
-  return (req, reply, payload, done) => {
+  const preHandler = async (req, _reply) => {
+    if (req.url.startsWith("/v1/messages") && !req.url.startsWith("/v1/messages/count_tokens")) {
+      const useAgents = [];
+
+      if (agentsManager) {
+        for (const agent of agentsManager.getAllAgents()) {
+          if (agent.shouldHandle && agent.shouldHandle(req, config)) {
+            // 设置agent标识
+            useAgents.push(agent.name);
+
+            // change request body
+            if (agent.reqHandler) {
+              try {
+                agent.reqHandler(req, config);
+              } catch (error) {
+                console.error(`[usageCacheMiddleware] Agent ${agent.name} reqHandler 执行失败:`, error);
+              }
+            }
+
+            // append agent tools
+            if (agent.tools && agent.tools.size) {
+              if (!req.body?.tools?.length) {
+                req.body.tools = [];
+              }
+              req.body.tools.unshift(...Array.from(agent.tools.values()).map(item => {
+                return {
+                  name: item.name,
+                  description: item.description,
+                  input_schema: item.input_schema
+                };
+              }));
+            }
+          }
+        }
+      }
+
+      if (useAgents.length) {
+        req.agents = useAgents;
+      }
+    }
+  };
+
+  const onSend = (req, reply, payload, done) => {
     // ========== 条件检查：只处理符合条件的请求 ==========
     // 1. 必须有会话 ID
     // 2. 必须是 /v1/messages 接口（排除 count_tokens 子接口）
@@ -57,9 +103,6 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
           const toolMessages = [];           // 存储工具执行结果消息（tool_result）
           const assistantMessages = [];      // 存储助手工具调用消息（tool_use）
 
-          // ========== Agent 请求处理器跟踪 ==========
-          const processedAgents = new Set(); // 跟踪已经调用过 reqHandler 的 agent
-
           // 使用 rewriteStream 重写流，在流传输过程中拦截和处理事件
           return done(null, rewriteStream(eventStream, async (data, controller) => {
             try {
@@ -73,20 +116,11 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                   return agentInstance?.tools?.get(data.data.content_block.name);
                 });
 
-                // 如果找到对应的 agent，检查是否应该处理该请求
+                // 如果找到对应的 agent，直接处理工具调用
+                // 注意：agents 已经在 preHandler 阶段准备好了，这里只需要找到对应的 agent 实例
                 if (agent) {
                   const agentInstance = agentsManager.getAgent(agent);
-                  // 调用 shouldHandle 判断是否应该处理该请求
-                  if (agentInstance && agentInstance.shouldHandle && agentInstance.shouldHandle(req, config)) {
-                    // 如果该 agent 还没有调用过 reqHandler，则调用一次
-                    if (!processedAgents.has(agent) && agentInstance.reqHandler) {
-                      try {
-                        agentInstance.reqHandler(req, config);
-                        processedAgents.add(agent);
-                      } catch (error) {
-                        console.error(`[usageCacheMiddleware] Agent ${agent} reqHandler 执行失败:`, error);
-                      }
-                    }
+                  if (agentInstance) {
                     currentAgent = agentInstance;
                     currentToolIndex = data.data.index;              // 记录工具在内容块中的索引
                     currentToolName = data.data.content_block.name;   // 记录工具名称
@@ -94,7 +128,6 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                     // 返回 undefined 表示不将此事件传递给下游（隐藏工具调用开始事件）
                     return undefined;
                   }
-                  // 如果 shouldHandle 返回 false，不处理该工具调用，让事件继续传递
                 }
               }
 
@@ -168,14 +201,20 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
 
                 // 获取服务端口（默认 3457）
                 const port = config?.PORT || 3457;
+                const host = config?.HOST || "127.0.0.1";
+
+                // 构建请求头 - 使用 Authorization: Bearer 格式（与 llmRequest.js 保持一致）
+                const headers = {
+                  "Content-Type": "application/json",
+                };
+                if (config?.APIKEY) {
+                  headers["Authorization"] = `Bearer ${config.APIKEY}`;
+                }
 
                 // 发送新的请求到 API，让模型基于工具结果继续生成
-                const response = await fetch(`http://127.0.0.1:${port}/v1/messages`, {
+                const response = await fetch(`http://${host}:${port}/v1/messages`, {
                   method: "POST",
-                  headers: {
-                    'x-api-key': config?.APIKEY || '',
-                    'content-type': 'application/json',
-                  },
+                  headers,
                   body: JSON.stringify(req.body),
                 });
 
@@ -331,6 +370,8 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
     }
     done(null, payload);
   };
+
+  return { preHandler, onSend };
 }
 
 module.exports = {

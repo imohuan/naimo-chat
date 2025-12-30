@@ -141,6 +141,7 @@ async function processCanvasMode(context) {
     apiKey,
     onStreamEvent: wrappedOnStreamEvent,
     requestId, // 传递自定义请求ID（与 SSE requestId 保持一致，用于日志记录）
+    sessionId: conversationId, // 传递 conversationId 作为 sessionId，用于用量缓存
     temperature,
     topP,
     maxTokens,

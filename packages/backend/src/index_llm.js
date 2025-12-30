@@ -354,12 +354,13 @@ async function startService() {
     appLogger.error("初始化 agentsManager 失败:", error);
   }
 
-  // 添加 onSend hook 用于处理响应和缓存用量
-  // 传递 agentsManager 以支持工具调用
-  server.addHook(
-    "onSend",
-    createUsageCacheMiddleware(sessionUsageCache, config, agentsManager)
-  );
+  // 添加用量缓存中间件（包含 preHandler 和 onSend）
+  // preHandler: 在请求处理前准备好所有 agents
+  // onSend: 处理响应和缓存用量
+  const usageCacheMiddleware = createUsageCacheMiddleware(sessionUsageCache, config, agentsManager);
+  server.addHook("preHandler", usageCacheMiddleware.preHandler);
+  server.addHook("onSend", usageCacheMiddleware.onSend);
+
   // onSend 释放 key 并发占用
   server.addHook("onSend", keyMiddleware.onSend);
 

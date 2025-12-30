@@ -23,6 +23,7 @@ async function processImageMode(context) {
     apiKey,
     onStreamEvent,
     requestId,
+    conversationId,
     temperature,
     topP,
     maxTokens,
@@ -72,6 +73,7 @@ async function processImageMode(context) {
     apiKey,
     onStreamEvent,
     requestId, // 传递自定义请求ID
+    sessionId: conversationId, // 传递 conversationId 作为 sessionId，用于用量缓存
     temperature,
     topP,
     maxTokens,

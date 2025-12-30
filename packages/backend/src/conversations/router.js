@@ -207,6 +207,7 @@ async function generateConversationTitle(firstUserContent, model, apiKey) {
       messages: titlePrompt,
       model,
       apiKey,
+      // 生成标题不需要 sessionId，不进行用量缓存
     });
 
     // 清洗标题
