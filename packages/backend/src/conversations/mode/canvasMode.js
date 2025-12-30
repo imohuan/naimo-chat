@@ -34,7 +34,7 @@ async function processCanvasMode(context) {
     apiKey,
     onStreamEvent,
     conversationId,
-    sseRequestId, // SSE 请求ID，用于发送 canvas 事件
+    sseRequestId, // SSE 请求ID，用于发送 canvas 事件，同时也作为日志中的 requestId
   } = context;
 
   // 1. 构建消息数组
@@ -62,7 +62,7 @@ async function processCanvasMode(context) {
   let lastHtmlCode = null; // 用于增量更新
   let hasDetectedDiff = false; // 是否检测到 diff 格式
   let isStreamingCode = false; // 是否正在流式写入代码
-  const requestId = sseRequestId; // 使用传递的 SSE 请求ID
+  const requestId = sseRequestId; // 使用传递的 SSE 请求ID 作为本地 requestId
 
   const wrappedOnStreamEvent = (event) => {
 
@@ -135,6 +135,7 @@ async function processCanvasMode(context) {
     model,
     apiKey,
     onStreamEvent: wrappedOnStreamEvent,
+    requestId, // 传递自定义请求ID（与 SSE requestId 保持一致，用于日志记录）
   });
 
   // 5. 流式完成后，识别完整代码并保存

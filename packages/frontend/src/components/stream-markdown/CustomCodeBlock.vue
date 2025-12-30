@@ -47,7 +47,13 @@
           <Check v-if="copied" class="icon-btn__icon icon-btn__icon--success" />
           <Copy v-else class="icon-btn__icon" />
         </button>
-        <button class="icon-btn" type="button" @click="preview" title="Preview">
+        <button
+          v-if="isHtmlCode"
+          class="icon-btn"
+          type="button"
+          @click="preview"
+          title="Preview"
+        >
           <Eye class="icon-btn__icon" />
         </button>
         <button
@@ -134,6 +140,12 @@ const isInModelCanvas = (): boolean => {
 // 计算是否显示应用diff按钮
 const showApplyDiffButton = computed(() => {
   return isInModelCanvas() && isDiffBlock.value;
+});
+
+// 计算是否为 HTML 代码模式
+const isHtmlCode = computed(() => {
+  const lang = (props.language || "").toLowerCase();
+  return lang === "html";
 });
 
 const { eventBus } = getContext();

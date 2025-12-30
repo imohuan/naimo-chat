@@ -1068,32 +1068,32 @@ function handleKeyDown(event: KeyboardEvent) {
     }
   }
 
-  // Ctrl+Z: 撤销
-  if (
-    (event.ctrlKey || event.metaKey) &&
-    event.key === "z" &&
-    !event.shiftKey
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (canUndo.value) {
-      undo();
-    }
-    return;
-  }
+  // // Ctrl+Z: 撤销
+  // if (
+  //   (event.ctrlKey || event.metaKey) &&
+  //   event.key === "z" &&
+  //   !event.shiftKey
+  // ) {
+  //   event.preventDefault();
+  //   event.stopPropagation();
+  //   if (canUndo.value) {
+  //     undo();
+  //   }
+  //   return;
+  // }
 
-  // Ctrl+Y 或 Ctrl+Shift+Z: 恢复/重做
-  if (
-    (event.ctrlKey || event.metaKey) &&
-    (event.key === "y" || (event.key === "z" && event.shiftKey))
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (canRedo.value) {
-      redo();
-    }
-    return;
-  }
+  // // Ctrl+Y 或 Ctrl+Shift+Z: 恢复/重做
+  // if (
+  //   (event.ctrlKey || event.metaKey) &&
+  //   (event.key === "y" || (event.key === "z" && event.shiftKey))
+  // ) {
+  //   event.preventDefault();
+  //   event.stopPropagation();
+  //   if (canRedo.value) {
+  //     redo();
+  //   }
+  //   return;
+  // }
 
   // Ctrl+`: 切换终端显示
   if (

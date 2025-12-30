@@ -17,10 +17,11 @@ const fetch =
  * @param {string} options.model - 模型ID（格式：provider,model）
  * @param {string} options.apiKey - API Key（可选，用于临时覆盖）
  * @param {Function} options.onStreamEvent - 流式事件回调函数 (event) => void
+ * @param {string} options.requestId - 自定义请求ID（可选，用于日志记录）
  * @returns {Promise<Object>} { requestId, fullResponse, events }
  */
 async function requestLLM(options) {
-  const { messages, model, apiKey, onStreamEvent } = options;
+  const { messages, model, apiKey, onStreamEvent, requestId: customRequestId } = options;
   const config = await getClaudeConfig();
   const port = config.PORT || 3457;
   const host = config.HOST || "127.0.0.1";
@@ -31,6 +32,10 @@ async function requestLLM(options) {
   };
   if (config.APIKEY) {
     headers["Authorization"] = `Bearer ${config.APIKEY}`;
+  }
+  // 如果提供了自定义请求ID，在请求头中设置
+  if (customRequestId) {
+    headers["X-Request-Id"] = customRequestId;
   }
 
   // 构建请求体
@@ -63,7 +68,7 @@ async function requestLLM(options) {
   }
 
   // 获取请求ID（从响应头）
-  const requestId = response.headers.get("X-Request-Id");
+  const requestId = response.headers.get("X-Request-Id") || customRequestId;
 
   // 如果响应头中有 requestId，立即通过回调传递（用于流式响应过程中更新 currentRequestId）
   if (requestId && onStreamEvent) {

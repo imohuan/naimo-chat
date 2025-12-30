@@ -15,7 +15,7 @@ const { requestLLM } = require("../utils/llmRequest");
 const { addFilesToLastUserMessage } = require("../utils/messageHelper");
 
 async function processAgentMode(context) {
-  const { conversation, currentInput, files, model, apiKey, onStreamEvent } = context;
+  const { conversation, currentInput, files, model, apiKey, onStreamEvent, requestId } = context;
 
   // 1. 构建消息数组
   const messages = [];
@@ -57,6 +57,7 @@ async function processAgentMode(context) {
     model,
     apiKey,
     onStreamEvent,
+    requestId, // 传递自定义请求ID
   });
 
   // 3. 返回结果

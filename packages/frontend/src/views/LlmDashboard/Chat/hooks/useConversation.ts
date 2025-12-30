@@ -233,14 +233,13 @@ export function useConversation() {
    */
   function connectToStream(conversationId: string, requestId: string) {
     let accumulatedContent = "";
-    let finalRequestId = requestId;
 
     sseStream.connectToStream(conversationId, requestId, {
       onChunk: (chunk: string) => {
         accumulatedContent = chunk;
         store.updateConversationMessage(
           conversationId,
-          finalRequestId,
+          requestId,
           accumulatedContent,
           true
         );
@@ -248,36 +247,9 @@ export function useConversation() {
         // 发送流式更新事件
         eventBus.emit("message:streaming", {
           conversationId,
-          requestId: finalRequestId,
+          requestId,
           chunk,
         });
-      },
-
-      onRequestId: (newRequestId: string) => {
-        // 更新 requestId（从临时 ID 切换到真实 ID）
-        // 注意：后端会通过 conversation:updated 事件发送最新的消息列表，这里只需要更新 finalRequestId
-        if (newRequestId !== finalRequestId) {
-          finalRequestId = newRequestId;
-        }
-      },
-
-      onConversationUpdated: (data) => {
-        // 后端发送了最新的消息列表（包含更新后的 requestId）
-        // 使用后端返回的消息列表更新前端状态
-        store.updateConversationMessages(data.conversationId, data.messages);
-
-        // 更新 finalRequestId 为后端返回的真实 requestId
-        finalRequestId = data.requestId;
-
-        // 如果有累积的内容，使用新的 requestId 更新消息
-        if (accumulatedContent) {
-          store.updateConversationMessage(
-            data.conversationId,
-            finalRequestId,
-            accumulatedContent,
-            true
-          );
-        }
       },
 
       onConversationTitleUpdated: (data) => {
@@ -288,7 +260,7 @@ export function useConversation() {
       onComplete: () => {
         store.updateConversationMessage(
           conversationId,
-          finalRequestId,
+          requestId,
           accumulatedContent,
           false
         );
@@ -301,14 +273,14 @@ export function useConversation() {
         // 发送完成事件
         eventBus.emit("message:complete", {
           conversationId,
-          requestId: finalRequestId,
+          requestId,
         });
       },
 
       onError: (errorMessage: string) => {
         store.updateConversationMessage(
           conversationId,
-          finalRequestId,
+          requestId,
           `错误: ${errorMessage}`,
           false
         );

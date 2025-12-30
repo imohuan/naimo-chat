@@ -181,6 +181,8 @@ onMounted(() => {
     position="bottom"
     :show-arrow="true"
     :disable-content-scroll="true"
+    :vertical-flip-only="true"
+    :viewport-padding="30"
   >
     <!-- 触发区域：显示当前模型 + MCP 数量（横向布局） -->
     <template #trigger="{ toggle }">

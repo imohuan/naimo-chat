@@ -21,6 +21,10 @@ const props = defineProps<{
   spacing?: number;
   // position 若传入 'auto' 或不传，flip 中间件会自动处理
   position?: "bottom" | "top" | "left" | "right" | "auto";
+  // 只允许上下方向的翻转，避免左右偏移
+  verticalFlipOnly?: boolean;
+  // 悬浮层距离窗口边缘的最小间距（px）
+  viewportPadding?: number;
   showArrow?: boolean;
   // 禁用内容区域的滚动，让内部元素自己控制滚动
   disableContentScroll?: boolean;
@@ -51,14 +55,19 @@ const { floatingStyles, placement, middlewareData } = useFloating(
       offset(props.spacing || 8),
 
       // 自动翻转 (空间不足时切到上方)
-      flip({
-        fallbackAxisSideDirection: "start",
-      }),
+      props.verticalFlipOnly
+        ? flip({
+            fallbackPlacements: ["top"],
+            crossAxis: false,
+          })
+        : flip({
+            fallbackAxisSideDirection: "start",
+          }),
 
-      // 自动偏移 (防止超出屏幕左右边界)
+      // 自动偏移 (防止超出屏幕边界)
       shift({
         limiter: limitShift(),
-        padding: 12, // 添加与窗口边界的边距
+        padding: props.viewportPadding ?? 16, // 与窗口边缘的最小间距
       }),
 
       // 核心：动态尺寸控制 (解决 maxHeight 问题)
