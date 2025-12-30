@@ -644,6 +644,11 @@ function handleDiffExited(code: string, recordId?: string) {
   handleDiffApplied(finalRecordId, code);
 }
 
+function handleError(msg: string) {
+  // pushToast(`错误: ${msg}`, "error");
+  console.log("handleError", msg);
+}
+
 // 监听对话切换，加载 canvas 数据
 watch(
   [activeConversationId, activeConversation],
@@ -842,7 +847,7 @@ watch(activeConversationId, (_newId, oldId) => {
           :code-history="activeConversation?.codeHistory"
           :code-version="activeConversation?.codeVersion"
           @update:show="showCanvas = $event"
-          @error="(msg) => pushToast(`错误: ${msg}`, 'error')"
+          @error="(msg) => handleError(msg)"
           @element-selected="handleElementSelected"
           @ctrl-i-pressed="handleCtrlIPressed"
           @diff-exited="handleDiffExited"

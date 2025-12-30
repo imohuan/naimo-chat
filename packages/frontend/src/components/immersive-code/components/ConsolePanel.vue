@@ -9,6 +9,7 @@ export interface LogEntry {
   timestamp?: string;
   caller?: string;
   stack?: string;
+  lineOffset?: number;
 }
 
 const props = defineProps<{
@@ -46,7 +47,16 @@ function logClass(method: string) {
 }
 
 function formatArg(arg: any): string {
-  if (typeof arg === "object") {
+  // If it's an Error object (serialized from iframe), only show the message
+  if (typeof arg === "object" && arg !== null) {
+    // Check if it's a serialized Error object (has message and stack properties)
+    if (
+      arg.message !== undefined &&
+      arg.stack !== undefined &&
+      Object.keys(arg).length === 2
+    ) {
+      return arg.message;
+    }
     try {
       return JSON.stringify(arg);
     } catch {

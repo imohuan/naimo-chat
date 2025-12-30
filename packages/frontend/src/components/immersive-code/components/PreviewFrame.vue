@@ -31,6 +31,17 @@ const ELEMENT_SELECTOR_INJECTED_SCRIPT =
 // Shortcuts script to inject
 const SHORTCUTS_INJECTED_SCRIPT = "<script>" + SHORTCUTS_SCRIPT + "<\/script>";
 
+// Calculate the line offset for injected scripts
+// This is used to adjust stack trace line numbers from about:srcdoc
+const injectedScriptsLineOffset = computed(() => {
+  // Count lines in each injected script (including script tags)
+  const logScriptLines = (INJECTED_SCRIPT.match(/\n/g) || []).length;
+  const elementSelectorLines = (ELEMENT_SELECTOR_INJECTED_SCRIPT.match(/\n/g) || [])
+    .length;
+  const shortcutsLines = (SHORTCUTS_INJECTED_SCRIPT.match(/\n/g) || []).length;
+  return logScriptLines + elementSelectorLines + shortcutsLines;
+});
+
 const srcDoc = computed(() => {
   // Inject the scripts at the beginning of the code
   // This works for both Fragments and full HTML documents in most browsers
@@ -60,6 +71,7 @@ function handleMessage(event: MessageEvent) {
       args: data.args,
       caller: data.caller,
       stack: data.stack,
+      lineOffset: injectedScriptsLineOffset.value,
     });
   } else if (data && data.type === "element-selected") {
     emit("element-selected", data.selector, data.data);
@@ -174,8 +186,7 @@ function checkIfLoaded(): boolean {
   if (!iframeRef.value) return false;
   try {
     const iframeDoc =
-      iframeRef.value.contentDocument ||
-      iframeRef.value.contentWindow?.document;
+      iframeRef.value.contentDocument || iframeRef.value.contentWindow?.document;
     return iframeDoc?.readyState === "complete" || hasLoaded.value;
   } catch (e) {
     // 跨域或其他错误，使用内部状态

@@ -742,21 +742,45 @@ watch(currentCode, (val) => {
   }
 });
 
+// Adjust line numbers in stack trace or caller for about:srcdoc
+// Replace about:srcdoc with index.html and adjust line numbers
+function adjustStackTrace(text: string | undefined, lineOffset: number | undefined): string | undefined {
+  if (!text || !lineOffset) return text;
+
+  return text.replace(/about:srcdoc:(\d+)(:\d+)/mg, (_match, lineNum, suffix) => {
+    const originalLine = parseInt(lineNum, 10);
+    // Only adjust if the line number is greater than the offset
+    // (meaning it's in user code, not in injected scripts)
+    if (originalLine > lineOffset) {
+      const adjustedLine = originalLine - lineOffset;
+      return `index.html:${adjustedLine}${suffix}`;
+    }
+    // If line number is within injected scripts, still replace but don't adjust
+    return `index.html:${originalLine}${suffix}`;
+  });
+}
+
 // Console handling
 function handleLog(log: any) {
+  // Adjust stack trace and caller before creating entry
+  const adjustedStack = adjustStackTrace(log.stack, log.lineOffset);
+  const adjustedCaller = adjustStackTrace(log.caller, log.lineOffset);
+
   // Add to logs
   const entry: LogEntry = {
     method: log.method || "log",
     args: log.args || (log.message ? [log.message] : [log]), // Normalize
     timestamp: new Date().toLocaleTimeString(),
-    caller: log.caller,
-    stack: log.stack,
+    caller: adjustedCaller,
+    stack: adjustedStack,
+    lineOffset: log.lineOffset,
   };
   logs.value.push(entry);
 
   // Emit error notification if it's an error
   if (entry.method === "error") {
-    const errorMessage = entry.args?.[0]?.toString() || "发生了一个错误";
+    // const errorMessage = JSON.stringify(entry.args?.[0], null) + "\n" + entry.stack;
+    const errorMessage = `error: ${entry.args?.[0]?.message}\nstack: ${entry.stack}\ncaller: ${entry.caller}`;
     emit("error", errorMessage);
   }
 }
@@ -1152,9 +1176,7 @@ onBeforeUnmount(() => {
       class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-100 z-20"
     >
       <div class="flex items-center space-x-4">
-        <div
-          class="flex items-center space-x-2 text-slate-700 font-semibold select-none"
-        >
+        <div class="flex items-center space-x-2 text-slate-700 font-semibold select-none">
           <Code2 class="w-5 h-5 text-purple-600" />
           <span class="max-w-[200px] truncate">{{ displayTitle }}</span>
         </div>

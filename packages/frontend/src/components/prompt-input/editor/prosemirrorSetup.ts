@@ -184,8 +184,8 @@ export function createEditorState(
     "Mod-z": undo,
     "Mod-y": redo,
     "Mod-Shift-z": redo,
-    // Ctrl+Enter 或 Cmd+Enter 插入换行
-    "Mod-Enter": (state: EditorState, dispatch?: (tr: Transaction) => void) => {
+    // Shift+Enter 插入换行
+    "Shift-Enter": (state: EditorState, dispatch?: (tr: Transaction) => void) => {
       if (!dispatch || !hardBreakType) return false;
       const tr = state.tr
         .replaceSelectionWith(hardBreakType.create())
