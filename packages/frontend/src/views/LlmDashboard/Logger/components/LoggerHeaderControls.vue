@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
+import { useRoute } from "vue-router";
 import {
   DescriptionOutlined,
   ExpandMoreOutlined,
@@ -8,13 +9,16 @@ import {
 } from "@vicons/material";
 import type { LogFile } from "../types";
 
+const route = useRoute();
+// 判断当前是否在 logger 路由
+const isLoggerRoute = computed(() => route.name === "Logger");
+
 const props = defineProps<{
   activeMode: "logs" | "messages";
   logFiles: LogFile[];
   selectedLogFileObj: LogFile | null;
   isRefreshing: boolean;
   isRefreshingMessages?: boolean;
-  currentTab: "chat" | "providers" | "logger" | "statusline" | "mcp";
 }>();
 
 const emit = defineEmits<{
@@ -75,7 +79,7 @@ function setActiveMode(mode: "logs" | "messages") {
 </script>
 
 <template>
-  <Teleport defer to="#header-right-target" :disabled="currentTab !== 'logger'">
+  <Teleport to="#header-right-target" :disabled="!isLoggerRoute">
     <div class="flex items-center gap-2">
       <!-- 日志文件选择器（仅在 logs 模式下显示） -->
       <template v-if="activeMode === 'logs'">

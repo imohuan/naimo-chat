@@ -9,9 +9,7 @@ import { useLogger } from "./useLogger";
 import { useMessages } from "./useMessages";
 import type { LogRequest, MessageDetail } from "./types";
 
-const props = defineProps<{
-  currentTab: "chat" | "providers" | "logger" | "statusline" | "mcp";
-}>();
+// LoggerPanel 现在作为路由组件，不再需要 currentTab prop
 
 // Tab 切换：普通日志 / 对话
 const activeMode = ref<"logs" | "messages">("messages");
@@ -289,7 +287,6 @@ onUnmounted(() => {
       :selected-log-file-obj="selectedLogFileObj"
       :is-refreshing="isRefreshing"
       :is-refreshing-messages="isRefreshingMessages"
-      :current-tab="currentTab"
       @update:active-mode="(mode) => (activeMode = mode)"
       @select-file="selectLogFile"
       @refresh="handleRefreshLogFile"
