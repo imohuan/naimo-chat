@@ -29,21 +29,11 @@ declare global {
 }
 
 export function useCodeHistory(initialCode: string = "") {
-  const versions = ref<MajorVersion[]>([
-    {
-      id: generateId(),
-      timestamp: Date.now(),
-      label: "Initial Version",
-      records: [
-        {
-          id: generateId(),
-          code: initialCode,
-          timestamp: Date.now(),
-        },
-      ],
-      currentIndex: 0,
-    },
-  ]);
+  const versions = ref<MajorVersion[]>([]);
+
+  if (initialCode) {
+    addMajorVersion(initialCode);
+  }
 
   const currentVersionIndex = ref(0);
   const lastNavigationTime = ref(0); // 记录最近一次历史导航的时间戳
