@@ -76,7 +76,7 @@
         }
         try {
           return JSON.parse(JSON.stringify(arg));
-        } catch (e) {
+        } catch {
           return String(arg);
         }
       });
@@ -98,7 +98,51 @@
   console.error = (...args) => { originalConsole.error(...args); sendLog('error', args); };
   console.info = (...args) => { originalConsole.info(...args); sendLog('info', args); };
 
+  // Capture uncaught errors with full stack trace
   window.addEventListener('error', (event) => {
-    sendLog('error', [event.message]);
+    let error = event.error;
+
+    // If event.error exists, use it (contains full stack trace)
+    if (error instanceof Error) {
+      sendLog('error', [error]);
+    } else {
+      // If no error object, create one with available information
+      const errorMessage = event.message || 'Unknown error';
+      const errorObj = new Error(errorMessage);
+
+      // Try to construct stack trace from event properties
+      if (event.filename && event.lineno !== undefined) {
+        errorObj.stack = `Error: ${errorMessage}\n    at ${event.filename}:${event.lineno}:${event.colno || 0}`;
+      } else if (errorMessage) {
+        errorObj.stack = `Error: ${errorMessage}`;
+      }
+
+      sendLog('error', [errorObj]);
+    }
+  });
+
+  // Capture unhandled promise rejections
+  window.addEventListener('unhandledrejection', (event) => {
+    let error = event.reason;
+
+    // If reason is an Error object, use it directly
+    if (error instanceof Error) {
+      sendLog('error', [error]);
+    } else {
+      // Otherwise, create an Error object from the reason
+      const errorMessage = error ? String(error) : 'Unhandled Promise Rejection';
+      const errorObj = new Error(errorMessage);
+
+      // Try to preserve original error information
+      if (error && typeof error === 'object') {
+        try {
+          errorObj.stack = `Error: ${errorMessage}\n    at Promise (unhandled rejection)`;
+        } catch {
+          // Ignore
+        }
+      }
+
+      sendLog('error', [errorObj]);
+    }
   });
 })();

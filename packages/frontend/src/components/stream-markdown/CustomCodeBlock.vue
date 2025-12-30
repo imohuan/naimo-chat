@@ -21,9 +21,7 @@
             </svg>
           </span>
         </button>
-        <span class="custom-code-block__lang">{{
-          formatLanguage(language)
-        }}</span>
+        <span class="custom-code-block__lang">{{ formatLanguage(language) }}</span>
         <template v-if="diffStats">
           <span
             class="custom-code-block__diff-stats custom-code-block__diff-stats--added"
@@ -68,12 +66,7 @@
         >
           <Eye class="icon-btn__icon" />
         </button>
-        <button
-          class="icon-btn"
-          type="button"
-          @click="download"
-          title="Download"
-        >
+        <button class="icon-btn" type="button" @click="download" title="Download">
           <Download class="icon-btn__icon" />
         </button>
       </div>
@@ -220,8 +213,7 @@ const runHighlight = async () => {
 
     const highlighter = await highlighterPromise;
     const lang = (props.language || "text").toLowerCase();
-    let code =
-      typeof props.code === "string" ? props.code : String(props.code ?? "");
+    let code = typeof props.code === "string" ? props.code : String(props.code ?? "");
 
     // 如果是在 .model-canvas 内，只渲染最后 3 行
     // if (isInModelCanvas()) {
@@ -257,8 +249,7 @@ watch(
     }
 
     // 更小的防抖间隔，兼顾流式体验与性能
-    const delay =
-      typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
+    const delay = typeof props.code === "string" && props.code.length > 4000 ? 50 : 20;
 
     highlightTimer = window.setTimeout(() => {
       runHighlight();
@@ -291,8 +282,7 @@ const preview = () => {
     return;
   }
 
-  const code =
-    typeof props.code === "string" ? props.code : String(props.code ?? "");
+  const code = typeof props.code === "string" ? props.code : String(props.code ?? "");
 
   const isFullHtml = /<!doctype html>/i.test(code) || /<html[\s>]/i.test(code);
   const html = isFullHtml
@@ -546,6 +536,7 @@ function guessExtension(lang?: string) {
 }
 
 .custom-code-block__body {
+  overflow-x: auto;
   background: #ffffff;
   color: #0f172a;
   scrollbar-width: thin;
@@ -554,6 +545,10 @@ function guessExtension(lang?: string) {
   border-top: none;
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
+}
+
+.custom-code-block__body > div:not(.diff-wrapper) {
+  width: fit-content;
 }
 
 /* 嵌入 TextDiffViewer 时，减小内边距、保证文字颜色正确 */
@@ -575,8 +570,9 @@ function guessExtension(lang?: string) {
   --sd-font-size-base: 16px !important;
   line-height: 1.4 !important;
   width: fit-content;
-  overflow: hidden;
+  overflow-x: auto;
   border: none !important;
+  max-width: 100%;
 }
 
 .custom-code-block__body > .diff-wrapper :deep(pre) {

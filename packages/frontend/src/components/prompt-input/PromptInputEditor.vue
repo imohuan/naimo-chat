@@ -4,7 +4,6 @@
       ref="editorContainer"
       class="prompt-input-editor"
       :class="cn('field-sizing-content max-h-48 min-h-16 px-4', props.class)"
-      @paste="handlePaste"
       @click="handleClick"
     />
     <!-- Placeholder overlay -->
@@ -19,6 +18,7 @@ import type { HTMLAttributes } from "vue";
 import { ref, watch, onMounted, onBeforeUnmount, computed } from "vue";
 import { EditorView, type NodeView } from "prosemirror-view";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
+import { useKeyModifier } from "@vueuse/core";
 import { cn } from "@/lib/utils";
 import { usePromptInput } from "@/components/ai-elements/prompt-input/context";
 import {
@@ -60,6 +60,11 @@ const isUpdating = ref(false);
 let editorView: EditorView | null = null;
 const schema = createSchema();
 const isEmpty = ref(true);
+
+// 使用 vueuse 跟踪键盘修饰键状态
+const ctrlKey = useKeyModifier("Control");
+const metaKey = useKeyModifier("Meta");
+const shiftKey = useKeyModifier("Shift");
 
 /**
  * 检查编辑器是否为空（没有文本和标签）
@@ -111,6 +116,10 @@ function initEditor() {
     onTagDelete: (_tagId: string, _position: number) => {
       // 标签删除时的回调
       // 可以在这里添加额外的处理逻辑
+    },
+    onPaste: (view, event) => {
+      // 使用 ProseMirror 插件处理粘贴事件
+      return handlePasteInPlugin(view, event);
     },
   });
 
@@ -231,12 +240,19 @@ class TagNodeView implements NodeView {
       this.dom.title = tooltip;
     }
 
+    // HTML 转义函数，防止 label 中的 HTML 标签被解析
+    const escapeHtml = (text: string) => {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    };
+
     this.dom.innerHTML = `
       <span class="prompt-tag-icon-wrapper">
-        <span class="prompt-tag-icon">${icon}</span>
+        <span class="prompt-tag-icon">${escapeHtml(icon)}</span>
         <span class="prompt-tag-delete" contenteditable="false">×</span>
       </span>
-      <span class="prompt-tag-label">${label}</span>
+      <span class="prompt-tag-label">${escapeHtml(label)}</span>
     `;
   }
 
@@ -411,11 +427,15 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 /**
- * 处理粘贴事件
+ * 在 ProseMirror 插件中处理粘贴事件
+ * 返回 true 表示已处理，阻止默认行为；返回 false 让 ProseMirror 正常处理
  */
-function handlePaste(e: ClipboardEvent) {
-  const items = e.clipboardData?.items;
-  if (!items) return;
+function handlePasteInPlugin(
+  view: EditorView,
+  event: ClipboardEvent
+): boolean {
+  const items = event.clipboardData?.items;
+  if (!items) return false;
 
   const pastedFiles: File[] = [];
   for (const item of Array.from(items)) {
@@ -427,30 +447,43 @@ function handlePaste(e: ClipboardEvent) {
 
   // 有文件时，走原有文件粘贴逻辑
   if (pastedFiles.length > 0) {
-    e.preventDefault();
+    event.preventDefault();
+    event.stopPropagation();
     addFiles(pastedFiles);
-    return;
+    return true; // 已处理，阻止默认行为
   }
 
   // 无文件时，检查是否有纯文本需要转换为标签
-  const text = e.clipboardData?.getData("text/plain") || "";
-  // 按文档约定：按下 Shift（如 Ctrl+Shift+V）时不做 Tag 解析，保持原样
+  const text = event.clipboardData?.getData("text/plain") || "";
+  // 按文档约定：按下 Ctrl+Shift+V 或 Cmd+Shift+V 时不做 Tag 解析，保持原样
+  // 使用 vueuse 跟踪的修饰键状态，因为 ClipboardEvent 无法获取键盘状态
   const hasShift =
-    (e as any).shiftKey === true ||
-    (e as any).clipboardData?.getData("application/x-raw-paste") === "1";
+    (shiftKey.value === true &&
+      (ctrlKey.value === true || metaKey.value === true)) ||
+    (event as any).clipboardData?.getData("application/x-raw-paste") === "1";
+
   if (text.length > 100 && !hasShift) {
     // 粘贴超过 100 字符时，将其作为一个标签插入
-    e.preventDefault();
-    insertTagAtCursor({
+    // 必须阻止默认行为，否则会出现 tag 和粘贴的文本同时存在
+    event.preventDefault();
+    event.stopPropagation();
+
+    const { state, dispatch } = view;
+    const attrs: TagNodeAttributes = {
       id: `paste-long-text-${Date.now()}`,
-      label: text.slice(0, 30) + (text.length > 30 ? "…" : ""),
+      label: text.slice(0, 20) + (text.length > 30 ? "…" : ""),
       data: {
         text,
         type: "long_text",
       },
       tagType: "text",
-    });
+    };
+    const tr = insertTag(state, schema, attrs);
+    dispatch(tr);
+    return true; // 已处理，阻止默认行为
   }
+
+  return false; // 未处理，让 ProseMirror 正常处理
 }
 
 /**

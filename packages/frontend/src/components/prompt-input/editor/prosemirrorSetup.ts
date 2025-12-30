@@ -141,6 +141,30 @@ function createDocFromText(schema: Schema, content: string): ProseMirrorNode {
 }
 
 /**
+ * 创建粘贴处理插件
+ */
+export function createPastePlugin(options: {
+  onPaste?: (view: EditorView, event: ClipboardEvent) => boolean;
+}): Plugin {
+  return new Plugin({
+    key: new PluginKey("pasteHandler"),
+    props: {
+      handlePaste(view, event, slice) {
+        if (options.onPaste) {
+          const handled = options.onPaste(view, event);
+          if (handled) {
+            // 如果处理了粘贴，返回 true 阻止默认行为
+            return true;
+          }
+        }
+        // 否则让 ProseMirror 正常处理
+        return false;
+      },
+    },
+  });
+}
+
+/**
  * 创建编辑器状态
  */
 export function createEditorState(
@@ -148,6 +172,7 @@ export function createEditorState(
   initialContent: string = "",
   options?: {
     onTagDelete?: (tagId: string, position: number) => void;
+    onPaste?: (view: EditorView, event: ClipboardEvent) => boolean;
   }
 ): EditorState {
   const doc = createDocFromText(schema, initialContent);
@@ -182,6 +207,8 @@ export function createEditorState(
     createTagDeletePlugin(options?.onTagDelete),
     // 添加选中样式插件
     createSelectionPlugin(),
+    // 粘贴处理插件
+    ...(options?.onPaste ? [createPastePlugin({ onPaste: options.onPaste })] : []),
   ];
 
   return EditorState.create({
