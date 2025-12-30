@@ -19,6 +19,11 @@ const { Readable } = require("stream");
  * @param {Function} options.onSave - 自定义保存函数 (requestData, responseData) => Promise<void>
  * @param {boolean} options.saveToFile - 是否保存到文件（默认: true）
  * @param {boolean} options.logStream - 是否记录流式响应（默认: false，因为流式响应较大）
+ * @param {string|Function} options.requestIdSource - 自定义请求ID来源，可以是：
+ *   - 'header': 从请求头 X-Request-Id 获取（默认）
+ *   - 'body': 从请求体 metadata.requestId 获取
+ *   - 'query': 从查询参数 requestId 获取
+ *   - Function: 自定义函数 (req) => string | null
  * @returns {Object} 中间件对象
  */
 function createMessageLoggerMiddleware(options = {}) {
@@ -27,6 +32,7 @@ function createMessageLoggerMiddleware(options = {}) {
     onSave = null,
     saveToFile = true,
     logStream = false,
+    requestIdSource = 'header', // 默认从请求头获取
   } = options;
 
   // 确保日志目录存在
@@ -205,6 +211,63 @@ function createMessageLoggerMiddleware(options = {}) {
   }
 
   /**
+   * 提取自定义请求 ID
+   * 优先级：自定义函数 > 指定来源 > 默认来源（请求头 > 请求体 > 查询参数）
+   */
+  function extractCustomRequestId(req) {
+    // 如果 requestIdSource 是函数，直接调用
+    if (typeof requestIdSource === 'function') {
+      try {
+        const customId = requestIdSource(req);
+        if (customId && typeof customId === 'string' && customId.trim()) {
+          return customId.trim();
+        }
+      } catch (error) {
+        console.error(`[MessageLogger] 自定义请求ID函数执行失败:`, error);
+      }
+      return null;
+    }
+
+    // 根据配置的来源类型获取
+    const source = requestIdSource || 'header';
+
+    if (source === 'header') {
+      const headerId = req.headers['x-request-id'] || req.headers['X-Request-Id'];
+      if (headerId && typeof headerId === 'string' && headerId.trim()) {
+        return headerId.trim();
+      }
+    } else if (source === 'body') {
+      const bodyId = req.body?.metadata?.requestId;
+      if (bodyId && typeof bodyId === 'string' && bodyId.trim()) {
+        return bodyId.trim();
+      }
+    } else if (source === 'query') {
+      const queryId = req.query?.requestId;
+      if (queryId && typeof queryId === 'string' && queryId.trim()) {
+        return queryId.trim();
+      }
+    }
+
+    // 如果指定来源未找到，尝试所有常见位置（降级策略）
+    const headerId = req.headers['x-request-id'] || req.headers['X-Request-Id'];
+    if (headerId && typeof headerId === 'string' && headerId.trim()) {
+      return headerId.trim();
+    }
+
+    const bodyId = req.body?.metadata?.requestId;
+    if (bodyId && typeof bodyId === 'string' && bodyId.trim()) {
+      return bodyId.trim();
+    }
+
+    const queryId = req.query?.requestId;
+    if (queryId && typeof queryId === 'string' && queryId.trim()) {
+      return queryId.trim();
+    }
+
+    return null;
+  }
+
+  /**
    * 提取请求数据
    */
   function extractRequestData(req) {
@@ -263,12 +326,21 @@ function createMessageLoggerMiddleware(options = {}) {
     const requestData = extractRequestData(req);
     const originalRequestId = req.id;
 
-    // 生成带时间戳的唯一 ID，避免重复
-    // 格式：req-{原始ID}-{时间戳}
-    // 如果原始 ID 已经包含 req- 前缀，则去掉前缀再拼接
-    const baseId = originalRequestId.toString().replace(/^req-/, '');
+    // 尝试获取自定义请求 ID
+    const customRequestId = extractCustomRequestId(req);
     const timestamp = Date.now();
-    const uniqueRequestId = `req-${baseId}-${timestamp}`;
+
+    let uniqueRequestId;
+    if (customRequestId) {
+      // 使用自定义请求 ID
+      uniqueRequestId = customRequestId;
+    } else {
+      // 生成带时间戳的唯一 ID，避免重复
+      // 格式：req-{原始ID}-{时间戳}
+      // 如果原始 ID 已经包含 req- 前缀，则去掉前缀再拼接
+      const baseId = originalRequestId.toString().replace(/^req-/, '');
+      uniqueRequestId = `req-${baseId}-${timestamp}`;
+    }
 
     // 更新请求数据中的 requestId 为唯一 ID
     requestData.requestId = uniqueRequestId;

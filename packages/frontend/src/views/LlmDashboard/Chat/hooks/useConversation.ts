@@ -198,6 +198,7 @@ export function useConversation() {
       // 调用 API 发送消息
       const result = await chatApi.sendMessage(conversationId, params);
 
+
       // 如果是重试，在现有的助手消息下添加新版本占位符
       if (isRetry && params.messageKey) {
         store.addAssistantVersionPlaceholder(conversationId, params.messageKey, result.requestId);
