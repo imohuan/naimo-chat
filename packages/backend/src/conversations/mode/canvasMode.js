@@ -35,6 +35,11 @@ async function processCanvasMode(context) {
     onStreamEvent,
     conversationId,
     sseRequestId, // SSE 请求ID，用于发送 canvas 事件，同时也作为日志中的 requestId
+    temperature,
+    topP,
+    maxTokens,
+    mcpIds,
+    tools,
   } = context;
 
   // 1. 构建消息数组
@@ -136,6 +141,11 @@ async function processCanvasMode(context) {
     apiKey,
     onStreamEvent: wrappedOnStreamEvent,
     requestId, // 传递自定义请求ID（与 SSE requestId 保持一致，用于日志记录）
+    temperature,
+    topP,
+    maxTokens,
+    mcpIds,
+    tools,
   });
 
   // 5. 流式完成后，识别完整代码并保存

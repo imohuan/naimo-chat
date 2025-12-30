@@ -50,9 +50,18 @@ const quickOptions: QuickOption[] = [
     getRange: () => {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        23,
+        59,
+        59,
+        999
+      );
       return {
         start: today,
-        end: now,
+        end: todayEnd,
       };
     },
   },
@@ -361,7 +370,31 @@ function clearTimeRange() {
   isOpen.value = false;
 }
 
-// 格式化显示文本
+// 判断两个日期是否是同一天
+function isSameDay(date1: Date, date2: Date): boolean {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+}
+
+// 格式化只显示时间
+function formatTimeOnly(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+// 格式化只显示日期
+function formatDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// 格式化显示文本（完整日期时间，用于没有结束时间的情况）
 function formatDisplayDateTime(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -378,15 +411,24 @@ const displayText = computed(() => {
   }
 
   const start = props.modelValue.start;
-  const startStr = formatDisplayDateTime(start);
 
   if (!props.modelValue?.end) {
-    return `从 ${startStr}`;
+    return `从 ${formatDisplayDateTime(start)}`;
   }
 
   const end = props.modelValue.end;
-  const endStr = formatDisplayDateTime(end);
-  return `${startStr} - ${endStr}`;
+
+  // 如果是同一天，只显示时间
+  if (isSameDay(start, end)) {
+    const startTimeStr = formatTimeOnly(start);
+    const endTimeStr = formatTimeOnly(end);
+    return `${startTimeStr} - ${endTimeStr}`;
+  }
+
+  // 如果不是同一天，只显示日期
+  const startDateStr = formatDateOnly(start);
+  const endDateStr = formatDateOnly(end);
+  return `${startDateStr} - ${endDateStr}`;
 });
 
 // 计算下拉面板位置
@@ -490,7 +532,7 @@ onUnmounted(() => {
           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
         />
       </svg>
-      <span class="block truncate">{{ displayText }}</span>
+      <span class="block truncate text-xs">{{ displayText }}</span>
     </button>
 
     <!-- 下拉面板 -->

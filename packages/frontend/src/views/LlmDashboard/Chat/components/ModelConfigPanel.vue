@@ -7,23 +7,23 @@ import {
   Wrench,
   Sliders,
   Search,
+  RefreshCw,
 } from "lucide-vue-next";
 import RouterModelSelect from "@/components/llm/RouterModelSelect.vue";
 import Dropdown from "@/components/llm/Dropdown.vue";
-import { useMcpApi } from "@/hooks/useMcpApi";
+import { storeToRefs } from "pinia";
+import { useMcpStore } from "@/stores/mcp";
 import type { McpServer } from "@/interface";
+import type { ChatModelConfig } from "../types";
 
 const props = defineProps<{
   modelId: string;
   modelOptions: string[];
+  modelConfig?: ChatModelConfig;
 }>();
 
 const emit = defineEmits<{
-  "update:modelId": [modelId: string];
-  "update:temperature": [value: number];
-  "update:topP": [value: number];
-  "update:maxTokens": [value: number];
-  "update:selectedMcpIds": [ids: string[]];
+  "update:modelConfig": [config: ChatModelConfig];
 }>();
 
 const isOpen = ref(false);
@@ -44,42 +44,51 @@ const topP = ref(0.9);
 const maxTokens = ref(4096);
 const selectedMcpIds = ref<string[]>([]);
 
-// MCP 相关
-const { fetchServers } = useMcpApi();
-const mcpServers = ref<McpServer[]>([]);
-const isLoadingMcps = ref(false);
+// MCP 相关 - 使用 store
+const mcpStore = useMcpStore();
+const {
+  servers: mcpServers,
+  isLoading: isLoadingMcps,
+  serverTools,
+} = storeToRefs(mcpStore);
+const { loadServers, refreshAllTools } = mcpStore;
 
-// 加载 MCP 服务器列表
-async function loadMcpServers() {
-  try {
-    isLoadingMcps.value = true;
-    const serversData = await fetchServers();
-    mcpServers.value = Object.entries(serversData)
-      .map(([name, config]) => ({
-        name,
-        config,
-      }))
-      .filter((f) => f.config.enabled !== false);
-  } catch (err) {
-    console.error("加载 MCP 服务器失败:", err);
-  } finally {
-    isLoadingMcps.value = false;
-  }
-}
-
-// 过滤后的 MCP 列表
-const filteredMcps = computed(() => {
-  if (!searchQuery.value) return mcpServers.value;
-  const q = searchQuery.value.toLowerCase();
-  return mcpServers.value.filter(
-    (mcp) =>
-      mcp.name.toLowerCase().includes(q) ||
-      (mcp.config.command || "").toLowerCase().includes(q)
+// 判断服务器是否可选（已启用且有工具）
+const isServerSelectable = (server: McpServer) => {
+  return (
+    server.config.enabled !== false &&
+    (serverTools.value[server.name] || []).length > 0
   );
+};
+
+// 过滤后的 MCP 列表（包含所有已启用的服务器，用于显示）
+const filteredMcps = computed(() => {
+  let list = mcpServers.value.filter((s) => s.config.enabled !== false);
+
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase();
+    list = list.filter(
+      (mcp) =>
+        mcp.name.toLowerCase().includes(q) ||
+        (mcp.config.command || "").toLowerCase().includes(q) ||
+        (mcp.config.url || "").toLowerCase().includes(q)
+    );
+  }
+
+  return list;
 });
 
-// 切换 MCP 选择（只更新临时值，不立即生效）
-function toggleMcp(id: string) {
+// 刷新 MCP 配置
+async function refreshMcpConfig() {
+  await refreshAllTools();
+}
+
+// 切换 MCP 选择（只更新临时值，不立即生效，只允许选择可用的服务器）
+function toggleMcp(server: McpServer) {
+  if (!isServerSelectable(server)) {
+    return; // 不可选的服务器不允许切换
+  }
+  const id = server.name;
   const index = selectedMcpIds.value.indexOf(id);
   if (index > -1) {
     selectedMcpIds.value.splice(index, 1);
@@ -110,12 +119,14 @@ function applyConfig() {
   appliedMaxTokens.value = maxTokens.value;
   appliedSelectedMcpIds.value = [...selectedMcpIds.value];
 
-  // Emit 给父组件
-  emit("update:modelId", tempModelId.value);
-  emit("update:temperature", temperature.value);
-  emit("update:topP", topP.value);
-  emit("update:maxTokens", maxTokens.value);
-  emit("update:selectedMcpIds", [...selectedMcpIds.value]);
+  // 统一导出配置对象
+  emit("update:modelConfig", {
+    modelId: tempModelId.value,
+    temperature: temperature.value,
+    topP: topP.value,
+    maxTokens: maxTokens.value,
+    selectedMcpIds: [...selectedMcpIds.value],
+  });
 
   isOpen.value = false;
 }
@@ -125,13 +136,15 @@ function handleModelSelect(value: string) {
   tempModelId.value = value;
 }
 
-// 当弹窗打开时，用已应用的值初始化临时值
-function onDropdownOpen() {
+// 当弹窗打开时，用已应用的值初始化临时值，并刷新 MCP 列表
+async function onDropdownOpen() {
   tempModelId.value = appliedModelId.value;
   temperature.value = appliedTemperature.value;
   topP.value = appliedTopP.value;
   maxTokens.value = appliedMaxTokens.value;
   selectedMcpIds.value = [...appliedSelectedMcpIds.value];
+  // 刷新 MCP 服务器列表和工具
+  await loadServers();
 }
 
 // 当弹窗关闭时（不点击应用），恢复临时值到已应用的值
@@ -156,10 +169,11 @@ watch(
 );
 
 onMounted(() => {
-  loadMcpServers();
   // 初始化已应用的值
   appliedModelId.value = props.modelId;
   tempModelId.value = props.modelId;
+  // 加载 MCP 服务器列表
+  loadServers();
 });
 </script>
 
@@ -348,6 +362,19 @@ onMounted(() => {
             />
           </div>
 
+          <!-- Refresh Button -->
+          <button
+            @click="refreshMcpConfig"
+            :disabled="isLoadingMcps"
+            class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="刷新 MCP 配置"
+          >
+            <RefreshCw
+              class="w-4 h-4"
+              :class="{ 'animate-spin': isLoadingMcps }"
+            />
+          </button>
+
           <div
             class="flex items-center gap-1.5 text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded"
           >
@@ -367,12 +394,17 @@ onMounted(() => {
             <div
               v-for="mcp in filteredMcps"
               :key="mcp.name"
-              @click="toggleMcp(mcp.name)"
+              @click="toggleMcp(mcp)"
               :class="[
-                'p-3 rounded-lg border transition-all cursor-pointer group relative overflow-hidden',
+                'p-3 rounded-lg border transition-all group relative overflow-hidden',
+                isServerSelectable(mcp)
+                  ? 'cursor-pointer'
+                  : 'cursor-not-allowed opacity-50',
                 selectedMcpIds.includes(mcp.name)
-                  ? 'border-indigo-500 bg-indigo-50/30 shadow-[0_0_0_1px_rgba(99,102,241,0.2)] hover:shadow-[0_0_0_1px_rgba(99,102,241,0.3)]'
-                  : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/10 shadow-sm hover:shadow-md',
+                  ? 'border-indigo-500 bg-indigo-50/30 shadow-[0_0_0_1px_rgba(99,102,241,0.2)]'
+                  : isServerSelectable(mcp)
+                  ? 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/10 shadow-sm hover:shadow-md'
+                  : 'border-slate-200 bg-slate-50 shadow-sm',
               ]"
             >
               <div class="flex items-start gap-3 relative z-10 w-full">
@@ -382,43 +414,69 @@ onMounted(() => {
                   :class="
                     selectedMcpIds.includes(mcp.name)
                       ? 'bg-indigo-100 text-indigo-600'
-                      : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500'
+                      : isServerSelectable(mcp)
+                      ? 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-500'
+                      : 'bg-slate-100 text-slate-300'
                   "
                 >
                   <Wrench
-                    class="w-4 h-4 transition-transform group-hover:rotate-12"
+                    class="w-4 h-4 transition-transform"
                     :class="{
-                      'rotate-12': selectedMcpIds.includes(mcp.name),
+                      'rotate-12':
+                        selectedMcpIds.includes(mcp.name) &&
+                        isServerSelectable(mcp),
+                      'group-hover:rotate-12': isServerSelectable(mcp),
                     }"
                   />
                 </div>
 
                 <!-- Content -->
                 <div class="min-w-0 flex-1 flex flex-col gap-0.5">
-                  <h4
-                    class="text-sm font-semibold truncate leading-tight transition-colors"
-                    :class="
-                      selectedMcpIds.includes(mcp.name)
-                        ? 'text-indigo-700'
-                        : 'text-slate-700 group-hover:text-slate-900'
-                    "
-                  >
-                    {{ mcp.name }}
-                  </h4>
+                  <div class="flex items-center gap-1.5">
+                    <h4
+                      class="text-sm font-semibold truncate leading-tight transition-colors"
+                      :class="
+                        selectedMcpIds.includes(mcp.name)
+                          ? 'text-indigo-700'
+                          : isServerSelectable(mcp)
+                          ? 'text-slate-700 group-hover:text-slate-900'
+                          : 'text-slate-400'
+                      "
+                    >
+                      {{ mcp.name }}
+                    </h4>
+                    <span
+                      v-if="isServerSelectable(mcp)"
+                      class="text-[10px] px-1 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono font-bold"
+                      title="工具数量"
+                    >
+                      {{ (serverTools[mcp.name] || []).length }}
+                    </span>
+                    <span
+                      v-else
+                      class="text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-400 font-mono"
+                      title="无可用工具"
+                    >
+                      0
+                    </span>
+                  </div>
                   <p
                     class="text-xs truncate leading-tight transition-colors"
                     :class="
                       selectedMcpIds.includes(mcp.name)
                         ? 'text-indigo-500/70'
-                        : 'text-slate-400 group-hover:text-slate-500'
+                        : isServerSelectable(mcp)
+                        ? 'text-slate-400 group-hover:text-slate-500'
+                        : 'text-slate-300'
                     "
                   >
-                    {{ mcp.config.command || "MCP 服务" }}
+                    {{ mcp.config.command || mcp.config.url || "MCP 服务" }}
                   </p>
                 </div>
 
                 <!-- Selection Indicator -->
                 <div
+                  v-if="isServerSelectable(mcp)"
                   class="shrink-0 mt-1 transition-all"
                   :class="
                     selectedMcpIds.includes(mcp.name)
@@ -434,6 +492,13 @@ onMounted(() => {
                         : 'bg-slate-300'
                     "
                   ></div>
+                </div>
+                <div
+                  v-else
+                  class="shrink-0 mt-1 opacity-50"
+                  title="无可用工具，无法选择"
+                >
+                  <div class="w-2 h-2 rounded-full bg-slate-300"></div>
                 </div>
               </div>
             </div>

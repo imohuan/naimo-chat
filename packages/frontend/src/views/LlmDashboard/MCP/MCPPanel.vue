@@ -3,7 +3,8 @@ import { computed, onMounted, ref } from "vue";
 import type { McpServer, McpServerConfig, McpTool } from "@/interface";
 import { useMcpApi } from "@/hooks/useMcpApi";
 import { useToasts } from "@/hooks/useToasts";
-import { useLlmApi } from "@/hooks/useLlmApi";
+import { storeToRefs } from "pinia";
+import { useMcpStore } from "@/stores/mcp";
 import {
   AddOutlined,
   SearchOutlined,
@@ -22,21 +23,32 @@ import ConfigEditorModal from "./components/ConfigEditorModal.vue";
 import cloudMcpServers from "./cloud_mcp_servers.json";
 
 const { pushToast } = useToasts();
-const {
-  fetchServers,
-  createServer,
-  updateServer,
-  deleteServer,
-  fetchTools,
-  callTool,
-} = useMcpApi();
+const { createServer, updateServer, callTool } = useMcpApi();
 
-const servers = ref<McpServer[]>([]);
+const mcpStore = useMcpStore();
+const {
+  servers,
+  isLoading,
+  serverTools,
+  serverToolsLoading,
+  serverToggleLoading,
+  hasApiKey,
+  mcpRouterApiKey,
+} = storeToRefs(mcpStore);
+
+const {
+  loadServers,
+  loadToolsForServer,
+  refreshAllTools,
+  handleToggleServer,
+  handleDeleteServer,
+  checkApiKey,
+} = mcpStore;
+
 const filteredServers = ref<McpServer[]>([]);
 const searchQuery = ref("");
-const isLoading = ref(false);
 const isSavingServer = ref(false);
-const currentTab = ref<"servers" | "empty">("servers");
+const currentTab = ref<"servers" | "empty" | "builtin">("servers");
 
 type CloudMcpServer = {
   name: string;
@@ -46,10 +58,36 @@ type CloudMcpServer = {
 };
 const cloudServers = ref<CloudMcpServer[]>(cloudMcpServers as CloudMcpServer[]);
 
-// 每个服务器的工具列表和加载状态
-const serverTools = ref<Record<string, McpTool[]>>({});
-const serverToolsLoading = ref<Record<string, boolean>>({});
-const serverToggleLoading = ref<Record<string, boolean>>({});
+type BuiltInMcpServer = {
+  name: string;
+  description: string;
+  realName: string;
+  command: string;
+  args: string[];
+};
+const builtInServers = ref<BuiltInMcpServer[]>([
+  {
+    name: "文件系统",
+    description: "文件系统操作的模型上下文协议(MCP) 的Node.js 服务",
+    realName: "filesystem",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-filesystem"],
+  },
+  {
+    name: "顺序思考",
+    description: "MCP服务器实现,提供了通过结构化思维过程进行动态思考的能力",
+    realName: "sequentialthinking",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+  },
+  {
+    name: "网页获取",
+    description: "获取 URL 网页内容的MCP服务器",
+    realName: "fetch",
+    command: "npx",
+    args: ["-y", "mcp-server-fetch-typescript"],
+  },
+]);
 
 // 服务器编辑/新建模态框
 const showServerModal = ref(false);
@@ -67,27 +105,10 @@ const isExecutingTool = ref(false);
 
 // API Key 设置模态框
 const showApiKeyModal = ref(false);
-const hasApiKey = ref(false);
-const mcpRouterApiKey = ref<string>("");
-const { fetchConfig } = useLlmApi();
 
 // 全屏配置编辑器
 const showConfigEditor = ref(false);
 const isSavingConfig = ref(false);
-
-// 检查 API Key 配置
-async function checkApiKey() {
-  try {
-    const config = await fetchConfig();
-    const apiKey = config.MCPRouterApiKey || "";
-    hasApiKey.value = !!(apiKey && apiKey.trim());
-    mcpRouterApiKey.value = apiKey || "";
-  } catch (err) {
-    console.error("检查 API Key 配置失败:", err);
-    hasApiKey.value = false;
-    mcpRouterApiKey.value = "";
-  }
-}
 
 // 搜索过滤
 const filteredServersComputed = computed(() => {
@@ -103,58 +124,10 @@ const filteredServersComputed = computed(() => {
   );
 });
 
-// 加载服务器列表
-async function loadServers() {
-  try {
-    isLoading.value = true;
-    const serversData = await fetchServers();
-    servers.value = Object.entries(serversData).map(([name, config]) => ({
-      name,
-      config,
-    }));
-    filteredServers.value = [...servers.value];
-
-    // 自动为已启用的服务器加载工具列表
-    for (const server of servers.value) {
-      if (server.config.enabled !== false) {
-        await loadToolsForServer(server.name);
-      }
-    }
-  } catch (err) {
-    pushToast(`加载服务器列表失败: ${(err as Error).message}`, "error");
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-// 为特定服务器加载工具列表
-async function loadToolsForServer(serverName: string) {
-  try {
-    serverToolsLoading.value[serverName] = true;
-    // 先清空工具列表
-    serverTools.value[serverName] = [];
-    const server = servers.value.find((s) => s.name === serverName);
-    const tools = await fetchTools(serverName, server?.config);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    // 然后设置新数据
-    serverTools.value[serverName] = tools;
-  } catch (err) {
-    console.error(`加载工具列表失败 (${serverName}):`, err);
-    serverTools.value[serverName] = [];
-    pushToast(`加载工具列表失败 (${serverName}): ${(err as Error).message}`, "error");
-  } finally {
-    serverToolsLoading.value[serverName] = false;
-  }
-}
-
-// 刷新所有服务器的工具列表
-async function refreshAllTools() {
-  for (const server of servers.value) {
-    if (server.config.enabled !== false) {
-      await loadToolsForServer(server.name);
-    }
-  }
-  pushToast("已刷新所有工具列表", "success");
+// 加载服务器列表后，同步过滤列表
+async function loadServersAndFilter() {
+  await loadServers();
+  filteredServers.value = [...servers.value];
 }
 
 // 打开新建服务器模态框
@@ -175,7 +148,8 @@ function openEditServerModal(server: McpServer) {
 
 // 从云端模板添加服务器
 function openCloudServerModal(server: CloudMcpServer) {
-  const realName = server.realName || server.value.split("/").pop() || server.value;
+  const realName =
+    server.realName || server.value.split("/").pop() || server.value;
   editingServer.value = null;
   serverModalDefaultName.value = realName;
   // 如果已配置 API Key，使用配置的值，否则使用占位符
@@ -192,6 +166,18 @@ function openCloudServerModal(server: CloudMcpServer) {
   showServerModal.value = true;
 }
 
+// 从内置服务器添加服务器
+function openBuiltInServerModal(server: BuiltInMcpServer) {
+  editingServer.value = null;
+  serverModalDefaultName.value = server.realName;
+  serverModalDefaultConfig.value = {
+    command: server.command,
+    args: server.args,
+    enabled: true,
+  };
+  showServerModal.value = true;
+}
+
 // 保存服务器（新建或更新）
 async function handleSaveServer(name: string, config: McpServerConfig) {
   isSavingServer.value = true;
@@ -202,7 +188,9 @@ async function handleSaveServer(name: string, config: McpServerConfig) {
       await updateServer(serverToEdit.name, config);
 
       // 更新本地状态
-      const index = servers.value.findIndex((s) => s.name === serverToEdit.name);
+      const index = servers.value.findIndex(
+        (s) => s.name === serverToEdit.name
+      );
       if (index !== -1 && servers.value[index]) {
         servers.value[index].config = config;
         filteredServers.value = [...servers.value];
@@ -214,7 +202,7 @@ async function handleSaveServer(name: string, config: McpServerConfig) {
       await createServer(name, config);
       pushToast("服务器已创建", "success");
       // 重新加载服务器列表
-      await loadServers();
+      await loadServersAndFilter();
     }
 
     showServerModal.value = false;
@@ -230,13 +218,7 @@ async function handleSaveServer(name: string, config: McpServerConfig) {
 // 失败时刷新列表并进入编辑模式，使用最新配置
 async function reloadServersAndOpenEdit(serverName: string) {
   try {
-    const serversData = await fetchServers();
-    servers.value = Object.entries(serversData).map(([name, cfg]) => ({
-      name,
-      config: cfg,
-    }));
-    filteredServers.value = [...servers.value];
-
+    await loadServersAndFilter();
     const target = servers.value.find((s) => s.name === serverName);
     if (target) {
       editingServer.value = target;
@@ -247,69 +229,14 @@ async function reloadServersAndOpenEdit(serverName: string) {
   }
 }
 
-// 切换服务器启用状态
-async function handleToggleServer(server: McpServer) {
-  serverToggleLoading.value[server.name] = true;
-  try {
-    const originalConfig = server.config;
-    const requestConfig: McpServerConfig = {
-      ...originalConfig,
-      enabled: originalConfig.enabled === false ? true : false,
-    };
-
-    const result = await updateServer(server.name, requestConfig);
-    const latestConfig = result.config || requestConfig;
-
-    // 与后端返回的最新配置保持一致
-    const serverIndex = servers.value.findIndex((s) => s.name === server.name);
-    if (serverIndex !== -1 && servers.value[serverIndex]) {
-      servers.value[serverIndex].config = latestConfig;
-      filteredServers.value = [...servers.value];
-    }
-
-    if (result.success) {
-      if (latestConfig.enabled !== false) {
-        await loadToolsForServer(server.name);
-      } else {
-        delete serverTools.value[server.name];
-      }
-      pushToast(`服务器已${latestConfig.enabled !== false ? "启用" : "禁用"}`, "success");
-    } else {
-      // 启用失败，保持 UI 为禁用状态
-      delete serverTools.value[server.name];
-      pushToast(`启用失败: ${result.error || "连接失败"}`, "error");
-    }
-  } catch (err) {
-    pushToast(`操作失败: ${(err as Error).message}`, "error");
-  } finally {
-    serverToggleLoading.value[server.name] = false;
-  }
-}
-
-// 删除服务器
-async function handleDeleteServer(server: McpServer) {
+// 删除服务器（带确认）
+async function handleDeleteServerWithConfirm(server: McpServer) {
   if (!confirm(`确认删除服务器 "${server.name}"?`)) {
     return;
   }
 
-  try {
-    await deleteServer(server.name);
-
-    // 从列表中移除
-    const index = servers.value.findIndex((s) => s.name === server.name);
-    if (index !== -1) {
-      servers.value.splice(index, 1);
-      filteredServers.value = [...servers.value];
-    }
-
-    // 清空相关工具数据
-    delete serverTools.value[server.name];
-    delete serverToolsLoading.value[server.name];
-
-    pushToast("服务器已删除", "success");
-  } catch (err) {
-    pushToast(`删除失败: ${(err as Error).message}`, "error");
-  }
+  await handleDeleteServer(server);
+  filteredServers.value = [...servers.value];
 }
 
 // 点击工具
@@ -328,7 +255,9 @@ async function handleExecuteTool(tool: McpTool, args: Record<string, any>) {
     toolExecutionError.value = null;
     toolExecutionResult.value = null;
 
-    const server = servers.value.find((s) => s.name === selectedServerName.value);
+    const server = servers.value.find(
+      (s) => s.name === selectedServerName.value
+    );
     const result = await callTool(
       selectedServerName.value,
       tool.name,
@@ -372,7 +301,7 @@ function handleConfigSaving() {
 async function handleConfigSaved() {
   try {
     // 重新加载服务器列表
-    await loadServers();
+    await loadServersAndFilter();
     pushToast("配置已保存并重载", "success");
   } catch (err) {
     pushToast(`配置保存失败: ${(err as Error).message}`, "error");
@@ -382,7 +311,7 @@ async function handleConfigSaved() {
 }
 
 onMounted(() => {
-  loadServers();
+  loadServersAndFilter();
   checkApiKey();
 });
 </script>
@@ -418,6 +347,17 @@ onMounted(() => {
             @click="currentTab = 'empty'"
           >
             <span class="font-mono">MCPRouter</span>
+          </button>
+          <button
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
+            :class="
+              currentTab === 'builtin'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            "
+            @click="currentTab = 'builtin'"
+          >
+            内置服务器
           </button>
         </div>
 
@@ -461,7 +401,7 @@ onMounted(() => {
         </button>
       </div>
 
-      <div v-else class="flex items-center gap-3">
+      <div v-else-if="currentTab === 'empty'" class="flex items-center gap-3">
         <div
           v-if="!hasApiKey"
           class="flex items-center gap-3 px-4 py-1 bg-yellow-50 border border-yellow-200 rounded-lg"
@@ -518,7 +458,7 @@ onMounted(() => {
         <button
           v-if="!searchQuery"
           class="mt-4 text-indigo-600 hover:underline text-sm"
-          @click="loadServers"
+          @click="loadServersAndFilter"
         >
           点击添加第一个
         </button>
@@ -534,7 +474,7 @@ onMounted(() => {
           :is-loading-tools="serverToolsLoading[server.name] || false"
           :is-toggling="serverToggleLoading[server.name] || false"
           :is-saving-config="isSavingConfig"
-          @delete="handleDeleteServer"
+          @delete="handleDeleteServerWithConfirm"
           @toggle="handleToggleServer"
           @edit="openEditServerModal"
           @tool-click="(tool) => handleToolClick(tool, server.name)"
@@ -544,7 +484,7 @@ onMounted(() => {
     </div>
 
     <!-- Cloud MCP 列表 -->
-    <div v-else class="flex-1 overflow-y-auto p-6">
+    <div v-else-if="currentTab === 'empty'" class="flex-1 overflow-y-auto p-6">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <div
           v-for="cloud in cloudServers"
@@ -571,6 +511,43 @@ onMounted(() => {
               class="text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 font-mono"
             >
               {{ cloud.realName }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Built-in MCP 列表 -->
+    <div
+      v-else-if="currentTab === 'builtin'"
+      class="flex-1 overflow-y-auto p-6"
+    >
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div
+          v-for="builtin in builtInServers"
+          :key="builtin.realName"
+          class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full group"
+        >
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <h3 class="font-bold text-slate-800 text-sm truncate">
+              {{ builtin.name }}
+            </h3>
+            <button
+              class="btn-icon text-slate-400 hover:text-indigo-600"
+              title="添加到服务器"
+              @click="openBuiltInServerModal(builtin)"
+            >
+              <AddOutlined class="w-4 h-4" />
+            </button>
+          </div>
+          <p class="text-sm text-slate-600 leading-6 line-clamp-3 flex-1">
+            {{ builtin.description }}
+          </p>
+          <div class="mt-3 pt-3 border-t border-slate-100">
+            <span
+              class="text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 font-mono"
+            >
+              {{ builtin.realName }}
             </span>
           </div>
         </div>

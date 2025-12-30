@@ -144,10 +144,11 @@ function convertMessageDetailToLogRequest(
       time: new Date(detail.request?.timestamp || detail.requestId).getTime(),
       level: 30,
       data: {
+        // system: body.system || request.system,
+        // model: body.model || request.model,
+        // tools: body.tools || request.tools, // 保存 tools 信息，包括 MCP 工具
+        ...body,
         messages: messages,
-        system: body.system || request.system,
-        model: body.model || request.model,
-        tools: body.tools || request.tools, // 保存 tools 信息，包括 MCP 工具
       },
     });
   }

@@ -506,6 +506,10 @@ function guessExtension(lang?: string) {
   color: #0f172a;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
 }
 
 /* 嵌入 TextDiffViewer 时，减小内边距、保证文字颜色正确 */
@@ -521,12 +525,14 @@ function guessExtension(lang?: string) {
 .custom-code-block__body > div:not(.diff-wrapper) :deep(pre) {
   margin: 0;
   padding: 1.1rem 1.2rem;
-  overflow-x: auto;
   background: #f8fafc;
   color: #0f172a;
   border-radius: 0 0 16px 16px;
   --sd-font-size-base: 16px !important;
   line-height: 1.4 !important;
+  width: fit-content;
+  overflow: hidden;
+  border: none !important;
 }
 
 .custom-code-block__body > .diff-wrapper :deep(pre) {

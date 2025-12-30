@@ -1,4 +1,5 @@
 import type { FileUIPart } from "ai";
+import type { McpTool } from "@/interface";
 
 /**
  * 对话模式类型
@@ -133,6 +134,28 @@ export interface Conversation {
 }
 
 /**
+ * 聊天模型与 MCP 配置
+ */
+export interface ChatModelConfig {
+  modelId: string;
+  temperature: number;
+  topP: number;
+  maxTokens: number;
+  selectedMcpIds: string[];
+}
+
+/**
+ * 聊天模型扩展配置
+ */
+export interface ChatModelExtensionConfig {
+  temperature?: number;
+  topP?: number;
+  maxTokens?: number;
+  mcpIds?: string[];
+  tools?: McpTool[];
+}
+
+/**
  * 创建对话参数
  */
 export interface CreateConversationParams {
@@ -143,6 +166,7 @@ export interface CreateConversationParams {
   files?: Array<{ url?: string; filename?: string; mediaType?: string }>;
   editorCode?: string;
   messages?: Array<{ role: "user" | "assistant"; content: string }>;
+  config?: ChatModelExtensionConfig;
 }
 
 /**
@@ -156,6 +180,7 @@ export interface SendMessageParams {
   files?: Array<{ url?: string; filename?: string; mediaType?: string }>;
   editorCode?: string;
   messageKey?: string; // 重试时传递的 messageKey，用于在同一消息下创建新版本
+  config?: ChatModelExtensionConfig;
 }
 
 /**

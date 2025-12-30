@@ -151,7 +151,10 @@ function getRelativeTime(dateString: string): string {
         title="刷新日志"
       >
         <RefreshOutlined
-          :class="['w-3.5 h-3.5 text-slate-600', { 'animate-spin': isRefreshing }]"
+          :class="[
+            'w-3.5 h-3.5 text-slate-600',
+            { 'animate-spin': isRefreshing },
+          ]"
         />
         <span class="text-slate-700">刷新</span>
       </button>

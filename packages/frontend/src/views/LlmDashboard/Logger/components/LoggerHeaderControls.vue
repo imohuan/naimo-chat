@@ -79,7 +79,7 @@ function setActiveMode(mode: "logs" | "messages") {
 </script>
 
 <template>
-  <Teleport to="#header-right-target" :disabled="!isLoggerRoute">
+  <Teleport defer to="#header-right-target" :disabled="!isLoggerRoute">
     <div class="flex items-center gap-2">
       <!-- 日志文件选择器（仅在 logs 模式下显示） -->
       <template v-if="activeMode === 'logs'">

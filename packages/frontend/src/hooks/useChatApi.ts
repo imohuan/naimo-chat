@@ -110,6 +110,10 @@ export function useChatApi() {
       body.editorCode = params.editorCode;
     }
 
+    if (params.config) {
+      body.config = params.config;
+    }
+
     const result = await apiCall<CreateConversationResponse>(
       "/api/ai_chat/conversations",
       {
@@ -151,6 +155,10 @@ export function useChatApi() {
 
     if (params.editorCode) {
       body.editorCode = params.editorCode;
+    }
+
+    if (params.config) {
+      body.config = params.config;
     }
 
     // 重试时传递 messageKey，用于在同一消息下创建新版本

@@ -21,6 +21,7 @@ import ModeSelector from "./ModeSelector.vue";
 import ModelConfigPanel from "./ModelConfigPanel.vue";
 import type { ConversationMode } from "@/views/LlmDashboard/Chat/types";
 import type { LlmProvider } from "@/interface";
+import type { ChatModelConfig } from "../types";
 import { useModelSelection } from "@/views/LlmDashboard/Chat/hooks/useModelSelection";
 
 const props = defineProps<{
@@ -34,7 +35,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  submit: [message: PromptInputMessage];
+  submit: [message: PromptInputMessage, config: ChatModelConfig];
   "update:mode": [mode: ConversationMode];
   "update:modelId": [modelId: string];
   "update:useWebSearch": [value: boolean];
@@ -70,6 +71,15 @@ const { selectModel } = useModelSelection(
   (modelId) => emit("update:modelId", modelId)
 );
 
+// 模型 + MCP 统一配置
+const modelConfig = ref<ChatModelConfig>({
+  modelId: props.modelId,
+  temperature: 0.7,
+  topP: 0.9,
+  maxTokens: 4096,
+  selectedMcpIds: [],
+});
+
 // PromptInputEditor ref
 const promptInputEditorRef = ref<typeof PromptInputEditor | null>(null);
 
@@ -94,11 +104,15 @@ const FileUploadButton = defineComponent({
 });
 
 function handleSubmit(message: PromptInputMessage) {
-  emit("submit", message);
+  emit("submit", message, modelConfig.value);
 }
 
-function handleModelSelect(value: string) {
-  selectModel(value);
+function handleModelConfigChange(config: ChatModelConfig) {
+  modelConfig.value = config;
+  // 同步模型选择到上层
+  if (config.modelId && config.modelId !== props.modelId) {
+    selectModel(config.modelId);
+  }
 }
 
 function toggleMicrophone() {
@@ -148,7 +162,8 @@ defineExpose({
             <ModelConfigPanel
               :model-id="modelId"
               :model-options="allModelOptions"
-              @update:model-id="handleModelSelect"
+              :model-config="modelConfig"
+              @update:model-config="handleModelConfigChange"
             />
           </div>
         </PromptInputTools>

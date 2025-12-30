@@ -2,6 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import type { ChatStatus } from "ai";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import type { ChatModelConfig, ChatModelExtensionConfig } from "./types";
+import { useMcpStore } from "@/stores/mcp";
+import { storeToRefs } from "pinia";
 import type { LlmProvider } from "@/interface";
 import { PanelRightOpen } from "lucide-vue-next";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
@@ -161,8 +164,14 @@ watch(
   { immediate: true }
 );
 
+const mcpStore = useMcpStore();
+const { serverTools } = storeToRefs(mcpStore);
+
 // 处理消息提交
-async function handleSubmit(message: PromptInputMessage) {
+async function handleSubmit(
+  message: PromptInputMessage,
+  config?: ChatModelConfig
+) {
   const text = message.text.trim();
   const hasText = text.length > 0;
   const hasAttachments = message.files.length > 0;
@@ -175,6 +184,43 @@ async function handleSubmit(message: PromptInputMessage) {
     filename: f.filename,
     mediaType: f.mediaType,
   }));
+
+  // 来自模型配置面板的配置（模型 + MCP + 采样参数）
+  const activeModelId = config?.modelId || modelId.value;
+  const mcpIds = config?.selectedMcpIds;
+
+  // 根据 MCP 选择，从 Pinia 中获取对应服务器的工具配置，组装为 tools 列表
+  const tools =
+    mcpIds && mcpIds.length > 0
+      ? mcpIds.flatMap((serverName) => {
+          const toolsForServer = serverTools.value[serverName] || [];
+          return toolsForServer.map((tool) => ({
+            ...tool,
+            // 统一使用 mcp__server__tool 的命名规则，便于后端识别
+            name: `mcp__${serverName}__${tool.name}`,
+          }));
+        })
+      : undefined;
+
+  // 组装扩展配置对象
+  const extensionConfig: ChatModelExtensionConfig | undefined =
+    config?.temperature !== undefined ||
+    config?.topP !== undefined ||
+    config?.maxTokens !== undefined ||
+    (mcpIds && mcpIds.length > 0) ||
+    (tools && tools.length > 0)
+      ? {
+          ...(config?.temperature !== undefined && {
+            temperature: config.temperature,
+          }),
+          ...(config?.topP !== undefined && { topP: config.topP }),
+          ...(config?.maxTokens !== undefined && {
+            maxTokens: config.maxTokens,
+          }),
+          ...(mcpIds && mcpIds.length > 0 && { mcpIds }),
+          ...(tools && tools.length > 0 && { tools }),
+        }
+      : undefined;
 
   // 判断是否应该创建新对话：
   // 1. 没有活跃对话ID
@@ -191,8 +237,9 @@ async function handleSubmit(message: PromptInputMessage) {
       await createConversation({
         initialInput: content,
         mode: selectedMode.value,
-        model: modelId.value,
+        model: activeModelId,
         files: userFiles,
+        config: extensionConfig,
         editorCode:
           selectedMode.value === "canvas"
             ? canvasPanelRef.value?.getCurrentCode()
@@ -216,8 +263,9 @@ async function handleSubmit(message: PromptInputMessage) {
     await sendMessage(activeConversationId.value, {
       content,
       mode: selectedMode.value,
-      model: modelId.value,
+      model: activeModelId,
       files: userFiles,
+      config: extensionConfig,
       editorCode:
         selectedMode.value === "canvas"
           ? canvasPanelRef.value?.getCurrentCode()

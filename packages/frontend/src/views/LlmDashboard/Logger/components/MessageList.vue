@@ -281,10 +281,10 @@ function formatRelativeTime(timestamp: string | null): string {
 <template>
   <div class="h-full flex flex-col bg-white border-r border-slate-200">
     <!-- 头部 -->
-    <div class="p-4 border-b border-slate-200 bg-slate-50">
+    <div class="p-4 border-b border-slate-200 bg-slate-50 overflow-hidden">
       <!-- 时间范围选择器和多选切换 -->
-      <div class="mb-3 flex items-center gap-2">
-        <div class="flex-1">
+      <div class="mb-3 flex items-center gap-2 overflow-hidden">
+        <div class="flex-1 w-full overflow-hidden">
           <!-- 操作栏：选择操作和删除 -->
           <div
             v-if="isMultiSelectMode"

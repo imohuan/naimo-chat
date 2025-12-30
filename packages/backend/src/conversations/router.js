@@ -78,6 +78,23 @@ function generateMessageKey(role, requestId) {
 }
 
 /**
+ * 从请求体中提取模型扩展配置参数
+ * 优先从 config 对象中读取，如果没有则从 req.body 中读取（向后兼容）
+ * @param {Object} config - config 对象（可选）
+ * @param {Object} body - 请求体对象
+ * @returns {Object} 配置参数对象 { temperature, topP, maxTokens, mcpIds, tools }
+ */
+function extractModelConfig(config, body) {
+  return {
+    temperature: config?.temperature ?? body.temperature,
+    topP: config?.topP ?? body.topP,
+    maxTokens: config?.maxTokens ?? body.maxTokens,
+    mcpIds: config?.mcpIds ?? body.mcpIds,
+    tools: config?.tools ?? body.tools,
+  };
+}
+
+/**
  * 处理流式响应（通用函数）
  * @param {Object} options - 配置选项
  * @param {string} options.conversationId - 对话ID
@@ -206,7 +223,8 @@ async function generateConversationTitle(firstUserContent, model, apiKey) {
     }
 
     // 限制长度（最多10个字符）
-    const finalTitle = normalized.slice(0, 10);
+    // const finalTitle = normalized.slice(0, 10);
+    const finalTitle = normalized
     return finalTitle || "新对话";
   } catch (error) {
     console.error("生成标题失败:", error);
@@ -305,7 +323,14 @@ function registerAiChatRoutes(server) {
         apiKey,
         files = [],
         editorCode,
+        config,
       } = req.body;
+
+      // 从 config 对象中提取配置参数（向后兼容：也支持直接传递这些字段）
+      const { temperature, topP, maxTokens, mcpIds, tools } = extractModelConfig(
+        config,
+        req.body
+      );
 
       if (!initialInput && (!customMessages || customMessages.length === 0)) {
         reply.code(400).send({ error: "initialInput 必填" });
@@ -402,6 +427,11 @@ function registerAiChatRoutes(server) {
             model,
             apiKey,
             conversationId, // 传递对话ID，用于保存 canvas 文件
+            temperature,
+            topP,
+            maxTokens,
+            mcpIds,
+            tools,
           },
           titlePromise,
         });
@@ -426,7 +456,21 @@ function registerAiChatRoutes(server) {
   app.post("/api/ai_chat/conversations/:id/messages", async (req, reply) => {
     try {
       const { id } = req.params;
-      const { content, mode: newMode, model, apiKey, files = [], editorCode } = req.body;
+      const {
+        content,
+        mode: newMode,
+        model,
+        apiKey,
+        files = [],
+        editorCode,
+        config,
+      } = req.body;
+
+      // 从 config 对象中提取配置参数（向后兼容：也支持直接传递这些字段）
+      const { temperature, topP, maxTokens, mcpIds, tools } = extractModelConfig(
+        config,
+        req.body
+      );
 
       if (!content) {
         reply.code(400).send({ error: "content 必填" });
@@ -546,6 +590,11 @@ function registerAiChatRoutes(server) {
             model,
             apiKey,
             conversationId: id, // 传递对话ID，用于保存 canvas 文件
+            temperature,
+            topP,
+            maxTokens,
+            mcpIds,
+            tools,
           },
         });
       })();

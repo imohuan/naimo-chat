@@ -18,10 +18,26 @@ const fetch =
  * @param {string} options.apiKey - API Key（可选，用于临时覆盖）
  * @param {Function} options.onStreamEvent - 流式事件回调函数 (event) => void
  * @param {string} options.requestId - 自定义请求ID（可选，用于日志记录）
+ * @param {number} [options.temperature] - 温度参数
+ * @param {number} [options.topP] - Top P 参数
+ * @param {number} [options.maxTokens] - 最大 token 数
+ * @param {string[]} [options.mcpIds] - MCP 服务器 ID 列表
+ * @param {Array} [options.tools] - 工具列表
  * @returns {Promise<Object>} { requestId, fullResponse, events }
  */
 async function requestLLM(options) {
-  const { messages, model, apiKey, onStreamEvent, requestId: customRequestId } = options;
+  const {
+    messages,
+    model,
+    apiKey,
+    onStreamEvent,
+    requestId: customRequestId,
+    temperature,
+    topP,
+    maxTokens,
+    // mcpIds,
+    tools,
+  } = options;
   const config = await getClaudeConfig();
   const port = config.PORT || 3457;
   const host = config.HOST || "127.0.0.1";
@@ -47,6 +63,32 @@ async function requestLLM(options) {
   if (apiKey) {
     body.apiKey = apiKey.trim();
   }
+  // 添加扩展配置参数
+  if (typeof temperature === "number") {
+    body.temperature = temperature;
+  }
+  if (typeof topP === "number") {
+    body.topP = topP;
+  }
+  if (typeof maxTokens === "number") {
+    body.maxTokens = maxTokens;
+  }
+  if (tools && Array.isArray(tools) && tools.length > 0) {
+    // 转换工具格式：将 inputSchema (驼峰) 转换为 input_schema (下划线)
+    // Anthropic/Claude API 期望使用 input_schema 格式
+    body.tools = tools.map((tool) => {
+      const normalizedTool = { ...tool };
+      // 如果存在 inputSchema，转换为 input_schema
+      if (normalizedTool.inputSchema && !normalizedTool.input_schema) {
+        normalizedTool.input_schema = normalizedTool.inputSchema;
+        delete normalizedTool.inputSchema;
+      }
+      return normalizedTool;
+    });
+  }
+
+  // 对message进行验证，可能有一些错误的消息，没有content的过滤掉
+  body.messages = body.messages.filter((message) => message.content);
 
   const url = `http://${host}:${port}/v1/messages`;
 

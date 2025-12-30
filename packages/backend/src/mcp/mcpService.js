@@ -129,8 +129,7 @@ class McpService {
 
       const tools = this.serverTools.get(serverName) || [];
       console.log(
-        `[getMcpServer] 正在注册来自 ${serverName} 的 ${
-          tools.length
+        `[getMcpServer] 正在注册来自 ${serverName} 的 ${tools.length
         } 个工具（group: ${group || "all"}）`
       );
 
@@ -225,10 +224,8 @@ class McpService {
     });
 
     console.log(
-      `[getMcpServer] 已为组 ${
-        group || "all"
-      } 创建服务器，匹配 ${matchedServers} 个服务器，共 ${
-        allTools.length
+      `[getMcpServer] 已为组 ${group || "all"
+      } 创建服务器，匹配 ${matchedServers} 个服务器，共 ${allTools.length
       } 个工具`
     );
 
