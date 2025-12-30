@@ -232,18 +232,100 @@ export function useConversation() {
    * 连接到 SSE 流
    */
   function connectToStream(conversationId: string, requestId: string) {
-    let accumulatedContent = "";
+    let currentTextBlockId: string | null = null;
+    let currentTextContent = "";
+    let currentToolBlockId: string | null = null;
+    let currentToolInput = "";
 
     sseStream.connectToStream(conversationId, requestId, {
-      onChunk: (chunk: string) => {
-        accumulatedContent = chunk;
-        store.updateConversationMessage(
-          conversationId,
-          requestId,
-          accumulatedContent,
-          true
-        );
+      onContentBlockStart: (data) => {
+        if (data.blockType === "text") {
+          // 文字块开始
+          currentTextBlockId = data.blockId || `text-${Date.now()}-${Math.random()}`;
+          currentTextContent = "";
+          store.upsertContentBlock(conversationId, requestId, {
+            type: "text",
+            id: currentTextBlockId,
+            content: "",
+          });
+        } else if (data.blockType === "tool" && data.toolName) {
+          // 工具块开始
+          currentToolBlockId = data.blockId || `tool-${Date.now()}-${Math.random()}`;
+          currentToolInput = "";
+          store.upsertContentBlock(conversationId, requestId, {
+            type: "tool",
+            id: currentToolBlockId,
+            toolCall: {
+              toolCallId: currentToolBlockId,
+              type: `tool-${data.toolName}`,
+              state: "input-available",
+              input: {},
+            },
+          });
+        }
+      },
 
+      onContentBlockDelta: (data) => {
+        if (data.text && currentTextBlockId) {
+          // 文字增量
+          currentTextContent += data.text;
+          store.updateTextBlock(
+            conversationId,
+            requestId,
+            currentTextBlockId,
+            currentTextContent
+          );
+        } else if (data.partialJson && currentToolBlockId) {
+          // 工具参数增量
+          currentToolInput += data.partialJson;
+          try {
+            const input = JSON.parse(currentToolInput);
+            store.updateToolBlock(conversationId, requestId, currentToolBlockId, {
+              input,
+            });
+          } catch {
+            // JSON 不完整，忽略解析错误
+          }
+        }
+      },
+
+      onContentBlockStop: () => {
+        currentTextBlockId = null;
+        currentTextContent = "";
+        currentToolBlockId = null;
+        currentToolInput = "";
+      },
+
+      onToolStart: (data) => {
+        // 工具调用开始（从 tool:start 事件）
+        // 如果工具块还不存在，updateToolBlock 会创建它
+        store.updateToolBlock(conversationId, requestId, data.toolId, {
+          toolCallId: data.toolId,
+          type: `tool-${data.toolName}`,
+          state: "input-available",
+          input: {},
+        } as Partial<import("ai").ToolUIPart>);
+      },
+
+      onToolResult: (data) => {
+        // 工具执行成功
+        store.updateToolBlock(conversationId, requestId, data.toolId, {
+          state: "output-available",
+          input: data.input, // 更新输入参数
+          output: data.result,
+        });
+      },
+
+      onToolError: (data) => {
+        // 工具执行失败
+        store.updateToolBlock(conversationId, requestId, data.toolId, {
+          state: "output-error",
+          errorText: data.error,
+        });
+      },
+
+      onChunk: (chunk: string) => {
+        // 兼容旧版本：累积内容（用于向后兼容）
         // 发送流式更新事件
         eventBus.emit("message:streaming", {
           conversationId,
@@ -258,18 +340,6 @@ export function useConversation() {
       },
 
       onComplete: () => {
-        store.updateConversationMessage(
-          conversationId,
-          requestId,
-          accumulatedContent,
-          false
-        );
-
-        // 重新加载对话以获取最新状态
-        // loadConversation(conversationId).catch((error) => {
-        //   console.error("重新加载对话失败:", error);
-        // });
-
         // 发送完成事件
         eventBus.emit("message:complete", {
           conversationId,
@@ -278,12 +348,12 @@ export function useConversation() {
       },
 
       onError: (errorMessage: string) => {
-        store.updateConversationMessage(
-          conversationId,
-          requestId,
-          `错误: ${errorMessage}`,
-          false
-        );
+        // 添加错误文字块
+        store.upsertContentBlock(conversationId, requestId, {
+          type: "text",
+          id: `error-${Date.now()}`,
+          content: `错误: ${errorMessage}`,
+        });
         store.setError(errorMessage);
       },
 

@@ -18,7 +18,8 @@ export type ConversationMode =
  */
 export interface ApiMessageVersion {
   id: string;
-  content: string;
+  content?: string; // 兼容旧格式，新格式使用 contentBlocks
+  contentBlocks?: ContentBlock[]; // 新格式：按块保存的内容
   isRequesting?: boolean;
   createdAt?: number;
 }
@@ -70,13 +71,19 @@ export interface CodeHistory {
 }
 
 /**
+ * 内容块类型
+ */
+export type ContentBlock =
+  | { type: "text"; id: string; content: string }
+  | { type: "tool"; id: string; toolCall: ToolUIPart };
+
+/**
  * 消息版本（前端 UI 使用）
  */
 export interface MessageVersion {
   id: string;
-  content: string;
+  contentBlocks: ContentBlock[]; // 按顺序的内容块数组
   files?: FileUIPart[];
-  toolCalls?: ToolUIPart[];
 }
 
 /**
@@ -196,6 +203,11 @@ export type SSEEventType =
   | "session_end"
   | "error"
   | "request_id"
+  | "tool:start"
+  | "tool:result"
+  | "tool:error"
+  | "tool:continue_error"
+  | "tool:continue_complete"
   | "conversation:updated"
   | "conversation:title_updated"
   | "canvas:code_delta"
@@ -224,6 +236,11 @@ export interface SSEEvent {
   };
   error?: string;
   timestamp?: string;
+  // 工具相关字段
+  tool_id?: string;
+  tool_name?: string;
+  input?: Record<string, unknown>; // 工具输入参数
+  result?: unknown;
   // 对话更新事件相关字段
   conversationId?: string;
   messages?: ApiMessage[];
@@ -244,6 +261,45 @@ export interface StreamCallbacks {
   onRequestId?: (requestId: string) => void;
   onComplete?: () => void;
   onError?: (error: string) => void;
+  // 内容块回调
+  onContentBlockStart?: (data: {
+    index: number;
+    blockId?: string;
+    blockType?: string;
+    toolName?: string;
+  }) => void;
+  onContentBlockDelta?: (data: {
+    index: number;
+    text?: string;
+    partialJson?: string;
+  }) => void;
+  onContentBlockStop?: (data: { index: number }) => void;
+  // 工具回调
+  onToolStart?: (data: {
+    toolId: string;
+    toolName: string;
+    timestamp?: string;
+  }) => void;
+  onToolResult?: (data: {
+    toolId: string;
+    toolName: string;
+    input?: Record<string, unknown>; // 工具输入参数
+    result: unknown;
+    timestamp?: string;
+  }) => void;
+  onToolError?: (data: {
+    toolId: string;
+    toolName: string;
+    error: string;
+    timestamp?: string;
+  }) => void;
+  onToolContinueError?: (data: {
+    error: string;
+    timestamp?: string;
+  }) => void;
+  onToolContinueComplete?: (data: {
+    timestamp?: string;
+  }) => void;
   // 对话更新事件回调
   onConversationUpdated?: (data: {
     conversationId: string;

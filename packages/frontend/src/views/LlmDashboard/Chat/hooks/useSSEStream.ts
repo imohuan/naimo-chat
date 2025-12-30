@@ -27,15 +27,67 @@ export function useSSEStream() {
 
     let accumulatedContent = "";
     let isCompleted = false; // 标记是否已经正常完成
+    let currentTextBlockId: string | null = null; // 当前文字块的 ID
+    let currentTextContent = ""; // 当前文字块的内容
 
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as SSEEvent;
 
         switch (data.type) {
+          case "content_block_start":
+            // 内容块开始
+            if (data.content_block?.name) {
+              // 工具调用开始
+              callbacks.onContentBlockStart?.({
+                index: data.index ?? 0,
+                blockId: data.content_block.id,
+                blockType: "tool",
+                toolName: data.content_block.name,
+              });
+            } else {
+              // 文字块开始
+              currentTextBlockId = data.content_block?.id || `text-${Date.now()}-${Math.random()}`;
+              currentTextContent = "";
+              callbacks.onContentBlockStart?.({
+                index: data.index ?? 0,
+                blockId: currentTextBlockId,
+                blockType: "text",
+              });
+            }
+            break;
+
           case "content_block_delta":
+            // 内容块增量更新
+            if (data.delta?.text) {
+              // 文字增量
+              currentTextContent += data.delta.text;
+              accumulatedContent += data.delta.text;
+              callbacks.onContentBlockDelta?.({
+                index: data.index ?? 0,
+                text: data.delta.text,
+              });
+              callbacks.onChunk?.(accumulatedContent);
+            } else if (data.delta?.partial_json) {
+              // 工具参数增量
+              callbacks.onContentBlockDelta?.({
+                index: data.index ?? 0,
+                partialJson: data.delta.partial_json,
+              });
+            }
+            break;
+
+          case "content_block_stop":
+            // 内容块结束
+            callbacks.onContentBlockStop?.({
+              index: data.index ?? 0,
+            });
+            currentTextBlockId = null;
+            currentTextContent = "";
+            break;
+
           case "message_delta":
-            // 累积内容
+            // 消息增量（兼容旧版本）
             if (data.delta?.text) {
               accumulatedContent += data.delta.text;
               callbacks.onChunk?.(accumulatedContent);
@@ -131,6 +183,53 @@ export function useSSEStream() {
             if (data.recordId) {
               callbacks.onCanvasRecordCreated?.(data.recordId);
             }
+            break;
+
+          // 工具事件处理
+          case "tool:start":
+            if (data.tool_id && data.tool_name) {
+              callbacks.onToolStart?.({
+                toolId: data.tool_id,
+                toolName: data.tool_name,
+                timestamp: data.timestamp,
+              });
+            }
+            break;
+
+          case "tool:result":
+            if (data.tool_id && data.tool_name) {
+              callbacks.onToolResult?.({
+                toolId: data.tool_id,
+                toolName: data.tool_name,
+                input: data.input, // 添加输入参数
+                result: data.result,
+                timestamp: data.timestamp,
+              });
+            }
+            break;
+
+          case "tool:error":
+            if (data.tool_id && data.tool_name) {
+              callbacks.onToolError?.({
+                toolId: data.tool_id,
+                toolName: data.tool_name,
+                error: data.error || "未知错误",
+                timestamp: data.timestamp,
+              });
+            }
+            break;
+
+          case "tool:continue_error":
+            callbacks.onToolContinueError?.({
+              error: data.error || "未知错误",
+              timestamp: data.timestamp,
+            });
+            break;
+
+          case "tool:continue_complete":
+            callbacks.onToolContinueComplete?.({
+              timestamp: data.timestamp,
+            });
             break;
         }
       } catch (error) {

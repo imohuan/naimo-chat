@@ -1,8 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useLocalStorage } from "@vueuse/core";
-import { nanoid } from "nanoid";
-import type { FileUIPart } from "ai";
+import type { FileUIPart, ToolUIPart } from "ai";
 import type {
   Conversation,
   MessageType,
@@ -10,7 +9,9 @@ import type {
   ApiMessage,
   ConversationMode,
   CodeHistory,
+  ContentBlock,
 } from "@/views/LlmDashboard/Chat/types";
+import { nanoid } from "nanoid";
 
 /**
  * 本地存储键名
@@ -27,7 +28,12 @@ function apiMessageToMessageType(apiMessage: ApiMessage, _index: number): Messag
     from: apiMessage.role,
     versions: apiMessage.versions.map((v) => ({
       id: v.id,
-      content: v.content || "",
+      // 优先使用 contentBlocks（新格式），如果没有则从 content 转换（兼容旧格式）
+      contentBlocks: v.contentBlocks
+        ? (v.contentBlocks as ContentBlock[])
+        : v.content
+          ? [{ type: "text" as const, id: `${v.id}-text`, content: v.content }]
+          : [],
     })),
   };
 }
@@ -109,12 +115,12 @@ export const useConversationStore = defineStore("conversation", () => {
   }
 
   /**
-   * 更新对话消息
+   * 更新对话消息（使用内容块）
    */
   function updateConversationMessage(
     conversationId: string,
     requestId: string,
-    content: string,
+    contentBlocks: ContentBlock[],
     _isRequesting: boolean = false
   ) {
     const conversation = conversations.value.find((c) => c.id === conversationId);
@@ -133,25 +139,182 @@ export const useConversationStore = defineStore("conversation", () => {
         versions: [
           {
             id: requestId,
-            content: "",
+            contentBlocks: [],
           },
         ],
       };
       conversation.messages.push(message);
     }
 
-    // 更新消息内容
+    // 更新消息内容块
     const version = message.versions.find((v) => v.id === requestId);
     if (version) {
-      version.content = content;
+      version.contentBlocks = contentBlocks;
     } else {
       message.versions.push({
         id: requestId,
-        content,
+        contentBlocks,
       });
     }
 
     // 更新对话的更新时间
+    conversation.updatedAt = Date.now();
+  }
+
+  /**
+   * 添加或更新内容块
+   */
+  function upsertContentBlock(
+    conversationId: string,
+    requestId: string,
+    block: ContentBlock
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    // 查找或创建对应的消息
+    let message = conversation.messages.find((msg) =>
+      msg.versions.some((v) => v.id === requestId)
+    );
+
+    if (!message) {
+      message = {
+        key: requestId,
+        from: "assistant",
+        versions: [
+          {
+            id: requestId,
+            contentBlocks: [],
+          },
+        ],
+      };
+      conversation.messages.push(message);
+    }
+
+    const version = message.versions.find((v) => v.id === requestId);
+    if (!version) {
+      message.versions.push({
+        id: requestId,
+        contentBlocks: [block],
+      });
+    } else {
+      // 查找是否已存在该内容块
+      const existingIndex = version.contentBlocks.findIndex((b) => b.id === block.id);
+      if (existingIndex >= 0) {
+        // 更新现有块
+        version.contentBlocks[existingIndex] = block;
+      } else {
+        // 添加新块
+        version.contentBlocks.push(block);
+      }
+    }
+
+    conversation.updatedAt = Date.now();
+  }
+
+  /**
+   * 更新文字内容块
+   */
+  function updateTextBlock(
+    conversationId: string,
+    requestId: string,
+    blockId: string,
+    text: string
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    const message = conversation.messages.find((msg) =>
+      msg.versions.some((v) => v.id === requestId)
+    );
+    if (!message) return;
+
+    const version = message.versions.find((v) => v.id === requestId);
+    if (!version) return;
+
+    const blockIndex = version.contentBlocks.findIndex((b) => b.id === blockId);
+    const existingBlock = blockIndex >= 0 ? version.contentBlocks[blockIndex] : null;
+
+    if (existingBlock && existingBlock.type === "text") {
+      version.contentBlocks[blockIndex] = {
+        type: "text",
+        id: blockId,
+        content: text,
+      };
+    } else if (blockIndex < 0) {
+      // 如果不存在，创建新的文字块
+      version.contentBlocks.push({
+        type: "text",
+        id: blockId,
+        content: text,
+      });
+    }
+
+    conversation.updatedAt = Date.now();
+  }
+
+  /**
+   * 更新工具调用块
+   */
+  function updateToolBlock(
+    conversationId: string,
+    requestId: string,
+    toolId: string,
+    updates: Partial<ToolUIPart>
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    const message = conversation.messages.find((msg) =>
+      msg.versions.some((v) => v.id === requestId)
+    );
+    if (!message) return;
+
+    const version = message.versions.find((v) => v.id === requestId);
+    if (!version) return;
+
+    // 查找工具块：优先通过 toolCallId 匹配，其次通过 block id 匹配
+    const blockIndex = version.contentBlocks.findIndex(
+      (b) =>
+        b.type === "tool" &&
+        (b.toolCall.toolCallId === toolId || b.id === toolId)
+    );
+
+    const existingBlock = blockIndex >= 0 ? version.contentBlocks[blockIndex] : null;
+
+    if (existingBlock && existingBlock.type === "tool") {
+      // 更新现有工具块
+      version.contentBlocks[blockIndex] = {
+        type: "tool",
+        id: existingBlock.id,
+        toolCall: {
+          ...existingBlock.toolCall,
+          ...updates,
+        } as ToolUIPart,
+      };
+    } else {
+      // 如果不存在，创建新的工具块（用于 tool:start 事件）
+      // 从 type 中提取工具名称（格式：tool-{name}）
+      const toolName = updates.type
+        ? updates.type.replace(/^tool-/, "")
+        : "unknown";
+
+      // 使用类型断言，因为 ToolUIPart 是复杂的联合类型
+      const newToolCall = {
+        toolCallId: toolId,
+        type: updates.type || `tool-${toolName}`,
+        state: updates.state || "input-available",
+        input: updates.input || {},
+        ...updates,
+      } as ToolUIPart;
+
+      version.contentBlocks.push({
+        type: "tool",
+        id: toolId,
+        toolCall: newToolCall,
+      });
+    }
+
     conversation.updatedAt = Date.now();
   }
 
@@ -191,7 +354,13 @@ export const useConversationStore = defineStore("conversation", () => {
       versions: [
         {
           id: messageId,
-          content,
+          contentBlocks: [
+            {
+              type: "text",
+              id: `${messageId}-text`,
+              content,
+            },
+          ],
           files: files
             ?.filter((f) => f.url || f.filename)
             .map((f) => ({
@@ -221,7 +390,7 @@ export const useConversationStore = defineStore("conversation", () => {
       versions: [
         {
           id: requestId,
-          content: "",
+          contentBlocks: [],
         },
       ],
     };
@@ -247,7 +416,7 @@ export const useConversationStore = defineStore("conversation", () => {
     if (assistantMessage) {
       assistantMessage.versions.push({
         id: requestId,
-        content: "",
+        contentBlocks: [],
       });
       conversation.updatedAt = Date.now();
     }
@@ -396,6 +565,9 @@ export const useConversationStore = defineStore("conversation", () => {
     setConversations,
     upsertConversation,
     updateConversationMessage,
+    upsertContentBlock,
+    updateTextBlock,
+    updateToolBlock,
     updateConversationMessages,
     addUserMessage,
     addAssistantPlaceholder,

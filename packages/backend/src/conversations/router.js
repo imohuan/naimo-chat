@@ -138,34 +138,248 @@ async function handleStreamResponse({
     }
 
     // 构建流式事件处理回调
-    let accumulatedContent = "";
+    // 使用 contentBlocks 数组来保存块结构（与前端一致）
+    const contentBlocks = [];
+    let currentBlock = null; // 当前正在处理的块
+    let currentToolInputJson = ""; // 工具调用的 partial_json 累积
 
     const onStreamEvent = (event) => {
       // 发送事件到 SSE 客户端
       sendEvent(requestId, event);
 
-      // 提取文本内容（仅用于累积，不实时写入文件）
-      if (event.type === "content_block_delta" && event.delta?.text) {
-        accumulatedContent += event.delta.text;
-      } else if (event.type === "message_delta" && event.delta?.text) {
-        accumulatedContent += event.delta.text;
+      // 根据事件类型构建 contentBlocks
+      switch (event.type) {
+        case "content_block_start":
+          // 内容块开始
+          if (event.content_block?.name) {
+            // 工具调用块（正常情况下，工具未被拦截时会收到此事件）
+            const toolId = event.content_block.id || `tool-${Date.now()}-${Math.random()}`;
+            // 检查是否已存在该工具块（避免与 tool:start 重复创建）
+            const existingToolBlock = contentBlocks.find(
+              (block) => block.type === "tool" && block.id === toolId
+            );
+            if (!existingToolBlock) {
+              currentBlock = {
+                type: "tool",
+                id: toolId,
+                toolCall: {
+                  toolCallId: toolId,
+                  type: `tool-${event.content_block.name}`,
+                  state: "input-streaming",
+                  input: {},
+                },
+              };
+              currentToolInputJson = "";
+            }
+          } else {
+            // 文本块
+            const textId = event.content_block?.id || `text-${Date.now()}-${Math.random()}`;
+            currentBlock = {
+              type: "text",
+              id: textId,
+              content: "",
+            };
+          }
+          break;
+
+        case "content_block_delta":
+          // 内容块增量更新
+          if (event.delta?.text) {
+            // 文本增量
+            if (currentBlock && currentBlock.type === "text") {
+              currentBlock.content += event.delta.text;
+            }
+          } else if (event.delta?.partial_json) {
+            // 工具参数增量（流式 JSON）
+            if (currentBlock && currentBlock.type === "tool") {
+              currentToolInputJson += event.delta.partial_json;
+              // 尝试解析 JSON（可能不完整，忽略解析错误）
+              try {
+                const input = JSON.parse(currentToolInputJson);
+                currentBlock.toolCall.input = input;
+                currentBlock.toolCall.state = "input-streaming";
+              } catch {
+                // JSON 不完整，忽略解析错误，继续累积
+              }
+            }
+          }
+          break;
+
+        case "content_block_stop":
+          // 内容块结束
+          if (currentBlock) {
+            // 如果是工具块，尝试最终解析 JSON
+            if (currentBlock.type === "tool" && currentToolInputJson) {
+              try {
+                const input = JSON.parse(currentToolInputJson);
+                currentBlock.toolCall.input = input;
+                currentBlock.toolCall.state = "input-available";
+              } catch (error) {
+                // 如果最终解析失败，保留已解析的部分或空对象
+                console.warn("工具参数 JSON 解析失败:", error, currentToolInputJson);
+                if (!currentBlock.toolCall.input || Object.keys(currentBlock.toolCall.input).length === 0) {
+                  currentBlock.toolCall.input = {};
+                }
+              }
+            }
+            // 完成当前块，添加到数组
+            contentBlocks.push(currentBlock);
+            currentBlock = null;
+            currentToolInputJson = "";
+          }
+          break;
+
+        case "message_delta":
+          // 消息增量（兼容旧版本）
+          if (event.delta?.text) {
+            // 如果没有当前块，创建一个文本块
+            if (!currentBlock) {
+              const textId = `text-${Date.now()}-${Math.random()}`;
+              currentBlock = {
+                type: "text",
+                id: textId,
+                content: event.delta.text,
+              };
+            } else if (currentBlock.type === "text") {
+              currentBlock.content += event.delta.text;
+            }
+          }
+          break;
+
+        case "tool:start":
+          // 工具调用开始（当工具被中间件拦截时，content_block_start 被隐藏，改为发送 tool:start）
+          if (event.tool_id && event.tool_name) {
+            const toolId = event.tool_id;
+            // 检查是否已存在该工具块（避免重复创建）
+            const existingToolBlock = contentBlocks.find(
+              (block) => block.type === "tool" && block.id === toolId
+            );
+            if (!existingToolBlock) {
+              // 创建工具块并立即添加到数组（因为不会被 content_block_stop 处理）
+              const toolBlock = {
+                type: "tool",
+                id: toolId,
+                toolCall: {
+                  toolCallId: toolId,
+                  type: `tool-${event.tool_name}`,
+                  state: "input-available",
+                  input: {},
+                },
+              };
+              contentBlocks.push(toolBlock);
+              // 也设置 currentBlock，以便后续更新（如果需要）
+              currentBlock = toolBlock;
+            }
+          }
+          break;
+
+        case "tool:result":
+          // 工具执行成功
+          if (event.tool_id) {
+            // 查找或创建工具块
+            let toolBlock = contentBlocks.find(
+              (block) => block.type === "tool" && block.id === event.tool_id
+            );
+            if (!toolBlock) {
+              // 如果不存在，创建新的工具块
+              toolBlock = {
+                type: "tool",
+                id: event.tool_id,
+                toolCall: {
+                  toolCallId: event.tool_id,
+                  type: `tool-${event.tool_name || "unknown"}`,
+                  state: "result",
+                  input: event.input || {}, // 使用事件中的 input 字段
+                  output: event.result,
+                },
+              };
+              contentBlocks.push(toolBlock);
+            } else {
+              // 更新现有工具块
+              toolBlock.toolCall.state = "result";
+              // 如果事件中包含 input，更新 input
+              if (event.input !== undefined) {
+                toolBlock.toolCall.input = event.input;
+              }
+              if (event.result !== undefined) {
+                toolBlock.toolCall.output = event.result;
+              }
+            }
+            // 如果当前块就是这个工具块，清空 currentBlock
+            if (currentBlock && currentBlock.type === "tool" && currentBlock.id === event.tool_id) {
+              currentBlock = null;
+            }
+          }
+          break;
+
+        case "tool:error":
+          // 工具执行失败
+          if (event.tool_id) {
+            // 查找或创建工具块
+            let toolBlock = contentBlocks.find(
+              (block) => block.type === "tool" && block.id === event.tool_id
+            );
+            if (!toolBlock) {
+              // 如果不存在，创建新的工具块
+              toolBlock = {
+                type: "tool",
+                id: event.tool_id,
+                toolCall: {
+                  toolCallId: event.tool_id,
+                  type: `tool-${event.tool_name || "unknown"}`,
+                  state: "error",
+                  input: {},
+                  errorText: event.error || "未知错误",
+                },
+              };
+              contentBlocks.push(toolBlock);
+            } else {
+              // 更新现有工具块
+              toolBlock.toolCall.state = "error";
+              toolBlock.toolCall.errorText = event.error || "未知错误";
+            }
+            // 如果当前块就是这个工具块，清空 currentBlock
+            if (currentBlock && currentBlock.type === "tool" && currentBlock.id === event.tool_id) {
+              currentBlock = null;
+            }
+          }
+          break;
       }
     };
 
     // 调用模式处理函数
-    const result = await processMode({
+    await processMode({
       ...processModeOptions,
       onStreamEvent,
       sseRequestId: requestId, // 传递 SSE 请求ID，用于发送 canvas 事件
       requestId, // 传递请求ID，用于在请求头中设置
     });
 
+    // 处理流结束后可能还有未完成的块
+    if (currentBlock) {
+      // 如果是工具块，尝试最终解析 JSON
+      if (currentBlock.type === "tool" && currentToolInputJson) {
+        try {
+          const input = JSON.parse(currentToolInputJson);
+          currentBlock.toolCall.input = input;
+          currentBlock.toolCall.state = "input-available";
+        } catch (error) {
+          console.warn("工具参数 JSON 解析失败:", error, currentToolInputJson);
+          if (!currentBlock.toolCall.input || Object.keys(currentBlock.toolCall.input).length === 0) {
+            currentBlock.toolCall.input = {};
+          }
+        }
+      }
+      contentBlocks.push(currentBlock);
+    }
+
     // 更新消息版本内容（使用 requestId 查找）
     await updateMessageByRequestId(
       conversationId,
       requestId,
       (version, _message) => {
-        version.content = result.fullResponse || accumulatedContent;
+        // 保存 contentBlocks 数组（与前端一致）
+        version.contentBlocks = contentBlocks;
         version.isRequesting = false;
         return true;
       }

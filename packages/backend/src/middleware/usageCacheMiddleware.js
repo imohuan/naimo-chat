@@ -191,6 +191,7 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                       type: "tool:result",
                       tool_id: currentToolId,
                       tool_name: currentToolName,
+                      input: args, // 添加输入参数
                       result: toolResult,
                       timestamp: new Date().toISOString(),
                     },

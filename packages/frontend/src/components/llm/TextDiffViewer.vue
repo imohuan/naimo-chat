@@ -106,6 +106,7 @@ const lineClass = (chunk: DiffBlock) => {
 }
 
 .diff-container {
+  min-width: 100%;
   overflow: hidden;
   width: fit-content;
   overflow-x: auto;

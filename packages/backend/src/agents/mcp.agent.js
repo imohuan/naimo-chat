@@ -162,27 +162,31 @@ class McpAgent extends IAgent {
 
         // 为每个工具创建 ITool 实例
         for (const tool of tools) {
+          // 使用 mcp__${serverName}__${tool.name} 格式作为工具名称（与前端保持一致）
+          const registeredToolName = `mcp__${serverName}__${tool.name}`;
+
           // 检查是否已存在同名工具（避免重复注册）
-          if (this.tools.has(tool.name)) {
+          if (this.tools.has(registeredToolName)) {
             console.warn(
-              `[McpAgent] 工具 ${tool.name} 已存在，跳过注册（来自服务器: ${serverName}）`
+              `[McpAgent] 工具 ${registeredToolName} 已存在，跳过注册`
             );
             continue;
           }
 
-          // 创建工具实例（保存 serverName 以便后续调用）
+          // 创建工具实例（保存 serverName 和原始 toolName 以便后续调用）
           const toolServerName = serverName;
+          const originalToolName = tool.name;
           const toolInstance = new ITool(
-            tool.name,
+            registeredToolName, // 使用格式化的工具名称
             tool.description || '',
             tool.inputSchema || {},
             // 工具处理器：调用 mcpService 的对应工具
             async (args, _context) => {
-              return await this.handleToolCall(tool.name, args, toolServerName);
+              return await this.handleToolCall(registeredToolName, args, toolServerName, originalToolName);
             }
           );
 
-          this.tools.set(tool.name, toolInstance);
+          this.tools.set(registeredToolName, toolInstance);
         }
       }
 
@@ -196,13 +200,31 @@ class McpAgent extends IAgent {
   }
 
   /**
+   * 解析工具名称，提取服务器名称和原始工具名称
+   * @param {string} toolName - 工具名称（可能是 mcp__${serverName}__${toolName} 格式）
+   * @returns {{serverName: string, originalToolName: string} | null} 解析结果
+   */
+  parseToolName(toolName) {
+    // 检查是否是 mcp__${serverName}__${toolName} 格式
+    const match = toolName.match(/^mcp__(.+?)__(.+)$/);
+    if (match) {
+      return {
+        serverName: match[1],
+        originalToolName: match[2],
+      };
+    }
+    return null;
+  }
+
+  /**
    * 处理工具调用
-   * @param {string} toolName - 工具名称
+   * @param {string} toolName - 工具名称（可能是 mcp__${serverName}__${toolName} 格式）
    * @param {Object} args - 工具参数
-   * @param {string} serverName - 服务器名称（可选，如果不提供则自动查找）
+   * @param {string} serverName - 服务器名称（可选，如果不提供则自动查找或解析）
+   * @param {string} originalToolName - 原始工具名称（可选，如果不提供则自动解析）
    * @returns {Promise<string>} 工具执行结果
    */
-  async handleToolCall(toolName, args, serverName = null) {
+  async handleToolCall(toolName, args, serverName = null, originalToolName = null) {
     try {
       // 如果工具不存在，尝试重新加载（延迟加载机制）
       if (!this.tools.has(toolName)) {
@@ -212,20 +234,41 @@ class McpAgent extends IAgent {
           console.log(`[McpAgent] 延迟加载完成，新增 ${this.tools.size - beforeSize} 个工具`);
         }
       }
-      // 如果没有提供 serverName，需要查找工具所在的服务器
-      if (!serverName) {
-        if (mcpService.serverTools && mcpService.serverTools instanceof Map) {
-          for (const [name, tools] of mcpService.serverTools.entries()) {
-            if (Array.isArray(tools) && tools.some((t) => t.name === toolName)) {
-              serverName = name;
-              break;
+
+      // 解析工具名称（如果提供了 serverName 和 originalToolName，则使用它们；否则尝试解析）
+      let parsed = null;
+      if (!serverName || !originalToolName) {
+        parsed = this.parseToolName(toolName);
+      }
+
+      if (parsed) {
+        // 如果解析成功，使用解析出的值
+        serverName = serverName || parsed.serverName;
+        originalToolName = originalToolName || parsed.originalToolName;
+      } else if (!serverName || !originalToolName) {
+        // 如果解析失败且没有提供 serverName 或 originalToolName，尝试查找
+        if (!serverName) {
+          if (mcpService.serverTools && mcpService.serverTools instanceof Map) {
+            for (const [name, tools] of mcpService.serverTools.entries()) {
+              if (Array.isArray(tools) && tools.some((t) => t.name === toolName)) {
+                serverName = name;
+                break;
+              }
             }
           }
+        }
+        // 如果没有找到 serverName，使用 toolName 作为 originalToolName
+        if (!originalToolName) {
+          originalToolName = toolName;
         }
       }
 
       if (!serverName) {
         throw new Error(`未找到工具 ${toolName} 所在的服务器`);
+      }
+
+      if (!originalToolName) {
+        throw new Error(`无法确定工具 ${toolName} 的原始名称`);
       }
 
       const client = mcpService.upstreamClients.get(serverName);
@@ -234,13 +277,13 @@ class McpAgent extends IAgent {
       }
 
       console.log(
-        `[McpAgent] 调用工具 ${toolName}，服务器: ${serverName}，参数:`,
+        `[McpAgent] 调用工具 ${originalToolName}（注册名: ${toolName}），服务器: ${serverName}，参数:`,
         JSON.stringify(args, null, 2)
       );
 
-      // 调用上游服务器的工具
+      // 调用上游服务器的工具（使用原始工具名称）
       const result = await client.callTool({
-        name: toolName,
+        name: originalToolName,
         arguments: args,
       });
 

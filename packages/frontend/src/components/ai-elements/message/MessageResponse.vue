@@ -30,7 +30,7 @@ const md = computed(() => (slotContent.value ?? props.content ?? "") as string);
       dark: 'github-dark',
     }"
     :content="md"
-    :class="cn('size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0', props.class)"
+    :class="cn('w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0', props.class)"
     v-bind="$attrs"
   />
 </template>

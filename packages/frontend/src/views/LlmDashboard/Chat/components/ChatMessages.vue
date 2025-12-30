@@ -62,12 +62,8 @@ const messageMaxWidth = computed(() => props.layoutConfig.messageMaxWidth);
 const messageLayout = computed(() => props.layoutConfig.messageLayout);
 const avatarSize = computed(() => props.layoutConfig.avatarSize);
 const iconSize = computed(() => props.layoutConfig.iconSize);
-const messageBranchPadding = computed(
-  () => props.layoutConfig.messageBranchPadding
-);
-const messageToolbarMargin = computed(
-  () => props.layoutConfig.messageToolbarMargin
-);
+const messageBranchPadding = computed(() => props.layoutConfig.messageBranchPadding);
+const messageToolbarMargin = computed(() => props.layoutConfig.messageToolbarMargin);
 const containerMaxWidth = computed(() => props.layoutConfig.containerMaxWidth);
 
 // 角色样式
@@ -101,7 +97,11 @@ const isAssistantMessageReady = (message: MessageType) => {
   if (message.from !== "assistant") return false;
   if (!message.versions || message.versions.length === 0) return false;
   const latest = message.versions[message.versions.length - 1];
-  return Boolean(latest?.content?.trim()?.length);
+  // 检查是否有内容块，且至少有一个文字块有内容
+  if (!latest?.contentBlocks || latest.contentBlocks.length === 0) return false;
+  return latest.contentBlocks.some(
+    (block) => block.type === "text" && block.content.trim().length > 0
+  );
 };
 
 // 跟踪每个消息的当前选中版本索引
@@ -129,10 +129,7 @@ function handleBranchChange(messageKey: string, branchIndex: number) {
   const message = props.messages.find((msg) => msg.key === messageKey);
   if (!message || !message.versions || message.versions.length === 0) return;
 
-  const validIndex = Math.max(
-    0,
-    Math.min(branchIndex, message.versions.length - 1)
-  );
+  const validIndex = Math.max(0, Math.min(branchIndex, message.versions.length - 1));
   currentVersionIndex.value[messageKey] = validIndex;
   emit("branchChange", messageKey, validIndex);
 }
@@ -143,12 +140,12 @@ function handleCopy(messageKey: string) {
 
   let selectedIndex =
     currentVersionIndex.value[messageKey] ?? message.versions.length - 1;
-  selectedIndex = Math.max(
-    0,
-    Math.min(selectedIndex, message.versions.length - 1)
-  );
+  selectedIndex = Math.max(0, Math.min(selectedIndex, message.versions.length - 1));
   const version = message.versions[selectedIndex];
-  const content = version?.content || "";
+
+  // 从内容块中提取文字内容
+  const textBlocks = version?.contentBlocks?.filter((b) => b.type === "text") || [];
+  const content = textBlocks.map((b) => b.content).join("\n");
 
   if (!content) return;
   if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -160,19 +157,6 @@ function handleCopy(messageKey: string) {
 }
 
 const copied = ref<Record<string, boolean>>({});
-const copyTimers = new Map<string, number>();
-
-function resetCopied(key: string) {
-  copied.value = {
-    ...copied.value,
-    [key]: false,
-  };
-  const timerId = copyTimers.get(key);
-  if (timerId) {
-    clearTimeout(timerId);
-    copyTimers.delete(key);
-  }
-}
 
 // 监听 copy 事件，显示复制成功状态
 watch(
@@ -192,16 +176,9 @@ watch(
   >
     <div
       class="relative flex h-full w-full overflow-hidden"
-      :class="
-        messages.length > 0
-          ? 'flex-col divide-y'
-          : 'items-center justify-center'
-      "
+      :class="messages.length > 0 ? 'flex-col divide-y' : 'items-center justify-center'"
     >
-      <Conversation
-        v-if="messages.length > 0"
-        class="conversation-content border-none"
-      >
+      <Conversation v-if="messages.length > 0" class="conversation-content border-none">
         <ConversationContent
           :class="['mx-auto w-full px-4 select-text', containerMaxWidth]"
         >
@@ -228,9 +205,7 @@ watch(
                   :class="[
                     getAvatarContainerClass(message.from),
                     !isSmallScreen &&
-                      (message.from === 'user'
-                        ? 'order-last pl-1'
-                        : 'order-first pr-1'),
+                      (message.from === 'user' ? 'order-last pl-1' : 'order-first pr-1'),
                   ]"
                 >
                   <div
@@ -241,10 +216,7 @@ watch(
                       roleStyles[message.from].ring,
                     ]"
                   >
-                    <PersonRound
-                      v-if="message.from === 'user'"
-                      :class="iconSize"
-                    />
+                    <PersonRound v-if="message.from === 'user'" :class="iconSize" />
                     <SmartToyRound v-else :class="iconSize" />
                   </div>
                   <span
@@ -265,9 +237,7 @@ watch(
                     v-if="!isSmallScreen"
                     class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
                     :class="
-                      message.from === 'user'
-                        ? 'text-right pr-1'
-                        : 'text-left pl-1'
+                      message.from === 'user' ? 'text-right pr-1' : 'text-left pl-1'
                     "
                   >
                     {{ roleStyles[message.from].label }}
@@ -294,10 +264,7 @@ watch(
                   </Reasoning>
 
                   <MessageContent class="max-w-full">
-                    <MessageAttachments
-                      v-if="version.files?.length"
-                      class="mb-2"
-                    >
+                    <MessageAttachments v-if="version.files?.length" class="mb-2">
                       <MessageAttachment
                         v-for="(file, fileIndex) in version.files"
                         :key="file.url || file.filename || fileIndex"
@@ -305,17 +272,48 @@ watch(
                         class="pointer-events-none"
                       />
                     </MessageAttachments>
+
+                    <!-- 按顺序渲染内容块 -->
+                    <div v-if="version.contentBlocks?.length" class="space-y-2">
+                      <template v-for="block in version.contentBlocks" :key="block.id">
+                        <!-- 文字块 -->
+                        <MessageResponse
+                          v-if="block.type === 'text'"
+                          :content="block.content"
+                        />
+
+                        <!-- 工具块 -->
+                        <Tool v-else-if="block.type === 'tool'">
+                          <ToolHeader
+                            :type="block.toolCall.type"
+                            :state="block.toolCall.state"
+                            :title="block.toolCall.type.split('-').slice(1).join(' ')"
+                          />
+                          <ToolContent>
+                            <ToolInput :input="block.toolCall.input" />
+                            <ToolOutput
+                              v-if="
+                                block.toolCall.output !== undefined ||
+                                block.toolCall.errorText
+                              "
+                              :output="block.toolCall.output"
+                              :error-text="block.toolCall.errorText"
+                            />
+                          </ToolContent>
+                        </Tool>
+                      </template>
+                    </div>
+
+                    <!-- 如果没有内容块，显示加载状态 -->
                     <div
-                      v-if="
+                      v-else-if="
                         message.from === 'assistant' &&
-                        version?.content?.trim()?.length < 1
+                        version.contentBlocks?.length === 0
                       "
                       class="flex items-center justify-start px-1 py-1 size-full"
                     >
                       <Shimmer>正在生成回复…</Shimmer>
                     </div>
-
-                    <MessageResponse v-else :content="version.content" />
                   </MessageContent>
                 </div>
               </Message>
@@ -342,10 +340,7 @@ watch(
                 v-else-if="
                   message.versions &&
                   message.versions.length > 1 &&
-                  !(
-                    message.from === 'assistant' &&
-                    isAssistantMessageReady(message)
-                  )
+                  !(message.from === 'assistant' && isAssistantMessageReady(message))
                 "
                 :from="message.from"
               >
@@ -369,10 +364,7 @@ watch(
                   tooltip="复制内容"
                   @click="handleCopy(message.key)"
                 >
-                  <CheckIcon
-                    v-if="copied[message.key]"
-                    class="size-4 text-emerald-500"
-                  />
+                  <CheckIcon v-if="copied[message.key]" class="size-4 text-emerald-500" />
                   <CopyIcon v-else class="size-4" />
                 </MessageAction>
               </MessageActions>
