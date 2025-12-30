@@ -17,7 +17,10 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="absolute top-20 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+  <!-- <div class="absolute top-20 right-6 z-50 flex flex-col gap-3 pointer-events-none"> -->
+  <div
+    class="absolute bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"
+  >
     <TransitionGroup name="toast" tag="div" class="flex flex-col gap-3">
       <div
         v-for="toast in toasts"

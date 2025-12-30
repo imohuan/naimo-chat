@@ -902,6 +902,8 @@ function exitDiffMode(options?: {
       : currentCode.value;
   const enableEmit =
     options?.enableEmit !== undefined ? options.enableEmit : false;
+  const isFinalRecordVersion =
+    versions.value[currentVersionIndex.value]?.currentIndex === 0;
 
   console.log("Saving Final Content:", codeToSave.substring(0, 30) + "...");
 
@@ -917,7 +919,7 @@ function exitDiffMode(options?: {
   refreshPreview();
 
   // 触发 diff-exited 事件，通知父组件 diff 操作已完成，传递 recordId
-  if (enableEmit && currentVersionIndex.value === 0)
+  if (enableEmit && isFinalRecordVersion)
     emit("diff-exited", codeToSave, currentRecordId);
 
   console.groupEnd();

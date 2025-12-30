@@ -1,10 +1,30 @@
 <template>
   <div class="custom-code-block" :style="maxWidthStyle">
     <div class="custom-code-block__header">
-      <button class="collapse-btn" type="button" @click="toggleCollapse">
-        <span class="chevron" :class="{ 'chevron--open': !collapsed }">▸</span>
-        <span class="custom-code-block__lang">{{ language || "text" }}</span>
-      </button>
+      <div class="header-left">
+        <button class="collapse-btn" type="button" @click="toggleCollapse">
+          <span class="chevron" :class="{ 'chevron--open': !collapsed }">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M4.5 3L7.5 6L4.5 9"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
+        <span class="custom-code-block__lang">{{
+          formatLanguage(language)
+        }}</span>
+      </div>
 
       <div class="header-spacer" />
 
@@ -87,6 +107,11 @@ const props = defineProps<{
   code: string;
   language?: string;
 }>();
+
+const formatLanguage = (lang?: string): string => {
+  const language = lang || "text";
+  return language.charAt(0).toUpperCase() + language.slice(1).toLowerCase();
+};
 
 const html = ref("<pre><code>Loading…</code></pre>");
 const copied = ref(false);
@@ -375,31 +400,43 @@ function guessExtension(lang?: string) {
   color: #334155;
 }
 
+.header-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .collapse-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  color: #64748b;
   cursor: pointer;
   border: none;
-  transition: color 120ms ease, border-color 120ms ease,
-    background-color 120ms ease;
+  background: transparent;
+  transition: all 150ms ease;
 }
 
 .collapse-btn:hover {
-  background: #ebebeb;
+  background: rgba(0, 0, 0, 0.05);
+  color: #475569;
 }
 
 .chevron {
-  display: inline-block;
-  font-size: 13px;
-  color: #64748b;
-  transition: transform 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chevron svg {
+  width: 12px;
+  height: 12px;
 }
 
 .chevron--open {
@@ -407,14 +444,15 @@ function guessExtension(lang?: string) {
 }
 
 .custom-code-block__lang {
-  display: inline-block;
-  padding: 1px 6px;
-  color: #4338ca;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 0px;
+  color: #64748b;
+  border-radius: 12px;
   font-size: 10px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .header-spacer {
@@ -454,6 +492,8 @@ function guessExtension(lang?: string) {
 .custom-code-block__body {
   background: #ffffff;
   color: #0f172a;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
 }
 
 /* 嵌入 TextDiffViewer 时，减小内边距、保证文字颜色正确 */
@@ -473,8 +513,6 @@ function guessExtension(lang?: string) {
   background: #f8fafc;
   color: #0f172a;
   border-radius: 0 0 16px 16px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
   --sd-font-size-base: 16px !important;
   line-height: 1.4 !important;
 }
@@ -483,17 +521,15 @@ function guessExtension(lang?: string) {
   padding-bottom: 0;
 }
 
-.custom-code-block__body :deep(pre::-webkit-scrollbar) {
-  height: 8px;
+:deep(*::-webkit-scrollbar) {
+  width: 10px !important;
+  height: 10px !important;
 }
 
-.custom-code-block__body :deep(pre::-webkit-scrollbar-thumb) {
+.custom-code-block__body::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.45);
   border-radius: 999px;
-}
-
-.custom-code-block__body :deep(pre::-webkit-scrollbar-track) {
-  background: transparent;
+  transition: background 0.2s ease;
 }
 
 /* diff 模式下：去掉 body 圆角 / 额外内边距，由内部 TextDiffViewer 自己控制 */
@@ -510,6 +546,7 @@ function guessExtension(lang?: string) {
   padding-bottom: 0 !important;
   overflow: hidden;
   border-radius: 0 !important;
+  border: none !important;
 }
 
 .custom-code-block__body--diff :deep(.diff-wrapper td) {

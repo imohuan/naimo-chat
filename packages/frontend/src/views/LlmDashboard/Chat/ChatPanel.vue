@@ -58,6 +58,8 @@ const status = ref<ChatStatus>("ready");
 const showCanvas = ref(false);
 const isCanvasReadonly = ref(false);
 const refreshImmersiveCode = ref(true);
+// 标记当前对话是否已为流式输出创建空版本
+const hasCreatedEmptyVersion = ref(false);
 
 // 组件引用
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
@@ -233,11 +235,41 @@ async function handleSubmit(message: PromptInputMessage) {
 
 // 处理重试
 function handleRetry(messageKey: string) {
-  const message = activeMessages.value.find((msg) => msg.key === messageKey);
-  if (!message || message.from !== "user") return;
+  // 重试按钮显示在助手消息上，所以 messageKey 是助手消息的 key
+  const messages = activeMessages.value || [];
+  const assistantMessage = messages.find((msg) => msg.key === messageKey);
+  if (!assistantMessage || assistantMessage.from !== "assistant") {
+    console.warn("重试失败: 找不到助手消息", messageKey);
+    return;
+  }
 
-  const latestVersion = message.versions[message.versions.length - 1];
-  if (!latestVersion) return;
+  // 找到对应的用户消息（通常是前一条消息）
+  const messageIndex = messages.findIndex((msg) => msg.key === messageKey);
+  if (messageIndex === -1 || messageIndex === 0) {
+    pushToast("重试失败: 找不到对应的用户消息", "error");
+    return;
+  }
+
+  // 查找前一条用户消息
+  let userMessage: (typeof messages)[0] | undefined;
+  for (let i = messageIndex - 1; i >= 0 && i < messages.length; i--) {
+    const candidate = messages[i];
+    if (candidate && candidate.from === "user") {
+      userMessage = candidate;
+      break;
+    }
+  }
+
+  if (!userMessage) {
+    pushToast("重试失败: 找不到对应的用户消息", "error");
+    return;
+  }
+
+  const latestVersion = userMessage.versions[userMessage.versions.length - 1];
+  if (!latestVersion) {
+    pushToast("重试失败: 用户消息没有内容", "error");
+    return;
+  }
 
   const userFiles = latestVersion.files?.map((f) => ({
     url: f.url,
@@ -245,14 +277,18 @@ function handleRetry(messageKey: string) {
     mediaType: f.mediaType,
   }));
 
-  if (!activeConversationId.value) return;
+  if (!activeConversationId.value) {
+    pushToast("重试失败: 没有活跃对话", "error");
+    return;
+  }
 
+  // 传递助手消息的 messageKey 用于重试（后端会在该助手消息下创建新版本）
   sendMessage(activeConversationId.value, {
     content: latestVersion.content,
     mode: selectedMode.value,
     model: modelId.value,
     files: userFiles,
-    messageKey, // 传递 messageKey 用于重试
+    messageKey, // 传递助手消息的 messageKey 用于重试
     editorCode:
       selectedMode.value === "canvas"
         ? canvasPanelRef.value?.getCurrentCode()
@@ -378,8 +414,6 @@ function handleClear() {
 // 存储当前记录 ID（用于 diff 应用后保存）
 const currentRecordId = ref<string | null>(null);
 const currentOriginalCode = ref<string | null>(null);
-// 标记当前对话是否已为流式输出创建空版本
-const hasCreatedEmptyVersion = ref(false);
 
 // 监听事件总线事件
 onMounted(() => {

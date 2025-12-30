@@ -106,6 +106,8 @@ const lineClass = (chunk: DiffBlock) => {
 }
 
 .diff-container {
+  overflow: hidden;
+  width: fit-content;
   overflow-x: auto;
   border-radius: 0.75rem; /* 原 rounded-xl */
   border: 1px solid #e2e8f0; /* 原 border-slate-200 */
