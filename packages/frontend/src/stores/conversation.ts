@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useLocalStorage } from "@vueuse/core";
 import { nanoid } from "nanoid";
-import type { FileUIPart } from "ai";
+import type { FileUIPart, ToolUIPart } from "ai";
 import type {
   Conversation,
   MessageType,
@@ -152,6 +152,33 @@ export const useConversationStore = defineStore("conversation", () => {
     }
 
     // 更新对话的更新时间
+    conversation.updatedAt = Date.now();
+  }
+
+  /**
+   * 更新消息版本的工具调用
+   */
+  function updateMessageToolCalls(
+    conversationId: string,
+    requestId: string,
+    toolCalls: ToolUIPart[]
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    // 查找对应的消息
+    const message = conversation.messages.find((msg) =>
+      msg.versions.some((v) => v.id === requestId)
+    );
+
+    if (!message) return;
+
+    // 查找对应的版本
+    const version = message.versions.find((v) => v.id === requestId);
+    if (!version) return;
+
+    // 更新工具调用
+    version.toolCalls = toolCalls;
     conversation.updatedAt = Date.now();
   }
 
@@ -410,5 +437,6 @@ export const useConversationStore = defineStore("conversation", () => {
     setError,
     clearActiveConversationMessages,
     createPendingConversation,
+    updateMessageToolCalls,
   };
 });

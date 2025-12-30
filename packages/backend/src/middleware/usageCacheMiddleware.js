@@ -4,12 +4,25 @@
  * 功能概述：
  * 1. 从 API 响应中提取并缓存会话的 token 用量信息（usage）
  * 2. 支持流式响应（SSE）和非流式响应两种格式
- * 3. 支持 agents 工具调用场景，能够拦截工具调用、执行工具、并将结果返回给模型继续对话
+ * 3. 支持 agents 工具调用场景，能够检测工具调用、执行工具、并将结果返回给模型继续对话
+ * 4. **重要**：工具调用事件会正常传递给前端，前端可以显示工具调用的完整过程
  * 
  * 工作流程：
- * - 流式响应（带 agents）：解析 SSE 流 → 检测工具调用 → 执行工具 → 发送新请求 → 转发响应流
+ * - 流式响应（带 agents）：
+ *   1. 解析 SSE 流为结构化事件
+ *   2. 检测工具调用事件（content_block_start/content_block_delta/content_block_stop）
+ *   3. **正常传递所有事件给前端**（前端可以显示工具调用过程）
+ *   4. 在后台异步执行工具（不阻塞事件传递）
+ *   5. 工具执行完成后，发送 tool:result 或 tool:error 事件给前端
+ *   6. 当收到 message_delta 事件且所有工具执行完成后，发送新请求让模型继续对话
+ *   7. 转发模型基于工具结果的回复流
  * - 流式响应（无 agents）：克隆流 → 后台读取提取 usage → 缓存 → 返回原流
  * - 非流式响应：直接提取 usage → 缓存 → 返回原响应
+ * 
+ * 新增的 SSE 事件类型（用于前端显示）：
+ * - tool:result: 工具执行成功，包含 tool_use_id、tool_name、result、index
+ * - tool:error: 工具执行失败，包含 tool_use_id、tool_name、error、index
+ * - tool:continue_error: 工具执行后继续对话失败，包含 error
  */
 const { SSEParserTransform } = require("../utils/SSEParser.transform");
 const { SSESerializerTransform } = require("../utils/SSESerializer.transform");
@@ -20,6 +33,230 @@ const JSON5 = require("json5");
 const fetch =
   globalThis.fetch ||
   ((...args) => import("node-fetch").then(({ default: f }) => f(...args)));
+
+/**
+ * 安全地向流控制器推送事件（处理流已关闭的情况）
+ * @param {ReadableStreamDefaultController} controller - 流控制器
+ * @param {Object} event - 要推送的事件对象
+ * @returns {boolean} 是否成功推送
+ */
+function safeEnqueue(controller, event) {
+  try {
+    controller.enqueue(event);
+    return true;
+  } catch (error) {
+    // 流可能已关闭，这是正常情况，不需要记录为错误
+    if (error.code === 'ERR_INVALID_STATE' || error.message?.includes('closed')) {
+      // 静默忽略，不记录警告
+      return false;
+    }
+    // 其他错误仍然记录
+    console.warn("Failed to enqueue event:", error);
+    return false;
+  }
+}
+
+/**
+ * 发送工具结果到模型，让模型基于工具结果继续生成回复
+ * @param {ReadableStreamDefaultController} controller - 流控制器
+ * @param {Array} toolMessages - 工具执行结果消息数组
+ * @param {Array} assistantMessages - 助手工具调用消息数组
+ * @param {Object} req - 原始请求对象
+ * @param {Object} config - 配置对象
+ * @param {AbortController} abortController - 中止控制器
+ */
+async function sendToolResultToModel(controller, toolMessages, assistantMessages, req, config, abortController) {
+  try {
+    // 将助手工具调用消息和工具结果消息添加到请求历史中
+    const newReqBody = JSON.parse(JSON.stringify(req.body)); // 深拷贝避免修改原请求
+    newReqBody.messages.push({
+      role: 'assistant',
+      content: assistantMessages  // 模型调用了哪些工具
+    });
+    newReqBody.messages.push({
+      role: 'user',
+      content: toolMessages       // 工具执行的结果
+    });
+
+    // 获取服务端口（默认 3457）
+    const port = config?.PORT || 3457;
+    const host = config?.HOST || "127.0.0.1";
+
+    // 构建请求头 - 使用 Authorization: Bearer 格式（与 llmRequest.js 保持一致）
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    if (config?.APIKEY) {
+      headers["Authorization"] = `Bearer ${config.APIKEY}`;
+    }
+
+    // 发送新的请求到 API，让模型基于工具结果继续生成
+    // 添加标记，避免新请求被中间件重复处理工具调用
+    newReqBody._internalToolContinue = true;
+
+    console.log(`[usageCacheMiddleware] 发送新请求到模型，工具消息数量: ${toolMessages.length}`);
+    const response = await fetch(`http://${host}:${port}/v1/messages`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(newReqBody),
+      signal: abortController.signal
+    });
+
+    console.log(`[usageCacheMiddleware] 新请求响应状态: ${response.status} ${response.statusText}`);
+    console.log(`[usageCacheMiddleware] 新请求响应 Content-Type: ${response.headers.get('content-type')}`);
+
+    // 如果请求失败，发送错误事件给前端
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      console.error(`[usageCacheMiddleware] 新请求失败: ${response.status} ${errorText}`);
+      safeEnqueue(controller, {
+        event: 'tool:continue_error',
+        data: {
+          type: 'tool:continue_error',
+          error: `工具执行后继续对话失败: ${response.status} ${errorText}`
+        }
+      });
+      return;
+    }
+
+    // 检查响应是否是流式响应
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/event-stream') && !contentType.includes('text/plain')) {
+      console.warn(`[usageCacheMiddleware] 新请求响应不是 SSE 流格式: ${contentType}`);
+    }
+
+    // 检查响应体是否存在
+    if (!response.body) {
+      console.error(`[usageCacheMiddleware] 新请求响应体为空`);
+      safeEnqueue(controller, {
+        event: 'tool:continue_error',
+        data: {
+          type: 'tool:continue_error',
+          error: '新请求响应体为空'
+        }
+      });
+      return;
+    }
+
+    // 解析新响应的 SSE 流
+    const stream = response.body.pipeThrough(new SSEParserTransform());
+    const reader = stream.getReader();
+    console.log(`[usageCacheMiddleware] 开始读取新请求的流`);
+
+    // 读取并转发新响应的所有事件（模型基于工具结果的回复）
+    let eventCount = 0;
+    let receivedMessageComplete = false;
+    while (true) {
+      try {
+        const { value, done } = await reader.read();
+        if (done) {
+          console.log(`[usageCacheMiddleware] 新请求流读取完成，共转发 ${eventCount} 个事件`);
+          // 如果新请求流完成但没有收到 message_complete，发送一个标记事件
+          if (!receivedMessageComplete) {
+            safeEnqueue(controller, {
+              event: 'tool:continue_complete',
+              data: {
+                type: 'tool:continue_complete',
+                timestamp: new Date().toISOString()
+              }
+            });
+          }
+          break;
+        }
+
+        // 检测 message_complete 事件
+        if (value.event === 'message_complete' || (value.data && value.data.type === 'message_complete')) {
+          receivedMessageComplete = true;
+          // 发送工具继续完成事件，通知前端和会话管理可以关闭连接
+          safeEnqueue(controller, {
+            event: 'tool:continue_complete',
+            data: {
+              type: 'tool:continue_complete',
+              timestamp: new Date().toISOString()
+            }
+          });
+        }
+
+        // 跳过消息开始和结束事件（这些是控制事件，不需要传递给客户端）
+        if (value.event && ['message_start', 'message_stop'].includes(value.event)) {
+          continue;
+        }
+
+        // 确保事件格式正确：需要包含 event 和 data 字段
+        // 如果只有 data 字段，尝试从 data.type 推断 event
+        if (!value.event && value.data && value.data.type) {
+          value.event = value.data.type;
+        }
+
+        // 调试：记录事件信息
+        if (eventCount < 5) {
+          console.log(`[usageCacheMiddleware] 新请求事件 #${eventCount + 1}:`, {
+            event: value.event,
+            hasData: !!value.data,
+            dataType: value.data?.type
+          });
+        }
+
+        // 检查流是否仍然可写（背压控制）
+        // 如果 desiredSize <= 0，说明下游处理不过来，停止读取
+        if (controller.desiredSize !== null && controller.desiredSize <= 0) {
+          console.warn(`[usageCacheMiddleware] 流背压，停止读取新请求的事件`);
+          break;
+        }
+
+        // 确保事件格式正确：必须包含 event 和 data 字段
+        const eventToEnqueue = {
+          event: value.event || (value.data?.type ? value.data.type : 'message'),
+          data: value.data || value,
+        };
+
+        // 如果原始 value 有 id，保留它
+        if (value.id) {
+          eventToEnqueue.id = value.id;
+        }
+
+        // 将事件推送到输出流
+        // 使用 safeEnqueue 来避免流已关闭的错误
+        if (safeEnqueue(controller, eventToEnqueue)) {
+          eventCount++;
+          // 调试：记录前几个事件的详细信息
+          if (eventCount <= 3) {
+            console.log(`[usageCacheMiddleware] 成功转发事件 #${eventCount}:`, {
+              event: eventToEnqueue.event,
+              hasData: !!eventToEnqueue.data,
+              dataType: eventToEnqueue.data?.type
+            });
+          }
+        } else {
+          // 流已关闭，停止读取
+          console.log(`[usageCacheMiddleware] 流已关闭，停止读取新请求的事件 (已转发 ${eventCount} 个)`);
+          break;
+        }
+      } catch (readError) {
+        // 处理流提前关闭的情况
+        if (readError.name === 'AbortError' || readError.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+          console.log(`[usageCacheMiddleware] 新请求流被中止或提前关闭`);
+          abortController.abort();
+          break;
+        }
+        console.error(`[usageCacheMiddleware] 读取新请求流时出错:`, readError);
+        throw readError;
+      }
+    }
+
+    // 确保读取器被释放
+    try {
+      reader.releaseLock();
+    } catch {
+      // 忽略释放锁的错误
+    }
+  } catch (error) {
+    // 如果错误不是流关闭错误，则重新抛出
+    if (error.name !== 'AbortError' && error.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+      throw error;
+    }
+  }
+}
 
 /**
  * 创建用量缓存中间件
@@ -76,10 +313,12 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
     // ========== 条件检查：只处理符合条件的请求 ==========
     // 1. 必须有会话 ID
     // 2. 必须是 /v1/messages 接口（排除 count_tokens 子接口）
+    // 3. 排除内部工具继续请求（避免重复处理）
     if (
       req.sessionId &&
       req.url.startsWith("/v1/messages") &&
-      !req.url.startsWith("/v1/messages/count_tokens")
+      !req.url.startsWith("/v1/messages/count_tokens") &&
+      !req.body?._internalToolContinue
     ) {
       // ========== 流式响应处理 ==========
       if (payload instanceof ReadableStream) {
@@ -102,6 +341,8 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
           // ========== 消息收集数组 ==========
           const toolMessages = [];           // 存储工具执行结果消息（tool_result）
           const assistantMessages = [];      // 存储助手工具调用消息（tool_use）
+          const pendingToolExecutions = new Map(); // 跟踪正在执行的工具（toolId -> Promise）
+          let messageDeltaReceived = false;  // 标记是否已收到 message_delta 事件
 
           // 使用 rewriteStream 重写流，在流传输过程中拦截和处理事件
           return done(null, rewriteStream(eventStream, async (data, controller) => {
@@ -116,19 +357,20 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                   return agentInstance?.tools?.get(data.data.content_block.name);
                 });
 
-                // 如果找到对应的 agent，直接处理工具调用
-                // 注意：agents 已经在 preHandler 阶段准备好了，这里只需要找到对应的 agent 实例
+                // 如果找到对应的 agent，记录工具调用信息（但不隐藏事件，让前端能看到）
                 if (agent) {
+                  hasToolCalls = true; // 标记有工具调用
                   const agentInstance = agentsManager.getAgent(agent);
                   if (agentInstance) {
                     currentAgent = agentInstance;
                     currentToolIndex = data.data.index;              // 记录工具在内容块中的索引
                     currentToolName = data.data.content_block.name;   // 记录工具名称
                     currentToolId = data.data.content_block.id;      // 记录工具调用 ID
-                    // 返回 undefined 表示不将此事件传递给下游（隐藏工具调用开始事件）
-                    return undefined;
+                    // 正常传递事件给前端，让前端能够显示工具调用
                   }
                 }
+                // 无论是否找到 agent，都正常传递事件给前端
+                return data;
               }
 
               // ========== 阶段 2：收集工具参数 ==========
@@ -138,8 +380,8 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
                 data.data?.delta?.type === 'input_json_delta') {
                 // 累加分片的 JSON 参数
                 currentToolArgs += data.data?.delta?.partial_json || '';
-                // 返回 undefined 表示不传递参数分片事件
-                return undefined;
+                // 正常传递参数分片事件给前端，让前端能够显示工具参数
+                return data;
               }
 
               // ========== 阶段 3：工具调用完成，执行工具 ==========
@@ -147,123 +389,162 @@ function createUsageCacheMiddleware(sessionUsageCache, config = null, agentsMana
               if (currentToolIndex > -1 &&
                 data.data?.index === currentToolIndex &&
                 data.data?.type === 'content_block_stop') {
-                try {
-                  // 解析完整的工具参数（使用 JSON5 支持更宽松的 JSON 格式）
-                  const args = JSON5.parse(currentToolArgs);
+                // 先正常传递事件给前端，让前端能够显示工具调用完成
+                // 然后在后台异步执行工具，不阻塞事件传递
+                const toolIndex = currentToolIndex;
+                const toolId = currentToolId;
+                const toolName = currentToolName;
+                const toolArgs = currentToolArgs;
+                const agentInstance = currentAgent;
 
-                  // 构建助手消息：记录模型调用了哪个工具
-                  assistantMessages.push({
-                    type: "tool_use",
-                    id: currentToolId,
-                    name: currentToolName,
-                    input: args
-                  });
+                // 异步执行工具（不阻塞事件传递）
+                const toolExecutionPromise = (async () => {
+                  try {
+                    // 解析完整的工具参数（使用 JSON5 支持更宽松的 JSON 格式）
+                    const args = JSON5.parse(toolArgs);
 
-                  // 执行工具：调用 agent 中注册的工具处理器
-                  const toolResult = await currentAgent?.tools?.get(currentToolName)?.handler(args, {
-                    req,    // 传递请求对象，工具可能需要访问请求上下文
-                    config  // 传递配置对象，工具可能需要访问配置信息
-                  });
+                    // 构建助手消息：记录模型调用了哪个工具
+                    assistantMessages.push({
+                      type: "tool_use",
+                      id: toolId,
+                      name: toolName,
+                      input: args
+                    });
 
-                  // 构建工具结果消息：记录工具执行的结果
-                  toolMessages.push({
-                    "tool_use_id": currentToolId,  // 关联到对应的工具调用 ID
-                    "type": "tool_result",
-                    "content": toolResult           // 工具执行的结果
-                  });
+                    // 执行工具：调用 agent 中注册的工具处理器
+                    const toolResult = await agentInstance?.tools?.get(toolName)?.handler(args, {
+                      req,    // 传递请求对象，工具可能需要访问请求上下文
+                      config  // 传递配置对象，工具可能需要访问配置信息
+                    });
 
-                  // ========== 重置状态变量 ==========
-                  currentAgent = undefined;
-                  currentToolIndex = -1;
-                  currentToolName = '';
-                  currentToolArgs = '';
-                  currentToolId = '';
-                } catch (e) {
-                  console.error("Error processing tool call:", e);
-                }
-                // 返回 undefined 表示不传递工具调用停止事件
-                return undefined;
+                    // 构建工具结果消息：记录工具执行的结果
+                    toolMessages.push({
+                      "tool_use_id": toolId,  // 关联到对应的工具调用 ID
+                      "type": "tool_result",
+                      "content": toolResult           // 工具执行的结果
+                    });
+
+                    // 发送工具执行结果事件给前端（失败不影响 Promise 状态）
+                    safeEnqueue(controller, {
+                      event: 'tool:result',
+                      data: {
+                        type: 'tool:result',
+                        tool_use_id: toolId,
+                        tool_name: toolName,
+                        result: toolResult,
+                        index: toolIndex
+                      }
+                    });
+
+                    // 如果已经收到 message_delta 事件，立即发送新请求
+                    // 注意：即使流已关闭，sendToolResultToModel 也会安全处理
+                    if (messageDeltaReceived && toolMessages.length > 0) {
+                      try {
+                        await sendToolResultToModel(controller, toolMessages, assistantMessages, req, config, abortController);
+                      } catch (sendError) {
+                        // 发送新请求失败不影响工具执行 Promise 的状态
+                        // 错误已经在 sendToolResultToModel 中处理
+                        console.error("Error sending tool result to model:", sendError);
+                      }
+                    }
+                  } catch (e) {
+                    console.error("Error processing tool call:", e);
+                    // 发送工具执行错误事件给前端（失败不影响 Promise 状态）
+                    safeEnqueue(controller, {
+                      event: 'tool:error',
+                      data: {
+                        type: 'tool:error',
+                        tool_use_id: toolId,
+                        tool_name: toolName,
+                        error: e.message || String(e),
+                        index: toolIndex
+                      }
+                    });
+                  } finally {
+                    // 从待执行列表中移除
+                    pendingToolExecutions.delete(toolId);
+                  }
+                })();
+
+                // 记录正在执行的工具
+                pendingToolExecutions.set(toolId, toolExecutionPromise);
+
+                // ========== 重置状态变量 ==========
+                currentAgent = undefined;
+                currentToolIndex = -1;
+                currentToolName = '';
+                currentToolArgs = '';
+                currentToolId = '';
+
+                // 正常传递工具调用停止事件给前端
+                return data;
               }
 
               // ========== 阶段 4：工具执行完成，发送新请求继续对话 ==========
-              // 当收到 message_delta 事件且已有工具消息时，说明模型已完成工具调用
-              // 此时需要将工具结果发送回模型，让模型基于工具结果继续生成回复
-              if (data.event === 'message_delta' && toolMessages.length) {
-                // 将助手工具调用消息和工具结果消息添加到请求历史中
-                req.body.messages.push({
-                  role: 'assistant',
-                  content: assistantMessages  // 模型调用了哪些工具
-                });
-                req.body.messages.push({
-                  role: 'user',
-                  content: toolMessages       // 工具执行的结果
-                });
+              // 当收到 message_delta 事件时，标记已收到，并检查是否有工具需要执行
+              if (data.event === 'message_delta') {
+                messageDeltaReceived = true;
+                console.log(`[usageCacheMiddleware] 收到 message_delta，工具消息数量: ${toolMessages.length}，待执行工具数量: ${pendingToolExecutions.size}`);
 
-                // 获取服务端口（默认 3457）
-                const port = config?.PORT || 3457;
-                const host = config?.HOST || "127.0.0.1";
+                // 如果有工具消息且没有待执行的工具，立即发送新请求
+                if (toolMessages.length > 0 && pendingToolExecutions.size === 0) {
+                  // 异步发送新请求（不阻塞当前事件传递）
+                  const messagesToSend = [...toolMessages];
+                  const assistantMessagesToSend = [...assistantMessages];
 
-                // 构建请求头 - 使用 Authorization: Bearer 格式（与 llmRequest.js 保持一致）
-                const headers = {
-                  "Content-Type": "application/json",
-                };
-                if (config?.APIKEY) {
-                  headers["Authorization"] = `Bearer ${config.APIKEY}`;
+                  console.log(`[usageCacheMiddleware] 立即发送新请求，工具消息数量: ${messagesToSend.length}`);
+
+                  // 清空工具消息数组，避免重复发送
+                  toolMessages.length = 0;
+                  assistantMessages.length = 0;
+
+                  sendToolResultToModel(controller, messagesToSend, assistantMessagesToSend, req, config, abortController).catch(error => {
+                    console.error("[usageCacheMiddleware] Error continuing conversation after tool execution:", error);
+                    safeEnqueue(controller, {
+                      event: 'tool:continue_error',
+                      data: {
+                        type: 'tool:continue_error',
+                        error: error.message || String(error)
+                      }
+                    });
+                  });
+                } else if (pendingToolExecutions.size > 0) {
+                  // 如果有待执行的工具，等待所有工具执行完成后再发送新请求
+                  console.log(`[usageCacheMiddleware] 等待 ${pendingToolExecutions.size} 个工具执行完成`);
+                  Promise.all(Array.from(pendingToolExecutions.values())).then(() => {
+                    console.log(`[usageCacheMiddleware] 所有工具执行完成，工具消息数量: ${toolMessages.length}`);
+                    if (toolMessages.length > 0) {
+                      const messagesToSend = [...toolMessages];
+                      const assistantMessagesToSend = [...assistantMessages];
+
+                      console.log(`[usageCacheMiddleware] 发送新请求，工具消息数量: ${messagesToSend.length}`);
+
+                      // 清空工具消息数组，避免重复发送
+                      toolMessages.length = 0;
+                      assistantMessages.length = 0;
+
+                      sendToolResultToModel(controller, messagesToSend, assistantMessagesToSend, req, config, abortController).catch(error => {
+                        console.error("[usageCacheMiddleware] Error continuing conversation after tool execution:", error);
+                        safeEnqueue(controller, {
+                          event: 'tool:continue_error',
+                          data: {
+                            type: 'tool:continue_error',
+                            error: error.message || String(error)
+                          }
+                        });
+                      });
+                    } else {
+                      console.warn(`[usageCacheMiddleware] 所有工具执行完成，但没有工具消息`);
+                    }
+                  }).catch(error => {
+                    console.error("[usageCacheMiddleware] Error waiting for tool executions:", error);
+                  });
+                } else {
+                  console.log(`[usageCacheMiddleware] 没有工具消息，不需要发送新请求`);
                 }
 
-                // 发送新的请求到 API，让模型基于工具结果继续生成
-                const response = await fetch(`http://${host}:${port}/v1/messages`, {
-                  method: "POST",
-                  headers,
-                  body: JSON.stringify(req.body),
-                });
-
-                // 如果请求失败，不传递任何数据
-                if (!response.ok) {
-                  return undefined;
-                }
-
-                // 解析新响应的 SSE 流
-                const stream = response.body.pipeThrough(new SSEParserTransform());
-                const reader = stream.getReader();
-
-                // 读取并转发新响应的所有事件（模型基于工具结果的回复）
-                while (true) {
-                  try {
-                    const { value, done } = await reader.read();
-                    if (done) {
-                      break;
-                    }
-
-                    // 跳过消息开始和结束事件（这些是控制事件，不需要传递给客户端）
-                    if (['message_start', 'message_stop'].includes(value.event)) {
-                      continue;
-                    }
-
-                    // 检查流是否仍然可写（背压控制）
-                    // 如果 desiredSize <= 0，说明下游处理不过来，停止读取
-                    if (controller.desiredSize !== null && controller.desiredSize <= 0) {
-                      break;
-                    }
-
-                    // 将事件推送到输出流
-                    controller.enqueue(value);
-                  } catch (readError) {
-                    // 处理流提前关闭的情况
-                    if (readError.name === 'AbortError' || readError.code === 'ERR_STREAM_PREMATURE_CLOSE') {
-                      abortController.abort();
-                      break;
-                    }
-                    throw readError;
-                  }
-                }
-
-                // 清空工具消息数组，避免重复发送
-                toolMessages.length = 0;
-                assistantMessages.length = 0;
-
-                // 返回 undefined，因为我们已经手动转发了新响应的事件
-                return undefined;
+                // 正常传递 message_delta 事件给前端
+                return data;
               }
 
               // ========== 其他事件：直接传递 ==========

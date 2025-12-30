@@ -197,6 +197,10 @@ export type SSEEventType =
   | "error"
   | "request_id"
   | "conversation:updated"
+  | "tool:result"
+  | "tool:error"
+  | "tool:continue_error"
+  | "tool:continue_complete"
   | "conversation:title_updated"
   | "canvas:code_delta"
   | "canvas:diff_detected"
@@ -234,6 +238,10 @@ export interface SSEEvent {
   originalCode?: string;
   recordId?: string;
   codeType?: "full" | "diff";
+  // 工具调用相关字段
+  tool_use_id?: string;
+  tool_name?: string;
+  result?: unknown;
 }
 
 /**
@@ -268,5 +276,30 @@ export interface StreamCallbacks {
     code?: string;
   }) => void;
   onCanvasRecordCreated?: (recordId: string) => void;
+  // 工具调用事件回调
+  onToolCallStart?: (data: {
+    index: number;
+    toolCallId: string;
+    toolName: string;
+  }) => void;
+  onToolCallDelta?: (data: {
+    index: number;
+    partialJson: string;
+  }) => void;
+  onToolCallStop?: (data: {
+    index: number;
+  }) => void;
+  onToolResult?: (data: {
+    tool_use_id: string;
+    tool_name: string;
+    result: unknown;
+    index: number;
+  }) => void;
+  onToolError?: (data: {
+    tool_use_id: string;
+    tool_name: string;
+    error: string;
+    index: number;
+  }) => void;
 }
 

@@ -234,6 +234,34 @@ export function useConversation() {
   function connectToStream(conversationId: string, requestId: string) {
     let accumulatedContent = "";
 
+    // 工具调用状态跟踪
+    const toolCallsMap = new Map<number, {
+      toolCallId: string;
+      toolName: string;
+      inputJson: string;
+      toolUIPart: import("ai").ToolUIPart;
+    }>();
+
+    /**
+     * 更新 store 中的工具调用
+     */
+    function updateToolCallsInStore() {
+      const toolCalls = Array.from(toolCallsMap.values())
+        .map((tc) => tc.toolUIPart)
+        .sort((a, b) => {
+          // 按照索引排序（Map 保持插入顺序）
+          const indexA = Array.from(toolCallsMap.keys()).find(
+            (idx) => toolCallsMap.get(idx)?.toolCallId === a.toolCallId
+          ) ?? 0;
+          const indexB = Array.from(toolCallsMap.keys()).find(
+            (idx) => toolCallsMap.get(idx)?.toolCallId === b.toolCallId
+          ) ?? 0;
+          return indexA - indexB;
+        });
+
+      store.updateMessageToolCalls(conversationId, requestId, toolCalls);
+    }
+
     sseStream.connectToStream(conversationId, requestId, {
       onChunk: (chunk: string) => {
         accumulatedContent = chunk;
@@ -328,6 +356,76 @@ export function useConversation() {
           conversationId,
           recordId,
         });
+      },
+
+      // 工具调用事件处理
+      onToolCallStart: ({ index, toolCallId, toolName }) => {
+        // 创建工具调用 UI 部分
+        const toolUIPart: import("ai").ToolUIPart = {
+          type: `tool-${toolName}`,
+          toolCallId,
+          state: "input-streaming",
+          input: {},
+        };
+
+        toolCallsMap.set(index, {
+          toolCallId,
+          toolName,
+          inputJson: "",
+          toolUIPart,
+        });
+
+        // 更新 store
+        updateToolCallsInStore();
+      },
+
+      onToolCallDelta: ({ index, partialJson }) => {
+        const toolCall = toolCallsMap.get(index);
+        if (toolCall) {
+          toolCall.inputJson += partialJson;
+          // 尝试解析 JSON（可能不完整）
+          try {
+            const partial = JSON.parse(toolCall.inputJson);
+            toolCall.toolUIPart.input = partial;
+          } catch {
+            // JSON 不完整，忽略解析错误
+          }
+          toolCall.toolUIPart.state = "input-streaming";
+          updateToolCallsInStore();
+        }
+      },
+
+      onToolCallStop: ({ index }) => {
+        const toolCall = toolCallsMap.get(index);
+        if (toolCall) {
+          // 解析完整的输入参数
+          try {
+            toolCall.toolUIPart.input = JSON.parse(toolCall.inputJson);
+          } catch (e) {
+            console.error("解析工具参数失败:", e);
+            toolCall.toolUIPart.input = {};
+          }
+          toolCall.toolUIPart.state = "input-available";
+          updateToolCallsInStore();
+        }
+      },
+
+      onToolResult: ({ tool_use_id, result, index }) => {
+        const toolCall = toolCallsMap.get(index);
+        if (toolCall && toolCall.toolCallId === tool_use_id) {
+          toolCall.toolUIPart.state = "output-available";
+          toolCall.toolUIPart.output = result;
+          updateToolCallsInStore();
+        }
+      },
+
+      onToolError: ({ tool_use_id, error, index }) => {
+        const toolCall = toolCallsMap.get(index);
+        if (toolCall && toolCall.toolCallId === tool_use_id) {
+          toolCall.toolUIPart.state = "output-error";
+          toolCall.toolUIPart.errorText = error;
+          updateToolCallsInStore();
+        }
       },
     });
   }

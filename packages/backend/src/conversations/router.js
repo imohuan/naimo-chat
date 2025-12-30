@@ -178,8 +178,16 @@ async function handleStreamResponse({
       timestamp: new Date().toISOString(),
     });
 
-    // 关闭会话
-    setTimeout(() => closeSession(requestId), 1000);
+    // 延迟关闭会话，给工具调用场景留出时间
+    // 如果有工具调用，usageCacheMiddleware 会在工具执行完成后发送 tool:continue_complete 事件
+    // 前端会等待该事件后再关闭连接，所以这里延迟关闭可以避免过早断开
+    setTimeout(() => {
+      // 检查会话是否仍然存在且未关闭
+      const session = getSession(requestId);
+      if (session && !session.closed) {
+        closeSession(requestId);
+      }
+    }, 3000); // 延迟 3 秒，给工具执行和第二次请求留出时间
   } catch (error) {
     console.error("处理流式响应失败:", error);
     sendEvent(requestId, {

@@ -27,13 +27,74 @@ export function useSSEStream() {
 
     let accumulatedContent = "";
     let isCompleted = false; // 标记是否已经正常完成
+    let hasToolCalls = false; // 标记是否有工具调用
+    let pendingToolResults = 0; // 等待工具结果的数量
+    let messageCompleteCount = 0; // 记录收到的 message_complete 事件数量
+
+    // 工具调用状态跟踪
+    const toolCallsMap = new Map<number, {
+      toolCallId: string;
+      toolName: string;
+      inputJson: string;
+    }>();
 
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as SSEEvent;
 
         switch (data.type) {
+          case "content_block_start":
+            // 处理工具调用开始
+            if (data.content_block?.type === "tool_use" && data.index !== undefined) {
+              const toolCallId = data.content_block.id || `tool-${data.index}`;
+              const toolName = data.content_block.name || "unknown";
+
+              hasToolCalls = true;
+              pendingToolResults++;
+
+              toolCallsMap.set(data.index, {
+                toolCallId,
+                toolName,
+                inputJson: "",
+              });
+
+              callbacks.onToolCallStart?.({
+                index: data.index,
+                toolCallId,
+                toolName,
+              });
+            }
+            break;
+
           case "content_block_delta":
+            // 处理工具参数增量
+            if (data.delta?.type === "input_json_delta" && data.index !== undefined) {
+              const toolCall = toolCallsMap.get(data.index);
+              if (toolCall && data.delta.partial_json) {
+                toolCall.inputJson += data.delta.partial_json;
+                callbacks.onToolCallDelta?.({
+                  index: data.index,
+                  partialJson: data.delta.partial_json,
+                });
+              }
+            }
+            // 累积文本内容
+            if (data.delta?.text) {
+              accumulatedContent += data.delta.text;
+              callbacks.onChunk?.(accumulatedContent);
+            }
+            break;
+
+          case "content_block_stop":
+            // 处理工具调用结束
+            if (data.index !== undefined) {
+              callbacks.onToolCallStop?.({
+                index: data.index,
+              });
+              // 清理工具调用状态（但保留数据，等待 tool:result 事件）
+            }
+            break;
+
           case "message_delta":
             // 累积内容
             if (data.delta?.text) {
@@ -72,10 +133,27 @@ export function useSSEStream() {
 
           case "message_complete":
             // 标记消息完成
+            messageCompleteCount++;
             isCompleted = true;
             callbacks.onComplete?.();
-            // 立即关闭连接，避免服务器关闭时触发错误事件
-            disconnect();
+
+            // 如果有工具调用，延迟关闭连接，等待工具执行完成后的第二次请求流输出
+            // 工具执行完成后，后端会发送第二次请求，并转发新的流输出
+            // 第一个 message_complete 是第一次请求完成，第二个是工具执行后的第二次请求完成
+            if (hasToolCalls) {
+              if (messageCompleteCount === 1) {
+                // 第一个 message_complete：第一次请求完成，工具调用开始执行
+                console.log(`[useSSEStream] 检测到工具调用，等待工具执行完成和后续流输出（剩余 ${pendingToolResults} 个工具结果）`);
+                // 不立即关闭连接，等待第二次请求完成
+              } else if (messageCompleteCount === 2) {
+                // 第二个 message_complete：工具执行后的第二次请求完成
+                console.log(`[useSSEStream] 工具执行后的第二次请求完成，关闭连接`);
+                disconnect();
+              }
+            } else {
+              // 没有工具调用，立即关闭连接
+              disconnect();
+            }
             break;
 
           case "session_end":
@@ -86,7 +164,16 @@ export function useSSEStream() {
             }
             // 标记为已完成，避免 onerror 触发错误回调
             isCompleted = true;
-            disconnect();
+
+            // 如果有工具调用，延迟关闭连接，等待工具执行完成后的第二次请求流输出
+            // 工具执行完成后，后端会发送第二次请求，并转发新的流输出
+            if (hasToolCalls) {
+              console.log(`[useSSEStream] 检测到工具调用，即使收到 session_end 也等待工具执行完成和后续流输出`);
+              // 不立即关闭连接，等待第二个 message_complete 或 tool:continue_complete 事件
+            } else {
+              // 没有工具调用，立即关闭连接
+              disconnect();
+            }
             break;
 
           case "error":
@@ -130,6 +217,48 @@ export function useSSEStream() {
           case "canvas:record_created":
             if (data.recordId) {
               callbacks.onCanvasRecordCreated?.(data.recordId);
+            }
+            break;
+
+          // 工具调用结果事件
+          case "tool:result":
+            if (data.tool_use_id && data.tool_name && data.index !== undefined) {
+              pendingToolResults = Math.max(0, pendingToolResults - 1);
+              callbacks.onToolResult?.({
+                tool_use_id: data.tool_use_id,
+                tool_name: data.tool_name,
+                result: data.result,
+                index: data.index,
+              });
+            }
+            break;
+
+          case "tool:error":
+            if (data.tool_use_id && data.tool_name && data.index !== undefined) {
+              pendingToolResults = Math.max(0, pendingToolResults - 1);
+              callbacks.onToolError?.({
+                tool_use_id: data.tool_use_id,
+                tool_name: data.tool_name,
+                error: data.error || "工具执行失败",
+                index: data.index,
+              });
+            }
+            break;
+
+          case "tool:continue_error":
+            // 工具执行后继续对话失败
+            console.error("工具执行后继续对话失败:", data.error);
+            // 工具执行失败，可以关闭连接了
+            if (hasToolCalls) {
+              disconnect();
+            }
+            break;
+
+          case "tool:continue_complete":
+            // 工具执行后的第二次请求完成
+            console.log(`[useSSEStream] 工具执行后的第二次请求完成，关闭连接`);
+            if (hasToolCalls) {
+              disconnect();
             }
             break;
         }
