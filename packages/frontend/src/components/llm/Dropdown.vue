@@ -22,6 +22,8 @@ const props = defineProps<{
   // position 若传入 'auto' 或不传，flip 中间件会自动处理
   position?: "bottom" | "top" | "left" | "right" | "auto";
   showArrow?: boolean;
+  // 禁用内容区域的滚动，让内部元素自己控制滚动
+  disableContentScroll?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -64,18 +66,19 @@ const { floatingStyles, placement, middlewareData } = useFloating(
         apply({ availableHeight, elements, rects }) {
           // 1. 宽度逻辑：默认最小宽度为触发器宽度
           const targetMinWidth = props.minWidth ?? rects.reference.width;
-          // 2. 高度逻辑：确保不超过屏幕可用空间，也不超过 props.maxHeight
-          const calculatedMaxHeight = Math.min(
-            availableHeight,
-            props.maxHeight || 400
-          );
+          // 2. 高度逻辑：如果传入了 maxHeight，确保不超过屏幕可用空间和 maxHeight；否则只使用 availableHeight
+          const calculatedMaxHeight =
+            props.maxHeight !== undefined
+              ? Math.min(availableHeight, props.maxHeight)
+              : undefined;
 
           Object.assign(elements.floating.style, {
             maxWidth: props.maxWidth ? `${props.maxWidth}px` : undefined,
             minWidth: `${targetMinWidth}px`,
-            maxHeight: `${calculatedMaxHeight}px`,
-            // 通过 CSS 变量传递 maxHeight 给内部元素
-            "--dropdown-max-height": `${calculatedMaxHeight}px`,
+            ...(calculatedMaxHeight !== undefined && {
+              maxHeight: `${calculatedMaxHeight}px`,
+              "--dropdown-max-height": `${calculatedMaxHeight}px`,
+            }),
           });
         },
       }),
@@ -161,7 +164,9 @@ if (escape) {
         <div
           class="relative bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden"
           :style="{
-            maxHeight: 'var(--dropdown-max-height, 400px)',
+            ...(props.maxHeight !== undefined && {
+              maxHeight: 'var(--dropdown-max-height)',
+            }),
             display: 'flex',
             flexDirection: 'column',
           }"
@@ -176,8 +181,18 @@ if (escape) {
 
           <!-- 滚动内容区 -->
           <div
-            class="dropdown-content overflow-y-auto rounded-lg relative z-20 bg-white flex-1"
-            :style="{ maxHeight: 'var(--dropdown-max-height, 400px)' }"
+            class="dropdown-content rounded-lg relative z-20 bg-white flex-1"
+            :class="{
+              'overflow-y-auto': !disableContentScroll,
+              'overflow-hidden': disableContentScroll,
+            }"
+            :style="
+              disableContentScroll
+                ? {}
+                : props.maxHeight !== undefined
+                ? { maxHeight: 'var(--dropdown-max-height)' }
+                : {}
+            "
           >
             <slot />
           </div>

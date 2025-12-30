@@ -214,6 +214,23 @@ class TagNodeView implements NodeView {
     const icon = this.node.attrs.icon || "🏷️";
     const label = this.node.attrs.label || "";
 
+    // 根据不同标签类型，为 hover 提示构造更详细的内容
+    const data = this.node.attrs.data || {};
+    let tooltip = label;
+    if (data.type === "code_ref" && data.raw) {
+      tooltip = String(data.raw);
+    } else if (data.type === "browser_selector" && data.selector) {
+      tooltip = String(data.selector);
+    } else if (data.type === "error_message" && data.raw) {
+      tooltip = String(data.raw);
+    } else if (data.type === "long_text" && data.text) {
+      tooltip = String(data.text);
+    }
+
+    if (tooltip) {
+      this.dom.title = tooltip;
+    }
+
     this.dom.innerHTML = `
       <span class="prompt-tag-icon-wrapper">
         <span class="prompt-tag-icon">${icon}</span>
@@ -353,6 +370,28 @@ function handleKeyDown(e: KeyboardEvent) {
       return; // 让 ProseMirror 处理
     }
 
+    // 当输入内容仅为 "/" 时，按 Enter 手动转换为指令标签
+    if (textInput.value.trim() === "/") {
+      e.preventDefault();
+      insertTagAtCursor({
+        id: `slash-command-${Date.now()}`,
+        label: "/",
+        data: {
+          text: "/",
+          type: "slash_command",
+        },
+        tagType: "command",
+      });
+      // 同步清空外部文本状态
+      setTextInput("");
+      return;
+    }
+
+    // 优先处理 / 指令转换为标签
+    if (tryConvertSlashCommandToTag(e)) {
+      return;
+    }
+
     if (isComposing.value || e.shiftKey) return;
     e.preventDefault();
     submitForm();
@@ -386,9 +425,31 @@ function handlePaste(e: ClipboardEvent) {
     }
   }
 
+  // 有文件时，走原有文件粘贴逻辑
   if (pastedFiles.length > 0) {
     e.preventDefault();
     addFiles(pastedFiles);
+    return;
+  }
+
+  // 无文件时，检查是否有纯文本需要转换为标签
+  const text = e.clipboardData?.getData("text/plain") || "";
+  // 按文档约定：按下 Shift（如 Ctrl+Shift+V）时不做 Tag 解析，保持原样
+  const hasShift =
+    (e as any).shiftKey === true ||
+    (e as any).clipboardData?.getData("application/x-raw-paste") === "1";
+  if (text.length > 100 && !hasShift) {
+    // 粘贴超过 100 字符时，将其作为一个标签插入
+    e.preventDefault();
+    insertTagAtCursor({
+      id: `paste-long-text-${Date.now()}`,
+      label: text.slice(0, 30) + (text.length > 30 ? "…" : ""),
+      data: {
+        text,
+        type: "long_text",
+      },
+      tagType: "text",
+    });
   }
 }
 
@@ -425,6 +486,73 @@ function insertTagAtCursor(attrs: TagNodeAttributes) {
   const { state, dispatch } = editorView;
   const tr = insertTag(state, schema, attrs);
   dispatch(tr);
+}
+
+/**
+ * 尝试将以 / 开头的指令转换为标签
+ *
+ * 规则：
+ * - 仅在按下空格或 Enter 时触发
+ * - 匹配光标前最近的一个 `/xxxx` 或单独 `/`
+ * - 转换为 `command` 类型的标签，data.text 保留原始字符串
+ */
+function tryConvertSlashCommandToTag(e: KeyboardEvent): boolean {
+  if (!editorView) return false;
+
+  if (e.key !== " " && e.key !== "Enter") {
+    return false;
+  }
+
+  const state = editorView.state;
+  const { from } = state.selection;
+
+  // 在光标前最多回溯 80 个字符，避免遍历整个文档
+  const lookBehind = 80;
+  const start = Math.max(0, from - lookBehind);
+  const textBefore = state.doc.textBetween(start, from, "\n", "\n");
+
+  const match = textBefore.match(/(?:^|\s)(\/\S*)$/);
+  if (!match) {
+    return false;
+  }
+
+  const token = match[1]; // 包含前缀 '/'
+  if (!token || token.length === 0) return false;
+
+  const isOnlySlash = token === "/";
+
+  // 规范约定：单独 `/` 不自动转为标签，只能通过显式操作手动转换
+  if (isOnlySlash) {
+    return false;
+  }
+
+  // 计算在文档中的删除范围：从当前 selection.from 往前退 token.length
+  const deleteFrom = from - token.length;
+  const deleteTo = from;
+  if (deleteFrom < 0) return false;
+
+  // 先在本地 state 上应用删除，再基于新状态插入标签
+  const tr = state.tr.delete(deleteFrom, deleteTo);
+  const intermediateState = state.apply(tr);
+
+  const attrs: TagNodeAttributes = {
+    id: `slash-command-${Date.now()}`,
+    label: token.slice(1),
+    data: {
+      text: token,
+      type: "slash_command",
+    },
+    tagType: "command",
+  };
+
+  // 在删除位置插入标签
+  const trWithTag = insertTag(intermediateState, schema, attrs, deleteFrom);
+  editorView.dispatch(trWithTag);
+
+  // 阻止本次按键的默认行为（包括空格或 Enter）
+  e.preventDefault();
+  e.stopPropagation();
+  return true;
 }
 
 /**

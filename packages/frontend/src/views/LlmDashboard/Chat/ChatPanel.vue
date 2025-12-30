@@ -17,6 +17,7 @@ import ChatMessages from "./components/ChatMessages.vue";
 import ChatInput from "./components/ChatInput.vue";
 import CanvasPanel from "./components/CanvasPanel.vue";
 import type { ConversationMode } from "./types";
+import { serializeLogicalTagToString } from "./stringTags";
 
 const props = defineProps<{
   providers?: LlmProvider[];
@@ -326,6 +327,7 @@ function handleTagClick(data: {
 
   // 如果是浏览器标签（元素选择器标签），处理预览跳转
   if (
+    data.data?.type === "browser_selector" ||
     data.data?.selector ||
     (data.icon &&
       typeof data.icon === "string" &&
@@ -353,21 +355,21 @@ function handleElementSelected(selector: string, data?: any) {
   // 插入元素选择器标签到输入框
   const editorRef = chatInputRef.value?.promptInputEditorRef;
   if (editorRef && typeof editorRef === "object" && "insertTag" in editorRef) {
+    const logicalRaw = serializeLogicalTagToString({
+      type: "browser_selector",
+      selector,
+      label: data?.tagName,
+    });
     (editorRef as any).insertTag({
       id: `element-ref-${Date.now()}`,
       label: data?.tagName || "Element",
       icon: browserIconSvg,
       tagType: "browser",
       data: {
-        text: selector,
-        selector: selector,
+        type: "browser_selector",
+        selector,
         tagName: data?.tagName,
-        id: data?.id,
-        classList: data?.classList,
-        textContent: data?.textContent,
-        position: data?.position,
-        styles: data?.styles,
-        attributes: data?.attributes,
+        raw: logicalRaw,
       },
     });
   }
@@ -388,18 +390,24 @@ function handleCtrlIPressed(data: {
       data.startLine === data.endLine
         ? `${data.startLine}`
         : `${data.startLine}-${data.endLine}`;
-    const tagText = `@${fileName}(${lineInfo})`;
+    const logicalRaw = serializeLogicalTagToString({
+      type: "code_ref",
+      fileName,
+      startLine: data.startLine,
+      endLine: data.endLine,
+    });
 
     (editorRef as any).insertTag({
       id: `code-ref-${Date.now()}`,
-      label: tagText.slice(1),
+      label: `${fileName}(${lineInfo})`,
       icon: htmlIconSvg,
       data: {
-        text: tagText,
+        type: "code_ref",
+        raw: logicalRaw,
         code: data.code,
         startLine: data.startLine,
         endLine: data.endLine,
-        fileName: fileName,
+        fileName,
       },
     });
   }

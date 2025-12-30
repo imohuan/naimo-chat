@@ -548,27 +548,30 @@ function registerAiChatRoutes(server) {
       const requestId = randomUUID();
       createSession(requestId);
 
-      // 添加用户消息（messageKey + versions）
-      const userMessageKey = generateMessageKey("user");
-      conversation.messages.push({
-        messageKey: userMessageKey,
-        role: "user",
-        versions: [
-          {
-            id: userMessageKey,
-            content,
-            createdAt: Date.now(),
-          },
-        ],
-        createdAt: Date.now(),
-      });
+      // 检查是否有重试请求（通过 messageKey 参数判断）
+      const { messageKey: retryMessageKey } = req.body;
+
+      // 如果是重试，不创建新的用户消息，使用之前的用户消息内容
+      if (!retryMessageKey) {
+        // 添加用户消息（messageKey + versions）- 仅非重试时
+        const userMessageKey = generateMessageKey("user");
+        conversation.messages.push({
+          messageKey: userMessageKey,
+          role: "user",
+          versions: [
+            {
+              id: userMessageKey,
+              content,
+              createdAt: Date.now(),
+            },
+          ],
+          createdAt: Date.now(),
+        });
+      }
 
       // 生成临时 requestId（带临时前缀，方便辨别）
       const tempRequestId = generateTempRequestId();
       const assistantMessageKey = generateMessageKey("assistant", tempRequestId);
-
-      // 检查是否有重试请求（通过 messageKey 参数判断）
-      const { messageKey: retryMessageKey } = req.body;
 
       // 如果是重试，在同一消息下添加新版本
       if (retryMessageKey) {
@@ -584,7 +587,6 @@ function registerAiChatRoutes(server) {
             createdAt: Date.now(),
           });
           existingMessage.updatedAt = Date.now();
-          targetMessageKey = retryMessageKey;
         } else {
           // 如果找不到原消息，创建新消息
           conversation.messages.push({

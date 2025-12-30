@@ -231,6 +231,29 @@ export const useConversationStore = defineStore("conversation", () => {
   }
 
   /**
+   * 在现有的 assistant 消息下添加新版本占位符（用于重试）
+   */
+  function addAssistantVersionPlaceholder(
+    conversationId: string,
+    messageKey: string,
+    requestId: string
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    const assistantMessage = conversation.messages.find(
+      (msg) => msg.key === messageKey && msg.from === "assistant"
+    );
+    if (assistantMessage) {
+      assistantMessage.versions.push({
+        id: requestId,
+        content: "",
+      });
+      conversation.updatedAt = Date.now();
+    }
+  }
+
+  /**
    * 更新对话标题
    */
   function updateConversationTitle(conversationId: string, title: string) {
@@ -376,6 +399,7 @@ export const useConversationStore = defineStore("conversation", () => {
     updateConversationMessages,
     addUserMessage,
     addAssistantPlaceholder,
+    addAssistantVersionPlaceholder,
     updateConversationTitle,
     updateConversationMode,
     updateConversationCodeHistory,

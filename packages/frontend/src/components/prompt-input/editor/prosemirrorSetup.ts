@@ -14,6 +14,7 @@ import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { keymap } from "prosemirror-keymap";
 import { baseKeymap } from "prosemirror-commands";
 import { history, undo, redo } from "prosemirror-history";
+import { serializeLogicalTagToString } from "@/views/LlmDashboard/Chat/stringTags";
 
 /**
  * 标签节点的属性定义
@@ -556,8 +557,13 @@ export function getEditorTextContent(state: EditorState): string {
     } else if (node.type.name === "hard_break") {
       content += "\n";
     } else if (node.type.name === "tag") {
-      // 返回标签的 id 属性作为文本内容
-      content += node.attrs.data.text || "";
+      // 优先使用字符串协议（raw），否则退回到 data.text
+      const data = node.attrs.data || {};
+      if (data.raw) {
+        content += String(data.raw);
+      } else if (data.text) {
+        content += String(data.text);
+      }
     }
   });
   return content;

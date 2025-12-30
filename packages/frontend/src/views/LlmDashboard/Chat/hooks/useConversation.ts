@@ -181,20 +181,30 @@ export function useConversation() {
     store.setError(null);
 
     try {
-      // 添加用户消息到 store
-      store.addUserMessage(conversationId, params.content, params.files);
+      // 如果是重试（有 messageKey），不添加新的用户消息
+      const isRetry = !!params.messageKey;
 
-      // 发送事件
-      eventBus.emit("message:sent", {
-        conversationId,
-        content: params.content,
-      });
+      if (!isRetry) {
+        // 添加用户消息到 store（仅非重试时）
+        store.addUserMessage(conversationId, params.content, params.files);
+
+        // 发送事件
+        eventBus.emit("message:sent", {
+          conversationId,
+          content: params.content,
+        });
+      }
 
       // 调用 API 发送消息
       const result = await chatApi.sendMessage(conversationId, params);
 
-      // 添加 assistant 占位消息
-      store.addAssistantPlaceholder(conversationId, result.requestId);
+      // 如果是重试，在现有的助手消息下添加新版本占位符
+      if (isRetry && params.messageKey) {
+        store.addAssistantVersionPlaceholder(conversationId, params.messageKey, result.requestId);
+      } else {
+        // 添加 assistant 占位消息（新消息）
+        store.addAssistantPlaceholder(conversationId, result.requestId);
+      }
 
       // 连接 SSE 流
       connectToStream(conversationId, result.requestId);

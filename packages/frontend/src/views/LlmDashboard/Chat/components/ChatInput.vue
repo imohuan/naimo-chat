@@ -16,9 +16,9 @@ import {
   usePromptInput,
 } from "@/components/ai-elements/prompt-input";
 import { MicRound } from "@vicons/material";
-import RouterModelSelect from "@/components/llm/RouterModelSelect.vue";
-import { Globe, ImageIcon, Sparkles } from "lucide-vue-next";
+import { Globe, ImageIcon } from "lucide-vue-next";
 import ModeSelector from "./ModeSelector.vue";
+import ModelConfigPanel from "./ModelConfigPanel.vue";
 import type { ConversationMode } from "@/views/LlmDashboard/Chat/types";
 import type { LlmProvider } from "@/interface";
 import { useModelSelection } from "@/views/LlmDashboard/Chat/hooks/useModelSelection";
@@ -145,16 +145,11 @@ defineExpose({
             @update:mode="emit('update:mode', $event)"
           />
           <div class="flex-1 min-w-[200px] max-w-[400px]">
-            <RouterModelSelect
-              :model-value="modelId"
-              :options="allModelOptions"
-              placeholder="选择或搜索模型..."
-              @update:model-value="handleModelSelect"
-            >
-              <template #icon>
-                <Sparkles class="w-4 h-4 text-slate-400" />
-              </template>
-            </RouterModelSelect>
+            <ModelConfigPanel
+              :model-id="modelId"
+              :model-options="allModelOptions"
+              @update:model-id="handleModelSelect"
+            />
           </div>
         </PromptInputTools>
 
