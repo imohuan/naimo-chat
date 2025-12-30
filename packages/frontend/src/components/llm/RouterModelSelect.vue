@@ -55,12 +55,13 @@ const groupedOptions = computed(() => {
   });
 
   // 按 provider 名称排序
-  const sortedGroups: Array<{ provider: string; options: string[] }> = Object.keys(groups)
-    .sort()
-    .map((provider) => ({
-      provider,
-      options: groups[provider]?.sort() || [],
-    }));
+  const sortedGroups: Array<{ provider: string; options: string[] }> =
+    Object.keys(groups)
+      .sort()
+      .map((provider) => ({
+        provider,
+        options: groups[provider]?.sort() || [],
+      }));
 
   return sortedGroups;
 });
@@ -215,7 +216,7 @@ onBeforeUnmount(() => {
 <template>
   <Dropdown :show="isOpen" @update:show="isOpen = $event">
     <template #trigger>
-      <div class="relative w-full font-mono">
+      <div class="relative w-full font-mono" @click.stop>
         <div
           v-if="showIcon"
           class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10"
@@ -239,7 +240,7 @@ onBeforeUnmount(() => {
           @blur="handleInputBlur"
           @input="handleInputChange"
           @keydown="handleInputKeydown"
-          @click="focusInput"
+          @click.stop="focusInput"
         />
         <div
           class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none"
@@ -252,7 +253,9 @@ onBeforeUnmount(() => {
           >
             <X class="w-3.5 h-3.5" />
           </button>
-          <ChevronDown class="w-4 h-4 text-slate-400 shrink-0 pointer-events-auto" />
+          <ChevronDown
+            class="w-4 h-4 text-slate-400 shrink-0 pointer-events-none"
+          />
         </div>
       </div>
     </template>
@@ -278,7 +281,8 @@ onBeforeUnmount(() => {
                   :key="option"
                   class="px-2 py-1 text-xs font-mono rounded-md cursor-pointer transition-colors flex items-center router-model-select__option"
                   :class="{
-                    'bg-primary-50 text-primary-700 font-medium': option === modelValue,
+                    'bg-primary-50 text-primary-700 font-medium':
+                      option === modelValue,
                     'hover:bg-slate-100 text-slate-700': option !== modelValue,
                   }"
                   @mousedown.prevent="select(option)"

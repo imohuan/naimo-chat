@@ -64,8 +64,10 @@ const allModelOptions = computed(() => {
 
 // 使用模型選擇 hooks
 const modelIdRef = computed(() => props.modelId);
-const { selectModel } = useModelSelection(allModelOptions, modelIdRef, (modelId) =>
-  emit("update:modelId", modelId)
+const { selectModel } = useModelSelection(
+  allModelOptions,
+  modelIdRef,
+  (modelId) => emit("update:modelId", modelId)
 );
 
 // PromptInputEditor ref
@@ -130,12 +132,18 @@ defineExpose({
       </PromptInputHeader>
 
       <PromptInputBody>
-        <PromptInputEditor ref="promptInputEditorRef" @tag-click="handleTagClick" />
+        <PromptInputEditor
+          ref="promptInputEditorRef"
+          @tag-click="handleTagClick"
+        />
       </PromptInputBody>
 
       <PromptInputFooter>
         <PromptInputTools>
-          <ModeSelector :mode="mode" @update:mode="emit('update:mode', $event)" />
+          <ModeSelector
+            :mode="mode"
+            @update:mode="emit('update:mode', $event)"
+          />
           <div class="flex-1 min-w-[200px] max-w-[400px]">
             <RouterModelSelect
               :model-value="modelId"
@@ -168,7 +176,10 @@ defineExpose({
             <Globe class="w-4 h-4" />
           </PromptInputButton>
 
-          <PromptInputSubmit :disabled="status === 'streaming'" :status="status" />
+          <PromptInputSubmit
+            :disabled="status === 'streaming'"
+            :status="status"
+          />
         </div>
       </PromptInputFooter>
     </PromptInput>
