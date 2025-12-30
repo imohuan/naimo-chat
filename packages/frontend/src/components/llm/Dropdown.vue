@@ -41,7 +41,8 @@ const { floatingStyles, placement, middlewareData } = useFloating(
     // 彻底解决 "内容变了定位没变" 的问题
     whileElementsMounted: autoUpdate,
     open: computed(() => props.show),
-    placement: props.position === "auto" ? "bottom" : props.position || "bottom",
+    placement:
+      props.position === "auto" ? "bottom" : props.position || "bottom",
     strategy: "fixed", // 使用 fixed 定位，避免父级 overflow 干扰
     middleware: [
       // 间距
@@ -63,12 +64,18 @@ const { floatingStyles, placement, middlewareData } = useFloating(
         apply({ availableHeight, elements, rects }) {
           // 1. 宽度逻辑：默认最小宽度为触发器宽度
           const targetMinWidth = props.minWidth ?? rects.reference.width;
+          // 2. 高度逻辑：确保不超过屏幕可用空间，也不超过 props.maxHeight
+          const calculatedMaxHeight = Math.min(
+            availableHeight,
+            props.maxHeight || 400
+          );
 
           Object.assign(elements.floating.style, {
             maxWidth: props.maxWidth ? `${props.maxWidth}px` : undefined,
             minWidth: `${targetMinWidth}px`,
-            // 2. 高度逻辑：确保不超过屏幕可用空间，也不超过 props.maxHeight
-            maxHeight: `${Math.min(availableHeight, props.maxHeight || 400)}px`,
+            maxHeight: `${calculatedMaxHeight}px`,
+            // 通过 CSS 变量传递 maxHeight 给内部元素
+            "--dropdown-max-height": `${calculatedMaxHeight}px`,
           });
         },
       }),
@@ -88,7 +95,11 @@ const arrowStyles = computed(() => {
   if (!data) return {};
 
   const { x, y } = data;
-  const side = placement.value.split("-")[0] as "top" | "bottom" | "left" | "right";
+  const side = placement.value.split("-")[0] as
+    | "top"
+    | "bottom"
+    | "left"
+    | "right";
   const staticSide = {
     top: "bottom",
     right: "left",
@@ -147,7 +158,14 @@ if (escape) {
         :style="floatingStyles"
         class="z-50"
       >
-        <div class="relative bg-white border border-slate-200 rounded-lg shadow-lg">
+        <div
+          class="relative bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden"
+          :style="{
+            maxHeight: 'var(--dropdown-max-height, 400px)',
+            display: 'flex',
+            flexDirection: 'column',
+          }"
+        >
           <!-- 箭头 -->
           <div
             v-if="showArrow"
@@ -157,7 +175,10 @@ if (escape) {
           ></div>
 
           <!-- 滚动内容区 -->
-          <div class="dropdown-content overflow-y-auto rounded-lg relative z-20 bg-white">
+          <div
+            class="dropdown-content overflow-y-auto rounded-lg relative z-20 bg-white flex-1"
+            :style="{ maxHeight: 'var(--dropdown-max-height, 400px)' }"
+          >
             <slot />
           </div>
         </div>

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import BaseSelect, { type SelectOption } from "@/components/llm/BaseSelect.vue";
-import { Trash2, Plus, Copy, ChevronDown, AlertTriangle } from "lucide-vue-next";
+import {
+  Trash2,
+  Plus,
+  Copy,
+  ChevronDown,
+  AlertTriangle,
+} from "lucide-vue-next";
 import ParamList from "./ParamList.vue";
 import type { TransformerConfig, TransformerConfigItem } from "@/interface";
 
@@ -74,7 +80,10 @@ const transformerSchemas: Record<string, TransformerSchema> = {
     ],
   },
   OpenAITransformer: {},
-  OpenrouterTransformer: { allowCustom: true, description: "可携带任意键值，合并到请求体" },
+  OpenrouterTransformer: {
+    allowCustom: true,
+    description: "可携带任意键值，合并到请求体",
+  },
   GeminiTransformer: {},
   VertexGeminiTransformer: {},
   VertexClaudeTransformer: {},
@@ -87,26 +96,56 @@ const transformerSchemas: Record<string, TransformerSchema> = {
   TooluseTransformer: {},
   MaxTokenTransformer: {
     params: [
-      { key: "max_tokens", label: "max_tokens", type: "number", placeholder: "4096" },
+      {
+        key: "max_tokens",
+        label: "max_tokens",
+        type: "number",
+        placeholder: "4096",
+      },
     ],
   },
   MaxCompletionTokens: {},
   SamplingTransformer: {
     params: [
-      { key: "max_tokens", label: "max_tokens", type: "number", placeholder: "4096" },
-      { key: "temperature", label: "temperature", type: "number", placeholder: "0.7" },
+      {
+        key: "max_tokens",
+        label: "max_tokens",
+        type: "number",
+        placeholder: "4096",
+      },
+      {
+        key: "temperature",
+        label: "temperature",
+        type: "number",
+        placeholder: "0.7",
+      },
       { key: "top_p", label: "top_p", type: "number", placeholder: "0.9" },
       { key: "top_k", label: "top_k", type: "number", placeholder: "40" },
-      { key: "repetition_penalty", label: "repetition_penalty", type: "number", placeholder: "1.05" },
+      {
+        key: "repetition_penalty",
+        label: "repetition_penalty",
+        type: "number",
+        placeholder: "1.05",
+      },
     ],
   },
   ReasoningTransformer: {
-    params: [{ key: "enable", label: "enable", type: "boolean", helper: "默认 true，关闭则禁用 reasoning" }],
+    params: [
+      {
+        key: "enable",
+        label: "enable",
+        type: "boolean",
+        helper: "默认 true，关闭则禁用 reasoning",
+      },
+    ],
   },
   ForceReasoningTransformer: {},
   EnhanceToolTransformer: {},
   CleancacheTransformer: {},
-  CustomParamsTransformer: { allowCustom: true, description: "附加任意键值对对象，递归合并" },
+  CustomParamsTransformer: {
+    allowCustom: true,
+    description: "附加任意键值对对象，递归合并",
+  },
 };
 
 const schemaTypeNames = computed(() => Object.keys(transformerSchemas));
@@ -132,7 +171,9 @@ const isInternalUpdate = ref(false);
 
 const typeOptions = computed(() => {
   const allowed = new Set([...schemaTypeNames.value, ...builtinTransformers]);
-  const external = (props.options?.map((o) => o.name) ?? []).filter((n) => allowed.has(n));
+  const external = (props.options?.map((o) => o.name) ?? []).filter((n) =>
+    allowed.has(n)
+  );
   const merged = [...builtinTransformers, ...external].filter(
     (name, idx, arr) => arr.indexOf(name) === idx
   );
@@ -143,13 +184,18 @@ const hasItems = computed(() => scopeConfigs.value.length > 0);
 // 检查指定作用域是否重复（完全相同的才算重复，排除 "none"）
 function isScopeDuplicate(scope: string): boolean {
   if (scope === "none") return false;
-  const count = scopeConfigs.value.filter((config) => config.scope === scope).length;
+  const count = scopeConfigs.value.filter(
+    (config) => config.scope === scope
+  ).length;
   return count > 1;
 }
 const scopeSelectOptions = computed<SelectOption[]>(() => [
   { label: "None", value: "none" },
   { label: "全局 (use)", value: "use" },
-  ...availableModels.value.map((model) => ({ label: `模型 (${model})`, value: model })),
+  ...availableModels.value.map((model) => ({
+    label: `模型 (${model})`,
+    value: model,
+  })),
 ]);
 const typeSelectOptions = computed<SelectOption[]>(() =>
   typeOptions.value.map((t) => ({ label: t, value: t }))
@@ -224,13 +270,16 @@ function loadFromConfig(config?: TransformerConfig) {
   }
 
   // 转换为数组格式
-  scopeConfigs.value = Array.from(scopeMap.entries()).map(([scope, transformers]) => ({
-    scope,
-    transformers,
-  }));
+  scopeConfigs.value = Array.from(scopeMap.entries()).map(
+    ([scope, transformers]) => ({
+      scope,
+      transformers,
+    })
+  );
 
   const allItems = Array.from(scopeMap.values()).flat();
-  nextId.value = allItems.length > 0 ? Math.max(...allItems.map((i) => i.id)) + 1 : 1;
+  nextId.value =
+    allItems.length > 0 ? Math.max(...allItems.map((i) => i.id)) + 1 : 1;
 
   // 保留现有的折叠状态，只为新项设置默认值
   const existingCollapsed = { ...collapsedParams.value };
@@ -242,7 +291,10 @@ function loadFromConfig(config?: TransformerConfig) {
   collapsedParams.value = existingCollapsed;
 }
 
-function normalizeItem(item: TransformerConfigItem): { type: string; params: Record<string, any> } {
+function normalizeItem(item: TransformerConfigItem): {
+  type: string;
+  params: Record<string, any>;
+} {
   let type = "";
   let params: Record<string, any> = {};
 
@@ -391,7 +443,11 @@ function handleScopeChange(scopeConfig: ScopeConfig, value: string) {
   // 支持数组模式和对象模式（嵌套 use）
   if (Array.isArray(existingConfig)) {
     transformersToLoad = existingConfig;
-  } else if (existingConfig && typeof existingConfig === "object" && "use" in existingConfig) {
+  } else if (
+    existingConfig &&
+    typeof existingConfig === "object" &&
+    "use" in existingConfig
+  ) {
     transformersToLoad = (existingConfig as any).use;
   }
 
@@ -405,7 +461,7 @@ function handleScopeChange(scopeConfig: ScopeConfig, value: string) {
         id: nextId.value++,
         scope: value,
         type,
-        params
+        params,
       });
     });
 
@@ -441,7 +497,9 @@ function addTransformer(scopeConfig: ScopeConfig, afterItem?: FlatConfigItem) {
     params: {},
   };
   if (afterItem) {
-    const idx = scopeConfig.transformers.findIndex((t) => t.id === afterItem.id);
+    const idx = scopeConfig.transformers.findIndex(
+      (t) => t.id === afterItem.id
+    );
     if (idx !== -1) {
       scopeConfig.transformers.splice(idx + 1, 0, newItem);
     } else {
@@ -477,11 +535,16 @@ function hasAnyParams(item: FlatConfigItem) {
   const isCustomParamsTransformer = item.type === "CustomParamsTransformer";
 
   // 检查是否有自定义参数值（只有 CustomParamsTransformer 才允许）
-  const hasCustomParams = item.type === "CustomParamsTransformer" &&
-    Object.keys(item.params || {}).some(key => {
+  const hasCustomParams =
+    item.type === "CustomParamsTransformer" &&
+    Object.keys(item.params || {}).some((key) => {
       // 排除固定参数的 key
-      const fixedKeys = new Set(schema.params?.map(p => p.key) ?? []);
-      return !fixedKeys.has(key) && item.params[key] !== undefined && item.params[key] !== "";
+      const fixedKeys = new Set(schema.params?.map((p) => p.key) ?? []);
+      return (
+        !fixedKeys.has(key) &&
+        item.params[key] !== undefined &&
+        item.params[key] !== ""
+      );
     });
 
   return hasFixedParams || isCustomParamsTransformer || hasCustomParams;
@@ -563,7 +626,11 @@ function handleTransformerTypeChange(item: FlatConfigItem, newType: string) {
   item.params = cleanedParams;
 
   // 4. 设置折叠状态
-  const hasParams = hasAnyParams({ ...item, type: newType, params: cleanedParams });
+  const hasParams = hasAnyParams({
+    ...item,
+    type: newType,
+    params: cleanedParams,
+  });
   if (hasParams) {
     // 如果有参数，默认展开（特别是 CustomParamsTransformer，方便用户添加参数）
     if (collapsedParams.value[item.id] === undefined) {
@@ -589,7 +656,9 @@ function sanitizeParams(params: Record<string, any>) {
 function getSchema(type: string): TransformerSchema {
   // 只有 CustomParamsTransformer 才允许自定义参数
   const defaultAllowCustom = type === "CustomParamsTransformer";
-  return transformerSchemas[type] ?? { allowCustom: defaultAllowCustom, params: [] };
+  return (
+    transformerSchemas[type] ?? { allowCustom: defaultAllowCustom, params: [] }
+  );
 }
 
 function coerceByType(value: string | boolean, kind: ParamKind) {
@@ -625,7 +694,8 @@ function getReadonlyKeys(item: FlatConfigItem): string[] {
         <div class="p-1.5 flex flex-col gap-1.5">
           <!-- 作用域行 -->
           <div class="flex items-center gap-0.5">
-            <label class="text-xs font-medium text-slate-600 shrink-0 whitespace-nowrap"
+            <label
+              class="text-xs font-medium text-slate-600 shrink-0 whitespace-nowrap"
               >作用域：</label
             >
             <div class="w-48 max-w-48">
@@ -717,7 +787,9 @@ function getReadonlyKeys(item: FlatConfigItem): string[] {
                     :placeholder="props.placeholder ?? '选择或搜索转换器'"
                     :disabled="disabled || loading"
                     :clearable="true"
+                    :searchable="true"
                     :dropdown-min-width="260"
+                    :dropdown-max-height="300"
                     @update:model-value="
                       (val) => handleTransformerTypeChange(item, (val as string) || '')
                     "
@@ -784,7 +856,10 @@ function getReadonlyKeys(item: FlatConfigItem): string[] {
       </div>
     </div>
 
-    <div v-else class="text-xs text-slate-400 text-center py-4 rounded-md bg-white/60">
+    <div
+      v-else
+      class="text-xs text-slate-400 text-center py-4 rounded-md bg-white/60"
+    >
       暂无配置项，点击"添加配置"按钮添加
     </div>
   </div>

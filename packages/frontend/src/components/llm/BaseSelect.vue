@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, useSlots, type CSSProperties, type Component } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  useSlots,
+  type CSSProperties,
+  type Component,
+} from "vue";
 import { ChevronDown, X } from "lucide-vue-next";
 import Dropdown from "./Dropdown.vue";
-import Input from "./Input.vue"
+import Input from "./Input.vue";
 
 export interface SelectOption {
   label: string;
@@ -23,6 +33,7 @@ const props = defineProps<{
   searchable?: boolean; // 是否可搜索，默认 true
   dropdownMinWidth?: number; // 下拉最小宽度，默认 240
   dropdownMaxWidth?: number; // 下拉最大宽度，可选
+  dropdownMaxHeight?: number; // 下拉最大高度，可选
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +47,8 @@ const isEditing = ref(false);
 const inputCompRef = ref<InstanceType<typeof Input> | null>(null);
 const inputRef = computed(() => inputCompRef.value?.el);
 const dropdownRef = ref<InstanceType<typeof Dropdown> | null>(null);
+const highlightedIndex = ref<number>(-1);
+const optionRefs = ref<Map<number, HTMLElement>>(new Map());
 let blurTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const slots = useSlots();
@@ -49,7 +62,9 @@ const selectedOption = computed(() => {
   if (props.modelValue === null || props.modelValue === undefined) {
     return null;
   }
-  const foundOption = props.options.find((opt) => opt.value === props.modelValue);
+  const foundOption = props.options.find(
+    (opt) => opt.value === props.modelValue
+  );
   if (foundOption) {
     return foundOption;
   }
@@ -57,7 +72,7 @@ const selectedOption = computed(() => {
   return {
     label: String(props.modelValue),
     value: props.modelValue,
-    colorClass: '',
+    colorClass: "",
   };
 });
 
@@ -70,7 +85,6 @@ const inputValue = computed(() => {
   // 其他情况都返回空字符串，完全隐藏输入框文本
   return "";
 });
-
 
 // 根据搜索关键词过滤选项
 const filteredOptions = computed(() => {
@@ -89,13 +103,11 @@ const filteredOptions = computed(() => {
   });
 });
 
-
 function focusInput() {
   if (props.disabled || props.loading) return;
   inputRef.value?.focus();
   isOpen.value = true;
 }
-
 
 function select(value: string | number) {
   if (blurTimeout) {
@@ -105,6 +117,7 @@ function select(value: string | number) {
 
   emit("update:modelValue", value);
   searchQuery.value = "";
+  highlightedIndex.value = -1;
   isFocused.value = false;
   isEditing.value = false;
   isOpen.value = false;
@@ -128,6 +141,7 @@ function clearValue(event: MouseEvent) {
 
   emit("update:modelValue", null);
   searchQuery.value = "";
+  highlightedIndex.value = -1;
   isFocused.value = false;
   isEditing.value = false;
   isOpen.value = false;
@@ -141,6 +155,7 @@ function clearSearch(event: MouseEvent) {
   event.stopPropagation();
   event.preventDefault();
   searchQuery.value = "";
+  highlightedIndex.value = -1;
   isEditing.value = true;
   nextTick(() => {
     inputRef.value?.focus();
@@ -152,6 +167,8 @@ function handleInputFocus() {
   isFocused.value = true;
   isEditing.value = true;
   isOpen.value = true;
+  // 重置高亮索引
+  highlightedIndex.value = -1;
 }
 
 function handleInputBlur() {
@@ -160,6 +177,7 @@ function handleInputBlur() {
     isEditing.value = false;
     isOpen.value = false;
     searchQuery.value = "";
+    highlightedIndex.value = -1;
     blurTimeout = null;
   }, 200);
 }
@@ -180,21 +198,100 @@ function handleInputKeydown(event: KeyboardEvent) {
     isEditing.value = false;
     isOpen.value = false;
     searchQuery.value = "";
+    highlightedIndex.value = -1;
     inputRef.value?.blur();
+    return;
   }
-  if (event.key === "Enter" && props.searchable !== false) {
-    // 如果有匹配的选项，选择第一个
-    if (filteredOptions.value.length > 0) {
-      const firstOption = filteredOptions.value.find(opt => !opt.disabled);
+
+  if (event.key === "Enter") {
+    // 如果有高亮的选项，选择它
+    if (
+      highlightedIndex.value >= 0 &&
+      highlightedIndex.value < filteredOptions.value.length
+    ) {
+      const option = filteredOptions.value[highlightedIndex.value];
+      if (option && !option.disabled) {
+        select(option.value);
+        event.preventDefault();
+        return;
+      }
+    }
+    // 如果没有高亮但有匹配的选项，选择第一个
+    if (filteredOptions.value.length > 0 && props.searchable !== false) {
+      const firstOption = filteredOptions.value.find((opt) => !opt.disabled);
       if (firstOption) {
         select(firstOption.value);
         event.preventDefault();
+        return;
       }
-    } else if (searchQuery.value.trim()) {
-      // 如果没有匹配选项但有搜索内容，使用搜索内容作为值
+    }
+    // 如果没有匹配选项但有搜索内容，使用搜索内容作为值
+    if (searchQuery.value.trim() && props.searchable !== false) {
       select(searchQuery.value.trim());
       event.preventDefault();
     }
+    return;
+  }
+
+  // 方向键导航
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    if (!isOpen.value) {
+      isOpen.value = true;
+      isFocused.value = true;
+    }
+
+    const enabledOptions = filteredOptions.value.filter((opt) => !opt.disabled);
+    if (enabledOptions.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+
+    if (highlightedIndex.value === -1) {
+      // 如果还没有高亮，找到当前选中项的索引
+      const currentIndex = filteredOptions.value.findIndex(
+        (opt) => opt.value === props.modelValue
+      );
+      highlightedIndex.value = currentIndex >= 0 ? currentIndex : 0;
+    } else {
+      // 根据方向键移动高亮
+      if (event.key === "ArrowDown") {
+        // 向下：找到下一个可用的选项
+        let nextIndex = highlightedIndex.value + 1;
+        while (nextIndex < filteredOptions.value.length) {
+          const option = filteredOptions.value[nextIndex];
+          if (option && !option.disabled) {
+            break;
+          }
+          nextIndex++;
+        }
+        if (nextIndex < filteredOptions.value.length) {
+          highlightedIndex.value = nextIndex;
+        }
+      } else {
+        // 向上：找到上一个可用的选项
+        let prevIndex = highlightedIndex.value - 1;
+        while (prevIndex >= 0) {
+          const option = filteredOptions.value[prevIndex];
+          if (option && !option.disabled) {
+            break;
+          }
+          prevIndex--;
+        }
+        if (prevIndex >= 0) {
+          highlightedIndex.value = prevIndex;
+        }
+      }
+    }
+
+    // 滚动到可见区域
+    nextTick(() => {
+      const element = optionRefs.value.get(highlightedIndex.value);
+      if (element) {
+        element.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    });
   }
 }
 
@@ -203,6 +300,17 @@ watch(
   () => {
     if (!isOpen.value && !isEditing.value) {
       searchQuery.value = "";
+      highlightedIndex.value = -1;
+    }
+  }
+);
+
+// 当过滤选项变化时，重置高亮索引
+watch(
+  () => filteredOptions.value,
+  () => {
+    if (highlightedIndex.value >= filteredOptions.value.length) {
+      highlightedIndex.value = -1;
     }
   }
 );
@@ -221,6 +329,7 @@ onBeforeUnmount(() => {
     :show="isOpen && !disabled && !loading"
     :min-width="dropdownMinWidth"
     :max-width="dropdownMaxWidth"
+    :max-height="dropdownMaxHeight"
     @update:show="isOpen = $event"
   >
     <template #trigger>
@@ -252,7 +361,9 @@ onBeforeUnmount(() => {
 
         <!-- 无自定义标签时的默认显示 -->
         <div
-          v-else-if="selectedOption && !hasSelectedSlot && !isFocused && !searchQuery"
+          v-else-if="
+            selectedOption && !hasSelectedSlot && !isFocused && !searchQuery
+          "
           class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-sm text-slate-700"
         >
           {{ selectedOption.label }}
@@ -268,22 +379,22 @@ onBeforeUnmount(() => {
         <div
           class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none"
         >
-          <!-- 清空按钮 -->
-          <button
-            v-if="clearable && selectedOption && !disabled && !loading"
-            type="button"
-            class="pointer-events-auto p-0.5 text-slate-400 hover:text-slate-600 transition-colors"
-            @mousedown.prevent.stop="clearValue"
-          >
-            <X class="w-3.5 h-3.5" />
-          </button>
-
-          <!-- 搜索清除按钮 -->
+          <!-- 搜索清除按钮（优先显示，当有搜索内容时） -->
           <button
             v-if="searchQuery && searchable !== false && !disabled && !loading"
             type="button"
             class="pointer-events-auto p-0.5 text-slate-400 hover:text-slate-600 transition-colors"
             @mousedown.prevent.stop="clearSearch"
+          >
+            <X class="w-3.5 h-3.5" />
+          </button>
+
+          <!-- 清空按钮（只在没有搜索内容时显示） -->
+          <button
+            v-else-if="clearable && selectedOption && !disabled && !loading"
+            type="button"
+            class="pointer-events-auto p-0.5 text-slate-400 hover:text-slate-600 transition-colors"
+            @mousedown.prevent.stop="clearValue"
           >
             <X class="w-3.5 h-3.5" />
           </button>
@@ -300,17 +411,32 @@ onBeforeUnmount(() => {
     <div class="flex-1 overflow-y-auto p-1 flex flex-col gap-1">
       <template v-if="filteredOptions.length > 0">
         <div
-          v-for="option in filteredOptions"
+          v-for="(option, index) in filteredOptions"
           :key="String(option.value)"
+          :ref="(el) => {
+            if (el) {
+              optionRefs.set(index, el as HTMLElement);
+            } else {
+              optionRefs.delete(index);
+            }
+          }"
           class="px-2 py-1 text-sm rounded-md cursor-pointer transition-colors flex items-center gap-2 base-select__option"
           :class="{
             'bg-slate-200 ': option.value === modelValue,
-            'hover:bg-slate-100 text-slate-700': option.value !== modelValue,
+            'bg-sky-100 text-sky-700':
+              highlightedIndex === index && option.value !== modelValue,
+            'hover:bg-slate-100 text-slate-700':
+              highlightedIndex !== index && option.value !== modelValue,
             'opacity-50 cursor-not-allowed': option.disabled,
           }"
           @mousedown.prevent="option.disabled ? null : select(option.value)"
+          @mouseenter="highlightedIndex = index"
         >
-          <slot name="option" :option="option" :is-selected="option.value === modelValue">
+          <slot
+            name="option"
+            :option="option"
+            :is-selected="option.value === modelValue"
+          >
             <!-- 默认渲染：颜色块 + 图标 + 文本 -->
             <span
               v-if="option.colorClass || option.colorStyle"
@@ -321,7 +447,11 @@ onBeforeUnmount(() => {
             <component
               v-if="option.icon"
               :is="typeof option.icon === 'string' ? 'span' : option.icon"
-              :class="typeof option.icon === 'string' ? option.icon : 'w-4 h-4 shrink-0'"
+              :class="
+                typeof option.icon === 'string'
+                  ? option.icon
+                  : 'w-4 h-4 shrink-0'
+              "
             />
             <span class="flex-1">{{ option.label }}</span>
           </slot>
@@ -336,13 +466,18 @@ onBeforeUnmount(() => {
       </div>
 
       <div
-        v-else-if="searchQuery && filteredOptions.length === 0 && searchable !== false"
+        v-else-if="
+          searchQuery && filteredOptions.length === 0 && searchable !== false
+        "
         class="px-2 py-1.5 text-sm text-slate-400 text-center"
       >
         无匹配结果
       </div>
 
-      <div v-if="loading" class="px-2 py-1.5 text-sm text-slate-400 text-center">
+      <div
+        v-if="loading"
+        class="px-2 py-1.5 text-sm text-slate-400 text-center"
+      >
         加载中...
       </div>
     </div>

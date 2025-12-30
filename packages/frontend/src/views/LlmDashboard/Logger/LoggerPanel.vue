@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { Loader2 } from "lucide-vue-next";
 import LoggerHeaderControls from "./components/LoggerHeaderControls.vue";
 import MessageList from "./components/MessageList.vue";
 import LoggerRequestDetail from "./components/LoggerRequestDetail.vue";
@@ -28,6 +29,7 @@ const {
 
 const selectedLogContent = ref<string>("");
 const isLoadingLogContent = ref(false);
+const isLoadingLogFiles = ref(false);
 
 // 对话相关
 const {
@@ -72,6 +74,7 @@ async function handleClearLogFile() {
 
 // 加载 messages 并自动选择第一个
 async function loadMessagesAndSelectFirst() {
+  // isLoadingMessages 已经在 loadMessages 中管理
   await loadMessages(true);
   // 加载完成后，如果 filteredMessages 有数据且当前没有选中，就选择第一个
   if (filteredMessages.value.length > 0 && !selectedMessageId.value) {
@@ -79,6 +82,16 @@ async function loadMessagesAndSelectFirst() {
     if (firstMessage?.requestId) {
       await selectMessage(firstMessage.requestId);
     }
+  }
+}
+
+// 包装 loadLogFiles 以添加加载状态
+async function loadLogFilesWithLoading(autoSelectFirst = false) {
+  isLoadingLogFiles.value = true;
+  try {
+    await loadLogFiles(autoSelectFirst);
+  } finally {
+    isLoadingLogFiles.value = false;
   }
 }
 
@@ -235,7 +248,7 @@ watch(activeMode, async (mode) => {
   if (mode === "messages") {
     await loadMessagesAndSelectFirst();
   } else if (mode === "logs") {
-    await loadLogFiles(true);
+    await loadLogFilesWithLoading(true);
     if (selectedLogFileObj.value) {
       await loadLogContent(selectedLogFileObj.value.path);
     }
@@ -254,7 +267,7 @@ onMounted(async () => {
   if (activeMode.value === "messages") {
     await loadMessagesAndSelectFirst();
   } else if (activeMode.value === "logs") {
-    await loadLogFiles(true);
+    await loadLogFilesWithLoading(true);
     if (selectedLogFileObj.value) {
       await loadLogContent(selectedLogFileObj.value.path);
     }
@@ -290,10 +303,13 @@ onUnmounted(() => {
       <template v-if="activeMode === 'logs'">
         <div class="flex-1 min-w-0 w-full h-full">
           <div
-            v-if="isLoadingLogContent"
+            v-if="isLoadingLogFiles || isLoadingLogContent"
             class="flex items-center justify-center h-full"
           >
-            <p class="text-slate-400">加载中...</p>
+            <div class="flex flex-col items-center gap-3">
+              <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
+              <p class="text-slate-400 text-sm">加载中...</p>
+            </div>
           </div>
           <CodeEditor
             v-else
@@ -331,7 +347,14 @@ onUnmounted(() => {
         <div
           class="flex-1 min-w-0 w-full h-full flex items-center justify-center"
         >
-          <LoggerRequestDetail :request="convertedLogRequest" />
+          <div
+            v-if="isLoadingMessages"
+            class="flex flex-col items-center gap-3"
+          >
+            <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
+            <p class="text-slate-400 text-sm">加载中...</p>
+          </div>
+          <LoggerRequestDetail v-else :request="convertedLogRequest" />
         </div>
       </template>
     </div>
