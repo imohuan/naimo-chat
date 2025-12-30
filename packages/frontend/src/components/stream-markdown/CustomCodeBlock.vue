@@ -24,6 +24,18 @@
         <span class="custom-code-block__lang">{{
           formatLanguage(language)
         }}</span>
+        <template v-if="diffStats">
+          <span
+            class="custom-code-block__diff-stats custom-code-block__diff-stats--added"
+          >
+            +{{ diffStats.added }}
+          </span>
+          <span
+            class="custom-code-block__diff-stats custom-code-block__diff-stats--removed"
+          >
+            -{{ diffStats.removed }}
+          </span>
+        </template>
       </div>
 
       <div class="header-spacer" />
@@ -130,6 +142,20 @@ const element = ref<HTMLDivElement>();
 // diff 相关逻辑抽象为 hook
 const codeRef = toRef(props, "code");
 const { isDiffBlock, diffOldText, diffNewText } = useDiffCodeBlock(codeRef);
+
+// 计算 diff 行数统计
+const diffStats = computed(() => {
+  if (!isDiffBlock.value) {
+    return null;
+  }
+  // 计算所有行数（包括空行），与标准 diff 格式一致
+  const oldLines = diffOldText.value ? diffOldText.value.split("\n").length : 0;
+  const newLines = diffNewText.value ? diffNewText.value.split("\n").length : 0;
+  return {
+    added: newLines,
+    removed: oldLines,
+  };
+});
 
 // 检测是否在 .model-canvas 容器内
 const isInModelCanvas = (): boolean => {
@@ -465,6 +491,24 @@ function guessExtension(lang?: string) {
   font-weight: 700;
   letter-spacing: 0.12em;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.custom-code-block__diff-stats {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.custom-code-block__diff-stats--added {
+  color: #10b981;
+}
+
+.custom-code-block__diff-stats--removed {
+  color: #ef4444;
 }
 
 .header-spacer {
