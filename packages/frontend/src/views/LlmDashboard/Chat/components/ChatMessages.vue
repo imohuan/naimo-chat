@@ -55,8 +55,12 @@ const messageMaxWidth = computed(() => props.layoutConfig.messageMaxWidth);
 const messageLayout = computed(() => props.layoutConfig.messageLayout);
 const avatarSize = computed(() => props.layoutConfig.avatarSize);
 const iconSize = computed(() => props.layoutConfig.iconSize);
-const messageBranchPadding = computed(() => props.layoutConfig.messageBranchPadding);
-const messageToolbarMargin = computed(() => props.layoutConfig.messageToolbarMargin);
+const messageBranchPadding = computed(
+  () => props.layoutConfig.messageBranchPadding
+);
+const messageToolbarMargin = computed(
+  () => props.layoutConfig.messageToolbarMargin
+);
 const containerMaxWidth = computed(() => props.layoutConfig.containerMaxWidth);
 
 // 角色样式
@@ -118,7 +122,10 @@ function handleBranchChange(messageKey: string, branchIndex: number) {
   const message = props.messages.find((msg) => msg.key === messageKey);
   if (!message || !message.versions || message.versions.length === 0) return;
 
-  const validIndex = Math.max(0, Math.min(branchIndex, message.versions.length - 1));
+  const validIndex = Math.max(
+    0,
+    Math.min(branchIndex, message.versions.length - 1)
+  );
   currentVersionIndex.value[messageKey] = validIndex;
   emit("branchChange", messageKey, validIndex);
 }
@@ -129,7 +136,10 @@ function handleCopy(messageKey: string) {
 
   let selectedIndex =
     currentVersionIndex.value[messageKey] ?? message.versions.length - 1;
-  selectedIndex = Math.max(0, Math.min(selectedIndex, message.versions.length - 1));
+  selectedIndex = Math.max(
+    0,
+    Math.min(selectedIndex, message.versions.length - 1)
+  );
   const version = message.versions[selectedIndex];
   const content = version?.content || "";
 
@@ -175,9 +185,16 @@ watch(
   >
     <div
       class="relative flex h-full w-full overflow-hidden"
-      :class="messages.length > 0 ? 'flex-col divide-y' : 'items-center justify-center'"
+      :class="
+        messages.length > 0
+          ? 'flex-col divide-y'
+          : 'items-center justify-center'
+      "
     >
-      <Conversation v-if="messages.length > 0" class="conversation-content border-none">
+      <Conversation
+        v-if="messages.length > 0"
+        class="conversation-content border-none"
+      >
         <ConversationContent
           :class="['mx-auto w-full px-4 select-text', containerMaxWidth]"
         >
@@ -204,7 +221,9 @@ watch(
                   :class="[
                     getAvatarContainerClass(message.from),
                     !isSmallScreen &&
-                      (message.from === 'user' ? 'order-last pl-1' : 'order-first pr-1'),
+                      (message.from === 'user'
+                        ? 'order-last pl-1'
+                        : 'order-first pr-1'),
                   ]"
                 >
                   <div
@@ -215,7 +234,10 @@ watch(
                       roleStyles[message.from].ring,
                     ]"
                   >
-                    <PersonRound v-if="message.from === 'user'" :class="iconSize" />
+                    <PersonRound
+                      v-if="message.from === 'user'"
+                      :class="iconSize"
+                    />
                     <SmartToyRound v-else :class="iconSize" />
                   </div>
                   <span
@@ -236,7 +258,9 @@ watch(
                     v-if="!isSmallScreen"
                     class="text-[11px] font-semibold tracking-[0.05em] text-slate-500 uppercase leading-tight"
                     :class="
-                      message.from === 'user' ? 'text-right pr-1' : 'text-left pl-1'
+                      message.from === 'user'
+                        ? 'text-right pr-1'
+                        : 'text-left pl-1'
                     "
                   >
                     {{ roleStyles[message.from].label }}
@@ -263,7 +287,10 @@ watch(
                   </Reasoning>
 
                   <MessageContent class="max-w-full">
-                    <MessageAttachments v-if="version.files?.length" class="mb-2">
+                    <MessageAttachments
+                      v-if="version.files?.length"
+                      class="mb-2"
+                    >
                       <MessageAttachment
                         v-for="(file, fileIndex) in version.files"
                         :key="file.url || file.filename || fileIndex"
@@ -276,7 +303,7 @@ watch(
                         message.from === 'assistant' &&
                         version?.content?.trim()?.length < 1
                       "
-                      class="flex items-center justify-center px-2 py-1 size-full"
+                      class="flex items-center justify-start px-1 py-1 size-full"
                     >
                       <Shimmer>正在生成回复…</Shimmer>
                     </div>
@@ -308,7 +335,10 @@ watch(
                 v-else-if="
                   message.versions &&
                   message.versions.length > 1 &&
-                  !(message.from === 'assistant' && isAssistantMessageReady(message))
+                  !(
+                    message.from === 'assistant' &&
+                    isAssistantMessageReady(message)
+                  )
                 "
                 :from="message.from"
               >
@@ -332,7 +362,10 @@ watch(
                   tooltip="复制内容"
                   @click="handleCopy(message.key)"
                 >
-                  <CheckIcon v-if="copied[message.key]" class="size-4 text-emerald-500" />
+                  <CheckIcon
+                    v-if="copied[message.key]"
+                    class="size-4 text-emerald-500"
+                  />
                   <CopyIcon v-else class="size-4" />
                 </MessageAction>
               </MessageActions>
