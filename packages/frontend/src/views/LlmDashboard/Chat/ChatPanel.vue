@@ -64,6 +64,14 @@ const isCanvasReadonly = ref(false);
 const refreshImmersiveCode = ref(true);
 // 标记当前对话是否已为流式输出创建空版本
 const hasCreatedEmptyVersion = ref(false);
+// 模型配置（统一管理，通过 v-model 传递给 ModelConfigPanel）
+const modelConfig = ref<ChatModelConfig>({
+  modelId: modelId.value,
+  temperature: 0.7,
+  topP: 0.9,
+  maxTokens: 4096,
+  selectedMcpIds: [],
+});
 
 // 组件引用
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
@@ -86,6 +94,26 @@ const suggestions: string[] = [
   "完成重构，不使用修改格式，实现一个 hello world的极简页面， 设置一个随机名称的大标题",
 ];
 const hasMessages = computed(() => (activeMessages.value?.length || 0) > 0);
+
+// 监听 modelId 变化，同步到 modelConfig
+watch(
+  () => modelId.value,
+  (newModelId) => {
+    if (newModelId && modelConfig.value.modelId !== newModelId) {
+      modelConfig.value.modelId = newModelId;
+    }
+  }
+);
+
+// 监听 modelConfig.modelId 变化，同步到 modelId
+watch(
+  () => modelConfig.value.modelId,
+  (newModelId) => {
+    if (newModelId && modelId.value !== newModelId) {
+      modelId.value = newModelId;
+    }
+  }
+);
 
 // 监听对话切换，恢复模式和代码历史
 watch(
@@ -166,24 +194,15 @@ watch(
 const mcpStore = useMcpStore();
 const { serverTools } = storeToRefs(mcpStore);
 
-// 处理消息提交
-async function handleSubmit(message: PromptInputMessage, config?: ChatModelConfig) {
-  const text = message.text.trim();
-  const hasText = text.length > 0;
-  const hasAttachments = message.files.length > 0;
-
-  if (!hasText && !hasAttachments) return;
-
-  const content = hasText ? text : "Sent with attachments";
-  const userFiles = message.files.map((f) => ({
-    url: f.url,
-    filename: f.filename,
-    mediaType: f.mediaType,
-  }));
-
-  // 来自模型配置面板的配置（模型 + MCP + 采样参数）
-  const activeModelId = config?.modelId || modelId.value;
-  const mcpIds = config?.selectedMcpIds;
+// 从 modelConfig 获取配置并转换为扩展配置对象（供 handleSubmit 和 handleRetry 使用）
+function getModelConfigExtension(): {
+  activeModelId: string;
+  extensionConfig: ChatModelExtensionConfig | undefined;
+} {
+  // 从当前页面的 modelConfig 获取配置
+  const config = modelConfig.value;
+  const activeModelId = config.modelId || modelId.value;
+  const mcpIds = config.selectedMcpIds;
 
   // 根据 MCP 选择，从 Pinia 中获取对应服务器的工具配置，组装为 tools 列表
   const tools =
@@ -200,23 +219,47 @@ async function handleSubmit(message: PromptInputMessage, config?: ChatModelConfi
 
   // 组装扩展配置对象
   const extensionConfig: ChatModelExtensionConfig | undefined =
-    config?.temperature !== undefined ||
-    config?.topP !== undefined ||
-    config?.maxTokens !== undefined ||
+    config.temperature !== undefined ||
+    config.topP !== undefined ||
+    config.maxTokens !== undefined ||
     (mcpIds && mcpIds.length > 0) ||
     (tools && tools.length > 0)
       ? {
-          ...(config?.temperature !== undefined && {
+          ...(config.temperature !== undefined && {
             temperature: config.temperature,
           }),
-          ...(config?.topP !== undefined && { topP: config.topP }),
-          ...(config?.maxTokens !== undefined && {
+          ...(config.topP !== undefined && { topP: config.topP }),
+          ...(config.maxTokens !== undefined && {
             maxTokens: config.maxTokens,
           }),
           ...(mcpIds && mcpIds.length > 0 && { mcpIds }),
           ...(tools && tools.length > 0 && { tools }),
         }
       : undefined;
+
+  return {
+    activeModelId,
+    extensionConfig,
+  };
+}
+
+// 处理消息提交
+async function handleSubmit(message: PromptInputMessage) {
+  const text = message.text.trim();
+  const hasText = text.length > 0;
+  const hasAttachments = message.files.length > 0;
+
+  if (!hasText && !hasAttachments) return;
+
+  const content = hasText ? text : "Sent with attachments";
+  const userFiles = message.files.map((f) => ({
+    url: f.url,
+    filename: f.filename,
+    mediaType: f.mediaType,
+  }));
+
+  // 从当前页面的 modelConfig 获取配置
+  const { activeModelId, extensionConfig } = getModelConfigExtension();
 
   // 判断是否应该创建新对话：
   // 1. 没有活跃对话ID
@@ -327,13 +370,20 @@ function handleRetry(messageKey: string) {
     return;
   }
 
+  // 从当前页面的 modelConfig 获取配置
+  const { activeModelId, extensionConfig } = getModelConfigExtension();
+
+  // latestVersion.content
   // 传递助手消息的 messageKey 用于重试（后端会在该助手消息下创建新版本）
   sendMessage(activeConversationId.value, {
-    content: latestVersion.content,
+    content: latestVersion.contentBlocks
+      .map((block) => (block.type === "text" ? block.content : ""))
+      .join("\n"),
     mode: selectedMode.value,
-    model: modelId.value,
+    model: activeModelId,
     files: userFiles,
     messageKey, // 传递助手消息的 messageKey 用于重试
+    config: extensionConfig,
     editorCode:
       selectedMode.value === "canvas"
         ? canvasPanelRef.value?.getCurrentCode()
@@ -766,11 +816,13 @@ watch(activeConversationId, (_newId, oldId) => {
                 :use-microphone="useMicrophone"
                 :providers="providers"
                 :has-messages="hasMessages"
+                :model-config="modelConfig"
                 @submit="handleSubmit"
                 @update:mode="selectedMode = $event"
                 @update:model-id="modelId = $event"
                 @update:use-web-search="useWebSearch = $event"
                 @update:use-microphone="useMicrophone = $event"
+                @update:model-config="modelConfig = $event"
                 @tag-click="handleTagClick"
               />
             </div>

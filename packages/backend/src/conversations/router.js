@@ -739,11 +739,16 @@ function registerAiChatRoutes(server) {
 
       const assistantMessageKey = generateMessageKey("assistant", requestId);
 
+      let existingMessageIndex = -1
+      let existingMessage = null
+
       // 如果是重试，在同一消息下添加新版本
       if (retryMessageKey) {
-        const existingMessage = conversation.messages.find(
+        existingMessageIndex = conversation.messages.findIndex(
           (msg) => msg.messageKey === retryMessageKey && msg.role === "assistant"
         );
+        existingMessage = conversation.messages[existingMessageIndex];
+
         if (existingMessage) {
           // 在同一消息下添加新版本
           existingMessage.versions.push({
@@ -788,6 +793,10 @@ function registerAiChatRoutes(server) {
 
       conversation.updatedAt = Date.now();
       await writeConversationFile(id, conversation);
+
+      if (existingMessageIndex !== -1) {
+        conversation.messages = conversation.messages.slice(0, existingMessageIndex - 1);
+      }
 
       // 异步处理流式响应
       (async () => {
