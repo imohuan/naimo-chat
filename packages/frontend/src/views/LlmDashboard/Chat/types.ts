@@ -168,6 +168,8 @@ export type SSEEventType =
   | "session_end"
   | "error"
   | "request_id"
+  | "conversation:updated"
+  | "conversation:title_updated"
   | "canvas:code_delta"
   | "canvas:diff_detected"
   | "canvas:show_editor"
@@ -185,6 +187,10 @@ export interface SSEEvent {
   };
   error?: string;
   timestamp?: string;
+  // 对话更新事件相关字段
+  conversationId?: string;
+  messages?: ApiMessage[];
+  title?: string;
   // Canvas 事件相关字段
   code?: string;
   diff?: string;
@@ -201,6 +207,16 @@ export interface StreamCallbacks {
   onRequestId?: (requestId: string) => void;
   onComplete?: () => void;
   onError?: (error: string) => void;
+  // 对话更新事件回调
+  onConversationUpdated?: (data: {
+    conversationId: string;
+    messages: ApiMessage[];
+    requestId: string;
+  }) => void;
+  onConversationTitleUpdated?: (data: {
+    conversationId: string;
+    title: string;
+  }) => void;
   // Canvas 事件回调
   onCanvasCodeDelta?: (code: string) => void;
   onCanvasDiffDetected?: (data: {

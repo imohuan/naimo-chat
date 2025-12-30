@@ -104,6 +104,31 @@ async function handleStreamResponse({
   titlePromise,
 }) {
   try {
+    // 更新标题（如果提供了 titlePromise，仅用于新对话）- 异步后台运行
+    if (titlePromise) {
+      (async () => {
+        try {
+          const title = await titlePromise;
+          const finalConversation = await readConversationFile(conversationId);
+          if (finalConversation) {
+            finalConversation.title = title;
+            finalConversation.updatedAt = Date.now();
+            await writeConversationFile(conversationId, finalConversation);
+
+            // 发送标题更新事件到前端
+            sendEvent(requestId, {
+              type: "conversation:title_updated",
+              conversationId,
+              title,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error("更新标题失败:", error);
+        }
+      })();
+    }
+
     // 构建流式事件处理回调
     let accumulatedContent = "";
     let serverRequestId = null; // 存储从服务器获取的真实 requestId
@@ -138,6 +163,15 @@ async function handleStreamResponse({
                     }
                     conversation.updatedAt = Date.now();
                     await writeConversationFile(conversationId, conversation);
+
+                    // 发送最新的消息列表到前端
+                    sendEvent(requestId, {
+                      type: "conversation:updated",
+                      conversationId,
+                      messages: conversation.messages,
+                      requestId: serverRequestId,
+                      timestamp: new Date().toISOString(),
+                    });
                     break;
                   }
                 }
@@ -206,17 +240,6 @@ async function handleStreamResponse({
           return true;
         }
       );
-    }
-
-    // 更新标题（如果提供了 titlePromise，仅用于新对话）
-    if (titlePromise) {
-      const title = await titlePromise;
-      const finalConversation = await readConversationFile(conversationId);
-      if (finalConversation) {
-        finalConversation.title = title;
-        finalConversation.updatedAt = Date.now();
-        await writeConversationFile(conversationId, finalConversation);
-      }
     }
 
     // 发送完成事件

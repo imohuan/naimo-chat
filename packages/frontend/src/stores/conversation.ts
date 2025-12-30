@@ -21,7 +21,7 @@ const SIDEBAR_COLLAPSED_KEY = "llm_sidebar_collapsed";
 /**
  * 将 API 消息格式转换为 UI 消息格式
  */
-function apiMessageToMessageType(apiMessage: ApiMessage, index: number): MessageType {
+function apiMessageToMessageType(apiMessage: ApiMessage, _index: number): MessageType {
   return {
     key: apiMessage.messageKey,
     from: apiMessage.role,
@@ -152,6 +152,24 @@ export const useConversationStore = defineStore("conversation", () => {
     }
 
     // 更新对话的更新时间
+    conversation.updatedAt = Date.now();
+  }
+
+  /**
+   * 根据后端返回的消息列表更新对话消息
+   * 用于同步后端的最新消息状态（包括更新后的 requestId）
+   */
+  function updateConversationMessages(
+    conversationId: string,
+    apiMessages: ApiMessage[]
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    // 将 API 消息格式转换为 UI 消息格式
+    conversation.messages = apiMessages.map((msg, index) =>
+      apiMessageToMessageType(msg, index)
+    );
     conversation.updatedAt = Date.now();
   }
 
@@ -355,6 +373,7 @@ export const useConversationStore = defineStore("conversation", () => {
     setConversations,
     upsertConversation,
     updateConversationMessage,
+    updateConversationMessages,
     addUserMessage,
     addAssistantPlaceholder,
     updateConversationTitle,

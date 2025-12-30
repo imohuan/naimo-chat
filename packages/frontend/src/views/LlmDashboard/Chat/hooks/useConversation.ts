@@ -244,28 +244,34 @@ export function useConversation() {
 
       onRequestId: (newRequestId: string) => {
         // 更新 requestId（从临时 ID 切换到真实 ID）
+        // 注意：后端会通过 conversation:updated 事件发送最新的消息列表，这里只需要更新 finalRequestId
         if (newRequestId !== finalRequestId) {
-          // 需要迁移消息内容到新的 requestId
-          const oldContent = accumulatedContent;
-          // 删除旧的消息
-          const conversation = store.conversations.find((c) => c.id === conversationId);
-          if (conversation) {
-            conversation.messages = conversation.messages.filter(
-              (msg) => !msg.versions.some((v) => v.id === finalRequestId)
-            );
-          }
           finalRequestId = newRequestId;
-          // 创建新消息
-          store.addAssistantPlaceholder(conversationId, finalRequestId);
-          if (oldContent) {
-            store.updateConversationMessage(
-              conversationId,
-              finalRequestId,
-              oldContent,
-              true
-            );
-          }
         }
+      },
+
+      onConversationUpdated: (data) => {
+        // 后端发送了最新的消息列表（包含更新后的 requestId）
+        // 使用后端返回的消息列表更新前端状态
+        store.updateConversationMessages(data.conversationId, data.messages);
+
+        // 更新 finalRequestId 为后端返回的真实 requestId
+        finalRequestId = data.requestId;
+
+        // 如果有累积的内容，使用新的 requestId 更新消息
+        if (accumulatedContent) {
+          store.updateConversationMessage(
+            data.conversationId,
+            finalRequestId,
+            accumulatedContent,
+            true
+          );
+        }
+      },
+
+      onConversationTitleUpdated: (data) => {
+        // 后端发送了标题更新
+        store.updateConversationTitle(data.conversationId, data.title);
       },
 
       onComplete: () => {

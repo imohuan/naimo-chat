@@ -49,6 +49,27 @@ export function useSSEStream() {
             }
             break;
 
+          case "conversation:updated":
+            // 对话消息列表更新
+            if (data.conversationId && data.messages && data.requestId) {
+              callbacks.onConversationUpdated?.({
+                conversationId: data.conversationId,
+                messages: data.messages,
+                requestId: data.requestId,
+              });
+            }
+            break;
+
+          case "conversation:title_updated":
+            // 对话标题更新
+            if (data.conversationId && data.title) {
+              callbacks.onConversationTitleUpdated?.({
+                conversationId: data.conversationId,
+                title: data.title,
+              });
+            }
+            break;
+
           case "message_complete":
             // 标记消息完成
             isCompleted = true;

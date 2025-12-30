@@ -43,7 +43,6 @@ const {
   updateCodeHistory,
   clearActiveConversationMessages,
   clearActiveConversation,
-  loadConversation,
 } = useConversation();
 const { pushToast } = useToasts();
 const { eventBus } = getContext();
@@ -174,8 +173,16 @@ async function handleSubmit(message: PromptInputMessage) {
     mediaType: f.mediaType,
   }));
 
-  // 如果没有活跃对话，创建新对话（会自动发送第一条消息）
-  if (!activeConversationId.value) {
+  // 判断是否应该创建新对话：
+  // 1. 没有活跃对话ID
+  // 2. 活跃对话不在对话列表中（可能已被删除或无效）
+  // 3. 活跃对话没有消息（空对话，应该使用创建接口发送第一条消息）
+  const shouldCreateNewConversation =
+    !activeConversationId.value ||
+    !activeConversation.value ||
+    (activeMessages.value?.length || 0) === 0;
+
+  if (shouldCreateNewConversation) {
     try {
       status.value = "streaming";
       await createConversation({
@@ -200,7 +207,7 @@ async function handleSubmit(message: PromptInputMessage) {
     }
   }
 
-  // 如果已有活跃对话，发送消息
+  // 如果已有活跃对话且有消息，发送消息
   try {
     status.value = "streaming";
     await sendMessage(activeConversationId.value, {
