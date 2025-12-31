@@ -40,6 +40,7 @@ async function processCanvasMode(context) {
     maxTokens,
     mcpIds,
     tools,
+    reasoningEffort,
   } = context;
 
   // 1. 构建消息数组
@@ -147,6 +148,7 @@ async function processCanvasMode(context) {
     maxTokens,
     mcpIds,
     tools,
+    reasoningEffort,
   });
 
   // 5. 流式完成后，识别完整代码并保存

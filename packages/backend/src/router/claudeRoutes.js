@@ -3,7 +3,7 @@ const path = require("path");
 
 /**
  * Claude CLI 相关路由：
- * - 启动一个新的 PowerShell 窗口
+ * - 启动一个新的终端窗口（PowerShell 或 CMD）
  * - 设置对应的环境变量
  * - 执行指定的 Claude 命令（例如 `claude`）
  *
@@ -13,6 +13,7 @@ const path = require("path");
  * - apiKey:    Anthropic API Key
  * - claudePath: 要执行的命令（默认 "claude"）
  * - workDir:   工作目录（默认 "G:\\ClaudeCode"）
+ * - terminalType: 终端类型（"powershell" 或 "cmd"，默认 "powershell"）
  */
 function registerClaudeRoutes(server) {
   const app = server.app;
@@ -34,6 +35,7 @@ function registerClaudeRoutes(server) {
       apiKey = "sk-imohuan",
       claudePath = "claude",
       workDir = "c:",
+      terminalType = "powershell",
     } = req.body || {};
 
     try {
@@ -52,29 +54,51 @@ function registerClaudeRoutes(server) {
         ANTHROPIC_AUTH_TOKEN: String(apiKey),
       };
 
-      // PowerShell 中执行的命令：
-      // 1. 切到指定工作目录
-      // 2. 执行 claudePath（例如 "claude"）
-      const psCommand = `cd "${normalizedWorkDir}" ; ${normalizedClaudePath}`;
+      const normalizedTerminalType = String(terminalType).toLowerCase();
+      const isPowerShell =
+        normalizedTerminalType === "powershell" || normalizedTerminalType === "ps";
 
-      // 参考 test.js 的写法，通过 cmd 的 start 打开新的 PowerShell 窗口
-      const child = spawn(
-        "cmd.exe",
-        ["/c", "start", "powershell", "-NoExit", "-Command", psCommand],
-        {
-          cwd: normalizedWorkDir,
-          detached: true,
-          stdio: "ignore",
-          env,
-        }
-      );
+      let child;
+      let successMessage;
+
+      if (isPowerShell) {
+        // 通过 cmd 的 start 打开新的 PowerShell 窗口
+        // cwd 已设置，直接执行命令即可
+        child = spawn(
+          "cmd.exe",
+          ["/c", "start", "powershell", "-NoExit", "-Command", normalizedClaudePath],
+          {
+            shell: true,
+            cwd: normalizedWorkDir,
+            detached: true,
+            stdio: "ignore",
+            env,
+          }
+        );
+        successMessage = "已在新的 PowerShell 窗口中启动 Claude（命令已发送）";
+      } else {
+        // 通过 cmd 的 start 打开新的 CMD 窗口
+        // cwd 已设置，直接执行命令即可
+        child = spawn(
+          "cmd.exe",
+          ["/c", "start", "cmd", "/k", normalizedClaudePath],
+          {
+            shell: true,
+            cwd: normalizedWorkDir,
+            detached: true,
+            stdio: "ignore",
+            env,
+          }
+        );
+        successMessage = "已在新的 CMD 窗口中启动 Claude（命令已发送）";
+      }
 
       // 让子进程在后台独立运行
       child.unref();
 
       return {
         success: true,
-        message: "已在新的 PowerShell 窗口中启动 Claude（命令已发送）",
+        message: successMessage,
       };
     } catch (error) {
       console.error("启动 Claude 失败:", error);

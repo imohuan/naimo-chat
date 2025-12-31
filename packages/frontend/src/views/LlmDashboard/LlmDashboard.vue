@@ -68,11 +68,7 @@ function closeEditor() {
 async function handleSaveProvider() {
   try {
     const payload = store.providerFromForm();
-    if (
-      !payload.name ||
-      !payload.baseUrl ||
-      (payload.models || []).length === 0
-    ) {
+    if (!payload.name || !payload.baseUrl || (payload.models || []).length === 0) {
       pushToast("请完善 Provider 信息", "error");
       return;
     }
@@ -260,6 +256,7 @@ async function handleConfirmClaudeSettings() {
       apiKey: store.claudeApiKey,
       claudePath: store.claudePath,
       workDir: store.claudeWorkDir,
+      terminalType: store.claudeTerminalType,
     });
 
     pushToast(
@@ -360,13 +357,9 @@ onMounted(() => {
       <div class="flex items-center gap-8">
         <div class="flex items-center gap-2 text-primary">
           <StorageOutlined class="w-6 h-6" />
-          <span class="font-bold text-lg tracking-tight text-slate-800"
-            >LLM Server</span
-          >
+          <span class="font-bold text-lg tracking-tight text-slate-800">LLM Server</span>
         </div>
-        <nav
-          class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg scale-90"
-        >
+        <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg scale-90">
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
             :class="
@@ -523,6 +516,7 @@ onMounted(() => {
       v-model:api-key="store.claudeApiKey"
       v-model:claude-path="store.claudePath"
       v-model:work-dir="store.claudeWorkDir"
+      v-model:terminal-type="store.claudeTerminalType"
       @confirm="handleConfirmClaudeSettings"
     />
 

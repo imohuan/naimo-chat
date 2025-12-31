@@ -383,7 +383,7 @@ export function useLlmApi() {
   }
 
   /**
-   * 启动 Claude CLI（在服务端打开新的 PowerShell 窗口并设置环境变量）
+   * 启动 Claude CLI（在服务端打开新的终端窗口并设置环境变量）
    */
   async function startClaudeCli(params: {
     timeoutMs: string;
@@ -391,6 +391,7 @@ export function useLlmApi() {
     apiKey: string;
     claudePath: string;
     workDir: string;
+    terminalType?: string;
   }): Promise<{ success: boolean; message: string }> {
     return await apiCall<{ success: boolean; message: string }>("/api/claude/start", {
       method: "POST",

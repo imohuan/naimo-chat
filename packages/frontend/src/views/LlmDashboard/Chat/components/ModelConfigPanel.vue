@@ -36,6 +36,9 @@ const appliedTemperature = ref(0.7);
 const appliedTopP = ref(0.9);
 const appliedMaxTokens = ref(4096);
 const appliedSelectedMcpIds = ref<string[]>([]);
+const appliedReasoningEffort = ref<
+  "low" | "medium" | "high" | "minimal" | "xhigh" | undefined
+>(undefined);
 
 // 临时配置参数（用户正在编辑的值，只有点击应用后才会生效）
 const tempModelId = ref(props.modelId);
@@ -43,6 +46,22 @@ const temperature = ref(0.7);
 const topP = ref(0.9);
 const maxTokens = ref(4096);
 const selectedMcpIds = ref<string[]>([]);
+const reasoningEffort = ref<
+  "low" | "medium" | "high" | "minimal" | "xhigh" | undefined
+>(undefined);
+
+// Reasoning Effort 选项
+const reasoningEffortOptions: Array<{
+  value: "low" | "medium" | "high" | "minimal" | "xhigh" | undefined;
+  label: string;
+}> = [
+  { value: undefined, label: "无" },
+  { value: "low", label: "低" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" },
+  { value: "minimal", label: "极简" },
+  { value: "xhigh", label: "超高" },
+];
 
 // MCP 相关 - 使用 store
 const mcpStore = useMcpStore();
@@ -108,6 +127,7 @@ function resetParams() {
   temperature.value = 0.7;
   topP.value = 0.9;
   maxTokens.value = 4096;
+  reasoningEffort.value = undefined;
 }
 
 // 应用配置（将临时值应用到已应用的值，并 emit 给父组件）
@@ -118,6 +138,7 @@ function applyConfig() {
   appliedTopP.value = topP.value;
   appliedMaxTokens.value = maxTokens.value;
   appliedSelectedMcpIds.value = [...selectedMcpIds.value];
+  appliedReasoningEffort.value = reasoningEffort.value;
 
   // 统一导出配置对象
   emit("update:modelConfig", {
@@ -126,6 +147,7 @@ function applyConfig() {
     topP: topP.value,
     maxTokens: maxTokens.value,
     selectedMcpIds: [...selectedMcpIds.value],
+    reasoningEffort: reasoningEffort.value,
   });
 
   isOpen.value = false;
@@ -143,6 +165,7 @@ async function onDropdownOpen() {
   topP.value = appliedTopP.value;
   maxTokens.value = appliedMaxTokens.value;
   selectedMcpIds.value = [...appliedSelectedMcpIds.value];
+  reasoningEffort.value = appliedReasoningEffort.value;
   // 刷新 MCP 服务器列表和工具
   await loadServers();
 }
@@ -154,6 +177,7 @@ function onDropdownClose() {
   topP.value = appliedTopP.value;
   maxTokens.value = appliedMaxTokens.value;
   selectedMcpIds.value = [...appliedSelectedMcpIds.value];
+  reasoningEffort.value = appliedReasoningEffort.value;
 }
 
 // 监听 props.modelId 的变化，同步到已应用的值
@@ -168,10 +192,57 @@ watch(
   }
 );
 
+// 监听 props.modelConfig 的变化，同步 reasoningEffort 等配置
+watch(
+  () => props.modelConfig,
+  (newConfig) => {
+    if (newConfig) {
+      if (newConfig.reasoningEffort !== undefined) {
+        appliedReasoningEffort.value = newConfig.reasoningEffort;
+        if (!isOpen.value) {
+          reasoningEffort.value = newConfig.reasoningEffort;
+        }
+      }
+      // 同步其他配置项
+      if (newConfig.temperature !== undefined) {
+        appliedTemperature.value = newConfig.temperature;
+        if (!isOpen.value) {
+          temperature.value = newConfig.temperature;
+        }
+      }
+      if (newConfig.topP !== undefined) {
+        appliedTopP.value = newConfig.topP;
+        if (!isOpen.value) {
+          topP.value = newConfig.topP;
+        }
+      }
+      if (newConfig.maxTokens !== undefined) {
+        appliedMaxTokens.value = newConfig.maxTokens;
+        if (!isOpen.value) {
+          maxTokens.value = newConfig.maxTokens;
+        }
+      }
+      if (newConfig.selectedMcpIds !== undefined) {
+        appliedSelectedMcpIds.value = [...newConfig.selectedMcpIds];
+        if (!isOpen.value) {
+          selectedMcpIds.value = [...newConfig.selectedMcpIds];
+        }
+      }
+    }
+  },
+  { deep: true }
+);
+
+// 初始化 reasoning_effort（从 props.modelConfig 或默认值）
 onMounted(() => {
   // 初始化已应用的值
   appliedModelId.value = props.modelId;
   tempModelId.value = props.modelId;
+  // 如果 props.modelConfig 存在，使用其值初始化
+  if (props.modelConfig?.reasoningEffort !== undefined) {
+    appliedReasoningEffort.value = props.modelConfig.reasoningEffort;
+    reasoningEffort.value = props.modelConfig.reasoningEffort;
+  }
   // 加载 MCP 服务器列表
   loadServers();
 });
@@ -264,6 +335,30 @@ onMounted(() => {
               placeholder="选择或搜索模型..."
               @update:model-value="handleModelSelect"
             />
+          </div>
+
+          <!-- Reasoning Effort -->
+          <div class="space-y-1">
+            <label
+              class="text-sm font-bold text-slate-400 uppercase tracking-tighter mb-1 block"
+              >模型思考</label
+            >
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-for="option in reasoningEffortOptions"
+                :key="option.value ?? 'none'"
+                @click="reasoningEffort = option.value"
+                type="button"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all"
+                :class="
+                  reasoningEffort === option.value
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700'
+                "
+              >
+                {{ option.label }}
+              </button>
+            </div>
           </div>
 
           <!-- Parameters -->

@@ -8,6 +8,7 @@ import {
   LinkOutlined,
   VpnKeyOutlined,
   FolderOpenOutlined,
+  TerminalOutlined,
 } from "@vicons/material";
 import Input from "@/components/llm/Input.vue";
 import ClaudeIcon from "@/components/svg/claude.vue";
@@ -20,10 +21,12 @@ const props = withDefaults(
     apiKey: string;
     claudePath: string;
     workDir: string;
-    // 是否在右侧显示“文件/目录选择”按钮（以及对应的 file input）
+    terminalType?: string;
+    // 是否在右侧显示"文件/目录选择"按钮（以及对应的 file input）
     enableFileButtons?: boolean;
   }>(),
   {
+    terminalType: "powershell",
     enableFileButtons: false,
   }
 );
@@ -35,6 +38,7 @@ const emit = defineEmits<{
   "update:apiKey": [value: string];
   "update:claudePath": [value: string];
   "update:workDir": [value: string];
+  "update:terminalType": [value: string];
   confirm: [];
 }>();
 
@@ -44,6 +48,7 @@ const baseUrl = useVModel(props, "baseUrl", emit);
 const apiKey = useVModel(props, "apiKey", emit);
 const claudePath = useVModel(props, "claudePath", emit);
 const workDir = useVModel(props, "workDir", emit);
+const terminalType = useVModel(props, "terminalType", emit);
 
 // 文件/目录选择：通过按钮点击触发隐藏的 file 输入
 const claudePathInputRef = ref<HTMLInputElement | null>(null);
@@ -197,18 +202,58 @@ function handleWorkDirChange(e: Event) {
           </div>
 
           <div class="space-y-2">
-            <label class="label-base flex items-center gap-1">
-              <TimerOutlined class="w-4 h-4" />
-              <span>超时时间 (ms)</span>
-            </label>
-            <input
-              v-model="timeoutMs"
-              type="number"
-              class="input-base"
-              placeholder="例如：300000"
-              min="0"
-            />
-            <p class="text-xs text-slate-400">请求 Claude 的超时时间，单位毫秒。</p>
+            <div class="flex items-center gap-3">
+              <div class="flex-[3] space-y-2">
+                <label class="label-base flex items-center gap-1">
+                  <TimerOutlined class="w-4 h-4" />
+                  <span>超时时间 (ms)</span>
+                </label>
+                <input
+                  v-model="timeoutMs"
+                  type="number"
+                  class="input-base w-full"
+                  placeholder="例如：300000"
+                  min="0"
+                />
+              </div>
+              <div class="flex-[2] space-y-2">
+                <label class="label-base flex items-center gap-1">
+                  <TerminalOutlined class="w-4 h-4" />
+                  <span>启动终端</span>
+                </label>
+                <div class="w-fit flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    class="px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 border border-transparent"
+                    :class="
+                      terminalType === 'powershell'
+                        ? 'bg-white text-primary shadow-sm border border-primary/20'
+                        : 'text-slate-500 hover:text-slate-700'
+                    "
+                    @click="terminalType = 'powershell'"
+                  >
+                    <TerminalOutlined class="w-4 h-4" />
+                    <span>PowerShell</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 border border-transparent"
+                    :class="
+                      terminalType === 'cmd'
+                        ? 'bg-white text-primary shadow-sm border border-primary/20'
+                        : 'text-slate-500 hover:text-slate-700'
+                    "
+                    @click="terminalType = 'cmd'"
+                  >
+                    <TerminalOutlined class="w-4 h-4" />
+                    <span>CMD</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400">
+              请求 Claude 的超时时间，单位毫秒。右侧可选择启动终端类型。
+            </p>
           </div>
         </div>
 

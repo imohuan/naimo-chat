@@ -40,6 +40,7 @@ export const useLlmDashboardStore = defineStore("llmDashboard", () => {
   const claudeApiKey = ref("sk-imohuan");
   const claudePath = ref("claude");
   const claudeWorkDir = ref("G:\\ClaudeCode");
+  const claudeTerminalType = ref("powershell");
 
   // 重启状态
   const isRestarting = ref(false);
@@ -247,6 +248,7 @@ export const useLlmDashboardStore = defineStore("llmDashboard", () => {
     claudeApiKey,
     claudePath,
     claudeWorkDir,
+    claudeTerminalType,
     isRestarting,
     baseUrl,
     tempApiKey,

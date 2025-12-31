@@ -133,7 +133,8 @@ watch(
     // 恢复代码历史（仅在 canvas 模式下）
     if (selectedMode.value === "canvas" && conversation.codeHistory) {
       const hasCodeHistory =
-        conversation.codeHistory.versions && conversation.codeHistory.versions.length > 0;
+        conversation.codeHistory.versions &&
+        conversation.codeHistory.versions.length > 0;
 
       if (hasCodeHistory) {
         showCanvas.value = true;
@@ -179,7 +180,8 @@ watch(
 
     // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才显示
     if (codeVersion !== undefined && codeHistory) {
-      const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
+      const hasCodeHistory =
+        codeHistory.versions && codeHistory.versions.length > 0;
       showCanvas.value = hasCodeHistory || false;
       // 设置侧边栏为折叠状态
       conversationStore.sidebarCollapsed = true;
@@ -222,6 +224,7 @@ function getModelConfigExtension(): {
     config.temperature !== undefined ||
     config.topP !== undefined ||
     config.maxTokens !== undefined ||
+    config.reasoningEffort !== undefined ||
     (mcpIds && mcpIds.length > 0) ||
     (tools && tools.length > 0)
       ? {
@@ -231,6 +234,9 @@ function getModelConfigExtension(): {
           ...(config.topP !== undefined && { topP: config.topP }),
           ...(config.maxTokens !== undefined && {
             maxTokens: config.maxTokens,
+          }),
+          ...(config.reasoningEffort !== undefined && {
+            reasoningEffort: config.reasoningEffort,
           }),
           ...(mcpIds && mcpIds.length > 0 && { mcpIds }),
           ...(tools && tools.length > 0 && { tools }),
@@ -339,7 +345,7 @@ function handleRetry(messageKey: string) {
   }
 
   // 查找前一条用户消息
-  let userMessage: typeof messages[0] | undefined;
+  let userMessage: (typeof messages)[0] | undefined;
   for (let i = messageIndex - 1; i >= 0 && i < messages.length; i--) {
     const candidate = messages[i];
     if (candidate && candidate.from === "user") {
@@ -410,7 +416,11 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (codeRef && typeof codeRef === "object" && "setCodeAndSelectLines" in codeRef) {
+    if (
+      codeRef &&
+      typeof codeRef === "object" &&
+      "setCodeAndSelectLines" in codeRef
+    ) {
       (codeRef as any).setCodeAndSelectLines(code, startLine, endLine);
     }
   }
@@ -419,7 +429,9 @@ function handleTagClick(data: {
   if (
     data.data?.type === "browser_selector" ||
     data.data?.selector ||
-    (data.icon && typeof data.icon === "string" && data.icon.includes("browser"))
+    (data.icon &&
+      typeof data.icon === "string" &&
+      data.icon.includes("browser"))
   ) {
     const selector = data.data?.selector || data.data?.text || data.label;
     if (!selector) return;
@@ -428,7 +440,11 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (codeRef && typeof codeRef === "object" && "selectElementInPreview" in codeRef) {
+    if (
+      codeRef &&
+      typeof codeRef === "object" &&
+      "selectElementInPreview" in codeRef
+    ) {
       (codeRef as any).selectElementInPreview(selector);
     }
   }
@@ -521,7 +537,10 @@ onMounted(() => {
 
   // 监听对话加载完成事件，设置 selectedMode
   eventBus.on("conversation:loaded", (data) => {
-    if (data.conversation.mode && data.conversation.mode !== selectedMode.value) {
+    if (
+      data.conversation.mode &&
+      data.conversation.mode !== selectedMode.value
+    ) {
       selectedMode.value = data.conversation.mode;
     }
   });
@@ -563,7 +582,8 @@ onMounted(() => {
     currentOriginalCode.value = data.originalCode || null;
 
     // 获取原始代码，用于添加历史记录和diff操作
-    const originalCode = data.originalCode || immersiveCode.getCurrentCode?.() || "";
+    const originalCode =
+      data.originalCode || immersiveCode.getCurrentCode?.() || "";
 
     // 在diff操作前添加历史记录，创建一个新的major version，并添加一个使用recordId的记录
     // addMajorDiffVersion 内部会处理 diff 验证和 UI 更新
@@ -613,7 +633,11 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
   try {
-    await chatApi.applyCanvasDiff(activeConversationId.value, recordId, appliedCode);
+    await chatApi.applyCanvasDiff(
+      activeConversationId.value,
+      recordId,
+      appliedCode
+    );
     // 不重新加载对话，避免强制刷新页面和canvas
     // 代码已经在本地更新，后端也已保存，无需重新加载
     // await loadConversation(activeConversationId.value);
@@ -741,7 +765,8 @@ function saveCodeHistory() {
           );
 
           if (streamingRecords.length > 0) {
-            const lastStreamingRecord = streamingRecords[streamingRecords.length - 1];
+            const lastStreamingRecord =
+              streamingRecords[streamingRecords.length - 1];
             if (lastStreamingRecord) {
               return {
                 id: version.id,
@@ -828,7 +853,9 @@ watch(activeConversationId, (_newId, oldId) => {
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
+            :class="
+              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
+            "
           >
             <!-- 消息列表 -->
             <ChatMessages
