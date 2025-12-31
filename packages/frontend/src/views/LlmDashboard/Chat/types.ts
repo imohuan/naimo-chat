@@ -150,7 +150,7 @@ export interface ChatModelConfig {
   topP: number;
   maxTokens: number;
   selectedMcpIds: string[];
-  reasoningEffort?: "low" | "medium" | "high" | "minimal" | "xhigh" | undefined;
+  reasoning?: "none" | "normal" | "hard" | "mega" | "ultra" | undefined;
 }
 
 /**
@@ -162,7 +162,7 @@ export interface ChatModelExtensionConfig {
   maxTokens?: number;
   mcpIds?: string[];
   tools?: McpTool[];
-  reasoningEffort?: "low" | "medium" | "high" | "minimal" | "xhigh" | undefined;
+  reasoning?: "none" | "normal" | "hard" | "mega" | "ultra" | undefined;
 }
 
 /**

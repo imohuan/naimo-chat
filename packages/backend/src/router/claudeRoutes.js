@@ -48,7 +48,7 @@ function registerClaudeRoutes(server) {
         : rawClaudePath;
 
       const env = {
-        ...process.env,
+        // ...process.env,
         API_TIMEOUT_MS: String(timeoutMs),
         ANTHROPIC_BASE_URL: String(baseUrl),
         ANTHROPIC_AUTH_TOKEN: String(apiKey),

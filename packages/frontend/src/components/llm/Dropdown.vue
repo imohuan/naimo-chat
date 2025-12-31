@@ -37,6 +37,7 @@ const emit = defineEmits<{
 const referenceRef = ref<HTMLElement | null>(null); // 触发器
 const floatingRef = ref<HTMLElement | null>(null); // 下拉框
 const arrowRef = ref<HTMLElement | null>(null); // 箭头
+const actualMaxHeight = ref<string | undefined>(undefined); // 实际计算出的最大高度
 
 // 1. 配置 Floating UI
 const { floatingStyles, placement, middlewareData } = useFloating(
@@ -81,13 +82,32 @@ const { floatingStyles, placement, middlewareData } = useFloating(
               ? Math.min(availableHeight, props.maxHeight)
               : undefined;
 
-          Object.assign(elements.floating.style, {
-            maxWidth: props.maxWidth ? `${props.maxWidth}px` : undefined,
+          // 保存计算出的最大高度值，供模板使用
+          actualMaxHeight.value =
+            calculatedMaxHeight !== undefined
+              ? `${calculatedMaxHeight}px`
+              : undefined;
+
+          // 设置 CSS 变量到最外层容器，确保子元素可以继承
+          const styles: Record<string, string | undefined> = {
             minWidth: `${targetMinWidth}px`,
-            ...(calculatedMaxHeight !== undefined && {
-              maxHeight: `${calculatedMaxHeight}px`,
-              "--dropdown-max-height": `${calculatedMaxHeight}px`,
-            }),
+          };
+
+          if (props.maxWidth) {
+            styles.maxWidth = `${props.maxWidth}px`;
+          }
+
+          if (calculatedMaxHeight !== undefined) {
+            styles.maxHeight = `${calculatedMaxHeight}px`;
+            styles["--dropdown-max-height"] = `${calculatedMaxHeight}px`;
+          }
+
+          // 过滤掉 undefined 值后再应用样式
+          Object.keys(styles).forEach((key) => {
+            const value = styles[key];
+            if (value !== undefined) {
+              elements.floating.style.setProperty(key, value);
+            }
           });
         },
       }),
@@ -173,8 +193,8 @@ if (escape) {
         <div
           class="relative bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden"
           :style="{
-            ...(props.maxHeight !== undefined && {
-              maxHeight: 'var(--dropdown-max-height)',
+            ...(actualMaxHeight && {
+              maxHeight: actualMaxHeight,
             }),
             display: 'flex',
             flexDirection: 'column',
@@ -198,8 +218,8 @@ if (escape) {
             :style="
               disableContentScroll
                 ? {}
-                : props.maxHeight !== undefined
-                ? { maxHeight: 'var(--dropdown-max-height)' }
+                : actualMaxHeight
+                ? { maxHeight: actualMaxHeight }
                 : {}
             "
           >

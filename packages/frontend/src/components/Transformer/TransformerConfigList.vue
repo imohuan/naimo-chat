@@ -885,12 +885,7 @@ function getReadonlyKeys(item: FlatConfigItem): string[] {
   box-shadow: 0 4px 6px rgba(15, 23, 42, 0.1);
 }
 
-/* 限制下拉菜单的最大高度 */
-.select-bordered :deep(.dropdown-content),
-.select-bordered :deep(.flex-1.overflow-y-auto) {
-  max-height: 300px !important;
-  overflow-y: auto !important;
-}
+/* 下拉菜单高度限制已通过 dropdown-max-height 属性设置，无需在此处覆盖 */
 
 /* 下拉框输入框样式 - 参考 style.css 的 .input-base */
 .select-bordered :deep(input),

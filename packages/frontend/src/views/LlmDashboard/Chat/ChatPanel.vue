@@ -224,7 +224,7 @@ function getModelConfigExtension(): {
     config.temperature !== undefined ||
     config.topP !== undefined ||
     config.maxTokens !== undefined ||
-    config.reasoningEffort !== undefined ||
+    config.reasoning !== undefined ||
     (mcpIds && mcpIds.length > 0) ||
     (tools && tools.length > 0)
       ? {
@@ -235,8 +235,8 @@ function getModelConfigExtension(): {
           ...(config.maxTokens !== undefined && {
             maxTokens: config.maxTokens,
           }),
-          ...(config.reasoningEffort !== undefined && {
-            reasoningEffort: config.reasoningEffort,
+          ...(config.reasoning !== undefined && {
+            reasoning: config.reasoning,
           }),
           ...(mcpIds && mcpIds.length > 0 && { mcpIds }),
           ...(tools && tools.length > 0 && { tools }),

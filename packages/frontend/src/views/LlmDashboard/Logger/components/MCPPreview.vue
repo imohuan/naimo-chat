@@ -467,25 +467,29 @@ watch(
                     </div>
                     <div>
                       <div class="text-xs text-slate-500 mb-1">工具名称</div>
-                      <div class="font-mono text-sm font-bold text-slate-800">
+                      <div
+                        class="font-mono text-sm font-bold text-slate-800 select-text"
+                      >
                         {{ formatToolName(selectedTool.name) }}
                       </div>
                     </div>
                     <div>
                       <div class="text-xs text-slate-500 mb-1">完整名称</div>
-                      <div class="font-mono text-sm text-slate-700">
+                      <div class="font-mono text-sm text-slate-700 select-text">
                         {{ selectedTool.name }}
                       </div>
                     </div>
                     <div>
                       <div class="text-xs text-slate-500 mb-1">所属服务器</div>
-                      <div class="text-sm text-slate-700">
+                      <div class="text-sm text-slate-700 select-text">
                         {{ getServerName(selectedTool.name) }}
                       </div>
                     </div>
                     <div v-if="selectedTool.description">
                       <div class="text-xs text-slate-500 mb-1">描述</div>
-                      <div class="text-sm text-slate-700 whitespace-pre-wrap">
+                      <div
+                        class="text-sm text-slate-700 whitespace-pre-wrap select-text"
+                      >
                         {{ selectedTool.description }}
                       </div>
                     </div>
@@ -514,7 +518,7 @@ watch(
                       :key="key"
                       class="p-4"
                     >
-                      <div class="flex items-center gap-2 mb-2">
+                      <div class="flex items-center gap-2 mb-2 select-text">
                         <span
                           class="font-mono text-sm font-bold text-slate-800"
                         >
@@ -535,7 +539,7 @@ watch(
                       </div>
                       <div
                         v-if="prop.description"
-                        class="text-sm text-slate-600 mb-2"
+                        class="text-sm text-slate-600 mb-2 select-text"
                       >
                         {{ prop.description }}
                       </div>

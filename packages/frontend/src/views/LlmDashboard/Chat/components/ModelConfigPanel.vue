@@ -36,8 +36,8 @@ const appliedTemperature = ref(0.7);
 const appliedTopP = ref(0.9);
 const appliedMaxTokens = ref(4096);
 const appliedSelectedMcpIds = ref<string[]>([]);
-const appliedReasoningEffort = ref<
-  "low" | "medium" | "high" | "minimal" | "xhigh" | undefined
+const appliedReasoning = ref<
+  "none" | "normal" | "hard" | "mega" | "ultra" | undefined
 >(undefined);
 
 // 临时配置参数（用户正在编辑的值，只有点击应用后才会生效）
@@ -46,22 +46,51 @@ const temperature = ref(0.7);
 const topP = ref(0.9);
 const maxTokens = ref(4096);
 const selectedMcpIds = ref<string[]>([]);
-const reasoningEffort = ref<
-  "low" | "medium" | "high" | "minimal" | "xhigh" | undefined
+const reasoning = ref<
+  "none" | "normal" | "hard" | "mega" | "ultra" | undefined
 >(undefined);
 
-// Reasoning Effort 选项
-const reasoningEffortOptions: Array<{
-  value: "low" | "medium" | "high" | "minimal" | "xhigh" | undefined;
+// Reasoning 选项
+const reasoningOptions: Array<{
+  value: "none" | "normal" | "hard" | "mega" | "ultra" | undefined;
   label: string;
+  description: string;
 }> = [
-  { value: undefined, label: "无" },
-  { value: "low", label: "低" },
-  { value: "medium", label: "中" },
-  { value: "high", label: "高" },
-  { value: "minimal", label: "极简" },
-  { value: "xhigh", label: "超高" },
+  {
+    value: undefined,
+    label: "无",
+    description: "无思考模式，直接响应",
+  },
+  {
+    value: "normal",
+    label: "基础思考",
+    description: "想想、思考、考虑",
+  },
+  {
+    value: "hard",
+    label: "中级思考",
+    description: "再想想、多想想、想清楚、想明白、考虑清楚",
+  },
+  {
+    value: "mega",
+    label: "强力思考",
+    description: "强力思考、大力思考、用力思考、努力思考、好好思考、仔细思考",
+  },
+  {
+    value: "ultra",
+    label: "超级思考",
+    description:
+      "超级思考、极限思考、深度思考、全力思考、超强思考、认真仔细思考",
+  },
 ];
+
+// 当前选中的思考选项
+const selectedReasoningOption = computed(() => {
+  const found = reasoningOptions.find((opt) => opt.value === reasoning.value);
+  return found || reasoningOptions[0]!;
+});
+
+const isReasoningDropdownOpen = ref(false);
 
 // MCP 相关 - 使用 store
 const mcpStore = useMcpStore();
@@ -127,7 +156,7 @@ function resetParams() {
   temperature.value = 0.7;
   topP.value = 0.9;
   maxTokens.value = 4096;
-  reasoningEffort.value = undefined;
+  reasoning.value = undefined;
 }
 
 // 应用配置（将临时值应用到已应用的值，并 emit 给父组件）
@@ -138,7 +167,7 @@ function applyConfig() {
   appliedTopP.value = topP.value;
   appliedMaxTokens.value = maxTokens.value;
   appliedSelectedMcpIds.value = [...selectedMcpIds.value];
-  appliedReasoningEffort.value = reasoningEffort.value;
+  appliedReasoning.value = reasoning.value;
 
   // 统一导出配置对象
   emit("update:modelConfig", {
@@ -147,7 +176,7 @@ function applyConfig() {
     topP: topP.value,
     maxTokens: maxTokens.value,
     selectedMcpIds: [...selectedMcpIds.value],
-    reasoningEffort: reasoningEffort.value,
+    reasoning: reasoning.value,
   });
 
   isOpen.value = false;
@@ -165,7 +194,7 @@ async function onDropdownOpen() {
   topP.value = appliedTopP.value;
   maxTokens.value = appliedMaxTokens.value;
   selectedMcpIds.value = [...appliedSelectedMcpIds.value];
-  reasoningEffort.value = appliedReasoningEffort.value;
+  reasoning.value = appliedReasoning.value;
   // 刷新 MCP 服务器列表和工具
   await loadServers();
 }
@@ -177,7 +206,7 @@ function onDropdownClose() {
   topP.value = appliedTopP.value;
   maxTokens.value = appliedMaxTokens.value;
   selectedMcpIds.value = [...appliedSelectedMcpIds.value];
-  reasoningEffort.value = appliedReasoningEffort.value;
+  reasoning.value = appliedReasoning.value;
 }
 
 // 监听 props.modelId 的变化，同步到已应用的值
@@ -192,15 +221,15 @@ watch(
   }
 );
 
-// 监听 props.modelConfig 的变化，同步 reasoningEffort 等配置
+// 监听 props.modelConfig 的变化，同步 reasoning 等配置
 watch(
   () => props.modelConfig,
   (newConfig) => {
     if (newConfig) {
-      if (newConfig.reasoningEffort !== undefined) {
-        appliedReasoningEffort.value = newConfig.reasoningEffort;
+      if (newConfig.reasoning !== undefined) {
+        appliedReasoning.value = newConfig.reasoning;
         if (!isOpen.value) {
-          reasoningEffort.value = newConfig.reasoningEffort;
+          reasoning.value = newConfig.reasoning;
         }
       }
       // 同步其他配置项
@@ -239,9 +268,9 @@ onMounted(() => {
   appliedModelId.value = props.modelId;
   tempModelId.value = props.modelId;
   // 如果 props.modelConfig 存在，使用其值初始化
-  if (props.modelConfig?.reasoningEffort !== undefined) {
-    appliedReasoningEffort.value = props.modelConfig.reasoningEffort;
-    reasoningEffort.value = props.modelConfig.reasoningEffort;
+  if (props.modelConfig?.reasoning !== undefined) {
+    appliedReasoning.value = props.modelConfig.reasoning;
+    reasoning.value = props.modelConfig.reasoning;
   }
   // 加载 MCP 服务器列表
   loadServers();
@@ -343,22 +372,64 @@ onMounted(() => {
               class="text-sm font-bold text-slate-400 uppercase tracking-tighter mb-1 block"
               >模型思考</label
             >
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                v-for="option in reasoningEffortOptions"
-                :key="option.value ?? 'none'"
-                @click="reasoningEffort = option.value"
-                type="button"
-                class="px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all"
-                :class="
-                  reasoningEffort === option.value
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-700'
-                "
-              >
-                {{ option.label }}
-              </button>
-            </div>
+            <Dropdown
+              :show="isReasoningDropdownOpen"
+              :verticalFlipOnly="true"
+              :viewport-padding="30"
+              @update:show="isReasoningDropdownOpen = $event"
+            >
+              <template #trigger>
+                <div class="relative w-full font-mono" @click.stop>
+                  <input
+                    type="text"
+                    readonly
+                    :value="selectedReasoningOption.label"
+                    class="w-full input-base router-model-select__input pr-9 text-left cursor-pointer"
+                    :class="{
+                      'text-slate-400': !reasoning,
+                    }"
+                    placeholder="选择思考级别..."
+                    @click.stop="
+                      isReasoningDropdownOpen = !isReasoningDropdownOpen
+                    "
+                  />
+                  <ChevronDown
+                    class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 shrink-0 pointer-events-none"
+                    :class="{ 'rotate-180': isReasoningDropdownOpen }"
+                  />
+                </div>
+              </template>
+
+              <div class="font-mono">
+                <div class="overflow-y-auto p-1 flex flex-col gap-1">
+                  <div
+                    v-for="option in reasoningOptions"
+                    :key="option.value ?? 'none'"
+                    class="px-3 py-2 text-xs rounded-md cursor-pointer transition-colors"
+                    :class="{
+                      'bg-indigo-50 text-indigo-700 font-medium':
+                        reasoning === option.value,
+                      'hover:bg-slate-100 text-slate-700':
+                        reasoning !== option.value,
+                    }"
+                    @mousedown.prevent.stop="
+                      reasoning = option.value;
+                      isReasoningDropdownOpen = false;
+                    "
+                  >
+                    <div class="font-semibold mb-0.5">{{ option.label }}</div>
+                    <div
+                      class="text-xs text-slate-500 leading-relaxed"
+                      :class="{
+                        'text-indigo-600': reasoning === option.value,
+                      }"
+                    >
+                      {{ option.description }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Dropdown>
           </div>
 
           <!-- Parameters -->

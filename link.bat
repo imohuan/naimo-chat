@@ -8,6 +8,7 @@ REM 文件的符号链接
 @REM 在编辑器中快捷的访问Electron的数据目录
 powershell -Command "New-Item -ItemType SymbolicLink -Path links/claude-llm -Target 'C:\Users\IMOHUAN\.claude-llm' -Force"
 powershell -Command "New-Item -ItemType SymbolicLink -Path links/claude -Target 'C:\Users\IMOHUAN\.claude' -Force"
+powershell -Command "New-Item -ItemType SymbolicLink -Path links/llm -Target 'G:\ClaudeCode\llms' -Force"
 
 echo 符号链接创建完成！
 pause

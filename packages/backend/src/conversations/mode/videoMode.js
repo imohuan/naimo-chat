@@ -29,7 +29,7 @@ async function processVideoMode(context) {
     maxTokens,
     mcpIds,
     tools,
-    reasoningEffort,
+    reasoning,
   } = context;
 
   // 1. 构建消息数组
@@ -79,7 +79,7 @@ async function processVideoMode(context) {
     maxTokens,
     mcpIds,
     tools,
-    reasoningEffort,
+    reasoning,
   });
 
   // 3. 返回结果

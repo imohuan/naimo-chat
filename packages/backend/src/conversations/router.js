@@ -91,7 +91,7 @@ function extractModelConfig(config, body) {
     maxTokens: config?.maxTokens ?? body.maxTokens,
     mcpIds: config?.mcpIds ?? body.mcpIds,
     tools: config?.tools ?? body.tools,
-    reasoningEffort: config?.reasoningEffort ?? body.reasoningEffort,
+    reasoning: config?.reasoning ?? body.reasoning,
   };
 }
 
@@ -543,7 +543,7 @@ function registerAiChatRoutes(server) {
       } = req.body;
 
       // 从 config 对象中提取配置参数（向后兼容：也支持直接传递这些字段）
-      const { temperature, topP, maxTokens, mcpIds, tools, reasoningEffort } = extractModelConfig(
+      const { temperature, topP, maxTokens, mcpIds, tools, reasoning } = extractModelConfig(
         config,
         req.body
       );
@@ -648,7 +648,7 @@ function registerAiChatRoutes(server) {
             maxTokens,
             mcpIds,
             tools,
-            reasoningEffort,
+            reasoning,
           },
           titlePromise,
         });
@@ -684,7 +684,7 @@ function registerAiChatRoutes(server) {
       } = req.body;
 
       // 从 config 对象中提取配置参数（向后兼容：也支持直接传递这些字段）
-      const { temperature, topP, maxTokens, mcpIds, tools, reasoningEffort } = extractModelConfig(
+      const { temperature, topP, maxTokens, mcpIds, tools, reasoning } = extractModelConfig(
         config,
         req.body
       );
@@ -821,7 +821,7 @@ function registerAiChatRoutes(server) {
             maxTokens,
             mcpIds,
             tools,
-            reasoningEffort,
+            reasoning,
           },
         });
       })();

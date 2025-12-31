@@ -104,7 +104,7 @@ class McpAgent extends IAgent {
     // 替换 mcpService.serverTools 为代理对象
     mcpService.serverTools = proxyMap;
 
-    console.log('[McpAgent] serverTools 监听器已设置');
+    // console.log('[McpAgent] serverTools 监听器已设置');
   }
 
   /**

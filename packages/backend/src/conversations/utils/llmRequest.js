@@ -39,7 +39,7 @@ async function requestLLM(options) {
     maxTokens,
     // mcpIds,
     tools,
-    reasoningEffort,
+    reasoning,
   } = options;
   const config = await getClaudeConfig();
   const port = config.PORT || 3457;
@@ -85,8 +85,8 @@ async function requestLLM(options) {
     body.maxTokens = maxTokens;
   }
   // 添加 reasoning_effort 参数（API 使用下划线格式）
-  if (reasoningEffort !== undefined && reasoningEffort !== null) {
-    body.reasoning_effort = reasoningEffort;
+  if (reasoning !== undefined && reasoning !== null) {
+    // body.reasoning_effort = reasoning;
   }
   if (tools && Array.isArray(tools) && tools.length > 0) {
     // 转换工具格式：将 inputSchema (驼峰) 转换为 input_schema (下划线)
