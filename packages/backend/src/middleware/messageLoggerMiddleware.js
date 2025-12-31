@@ -1,6 +1,6 @@
 /**
  * 消息日志记录中间件
- * 用于保存 /v1/messages 接口的请求和响应
+ * 用于保存 /v1/messages 和 /v1/chat/completions 接口的请求和响应
  * 
  * 为每个请求创建以下文件：
  * - {requestId}-req.json: 请求的所有参数
@@ -314,9 +314,10 @@ function createMessageLoggerMiddleware(options = {}) {
    * preHandler hook - 记录请求
    */
   const preHandler = async (req, reply) => {
-    // 只处理 /v1/messages 接口
+    // 只处理 /v1/messages 和 /v1/chat/completions 接口
+    // 排除 /v1/messages/count_tokens
     if (
-      !req.url.startsWith("/v1/messages") ||
+      (!req.url.startsWith("/v1/messages") && !req.url.startsWith("/v1/chat/completions")) ||
       req.url.startsWith("/v1/messages/count_tokens")
     ) {
       return;
@@ -366,9 +367,10 @@ function createMessageLoggerMiddleware(options = {}) {
    * onSend hook - 记录响应
    */
   const onSend = async (req, reply, payload) => {
-    // 只处理 /v1/messages 接口
+    // 只处理 /v1/messages 和 /v1/chat/completions 接口
+    // 排除 /v1/messages/count_tokens
     if (
-      !req.url.startsWith("/v1/messages") ||
+      (!req.url.startsWith("/v1/messages") && !req.url.startsWith("/v1/chat/completions")) ||
       req.url.startsWith("/v1/messages/count_tokens")
     ) {
       return payload;
