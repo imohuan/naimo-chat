@@ -84,10 +84,61 @@ async function requestLLM(options) {
   if (typeof maxTokens === "number") {
     body.maxTokens = maxTokens;
   }
-  // 添加 reasoning_effort 参数（API 使用下划线格式）
-  if (reasoning !== undefined && reasoning !== null) {
-    // body.reasoning_effort = reasoning;
+  // 根据模型设置 thinking 或 reasoning_effort 参数
+  if (reasoning !== undefined && reasoning !== null && reasoning !== "none") {
+    // 首先统一设置 thinking 参数，用于 routeMiddleware 的路由检查
+    // routeMiddleware 会检查 req.body?.thinking 来决定是否使用 think 路由
+    const budgetMap = {
+      normal: 10000,
+      hard: 20000,
+      mega: 40000,
+      ultra: 80000,
+    };
+
+    body.thinking = {
+      enabled: true,
+      max_tokens: budgetMap[reasoning] || 10000,
+    };
+
+    // 从 model 字符串中提取 provider 和 model（格式：provider,model）
+    const modelStr = model || body.model || "";
+    const parts = modelStr.split(",");
+    const provider = parts[0]?.toLowerCase() || "";
+    const modelName = parts[1]?.toLowerCase() || "";
+
+    // 根据具体模型判断支持的参数格式
+    // Anthropic Claude 3.7 Sonnet 系列：支持 thinking 参数，必须带 budget_tokens
+    if (provider === "anthropic" || modelName.includes("claude")) {
+      // 根据 reasoning 级别设置 budget_tokens
+      const budgetMap = {
+        normal: 10000,
+        hard: 20000,
+        mega: 40000,
+        ultra: 80000,
+      };
+      delete body.thinking.max_tokens;
+      body.budget_tokens = budgetMap[reasoning] || 10000;
+    }
+    // DeepSeek-R1 系列：兼容 thinking 参数，忽略 budget
+    else if (provider === "deepseek" || modelName.includes("deepseek-r1")) {
+      // thinking 参数已在上面设置，无需额外操作
+    }
+    // OpenAI o1-preview / o3-mini 系列：不支持 thinking 参数，使用 reasoning_effort
+    else if (provider === "openai" || (modelName.includes("openai") && (modelName.includes("o1") || modelName.includes("o3")))) {
+      // 将 reasoning 值映射到 OpenAI 的 reasoning_effort 格式
+      // 注意：thinking 参数仍然保留，用于 routeMiddleware 的路由检查
+      const effortMap = {
+        normal: "medium",
+        hard: "high",
+        mega: "high",
+        ultra: "high",
+      };
+      body.reasoning_effort = effortMap[reasoning] || "medium";
+    }
   }
+
+
+
   if (tools && Array.isArray(tools) && tools.length > 0) {
     // 转换工具格式：将 inputSchema (驼峰) 转换为 input_schema (下划线)
     // Anthropic/Claude API 期望使用 input_schema 格式

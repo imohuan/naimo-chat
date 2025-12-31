@@ -240,13 +240,31 @@ const calculateTokenCount = (messages = [], system = [], tools = []) => {
   return Math.round(tokens);
 };
 
+/**
+ * 根據請求上下文選擇合適的模型
+ * 
+ * 模型選擇優先級（從高到低）：
+ * 1. 用戶顯式指定模型（格式：provider,model）
+ * 2. 長上下文路由（token 數超過閾值）
+ * 3. 子代理模型（system 中包含 <CCR-SUBAGENT-MODEL> 標籤）
+ * 4. Claude Haiku 背景模型
+ * 5. Web 搜尋工具路由（請求包含 web_search 工具）
+ * 6. 思考/推理路由（請求包含 thinking 或 reasoning 參數）
+ * 7. 預設模型（Router.default）
+ * 
+ * @param {Object} req - 請求對象，包含 body、sessionId 等
+ * @param {number} tokenCount - 當前請求估算的 token 數量
+ * @param {Object} config - 配置對象，包含 Router 和 Providers
+ * @param {Object} lastUsage - 上次使用記錄，包含 input_tokens 等資訊
+ * @returns {Promise<string>} 選擇的模型字串（格式：provider,model 或 model）
+ */
 const selectModel = async (req, tokenCount, config, lastUsage) => {
   const logger = req.logger || console;
   logger?.debug?.(
     `[router] tokenCount=${tokenCount} sessionId=${req.sessionId || "n/a"}`
   );
 
-  // 动态读取 Router 配置（支持运行时更新，无需重启）
+  // 動態讀取 Router 配置（支持運行時更新，無需重啟）
   let currentRouter = config.Router;
   try {
     const fileConfig = await readConfigFile();
@@ -254,13 +272,17 @@ const selectModel = async (req, tokenCount, config, lastUsage) => {
       currentRouter = fileConfig.Router;
     }
   } catch (error) {
-    logger?.warn?.("读取 Router 配置失败，使用内存中的配置:", error.message);
+    logger?.warn?.("讀取 Router 配置失敗，使用內存中的配置:", error.message);
   }
 
+  // 優先使用項目/會話特定的路由配置，否則使用全局配置
   const projectRouter = await getProjectSpecificRouter(req.sessionId);
   const Router = projectRouter || currentRouter || {};
 
-  // explicit "<provider,model>" request
+  // ========== 情況 1：用戶顯式指定模型 ==========
+  // 條件：req.body.model 為字串且包含逗號（格式：provider,model）
+  // 行為：驗證 provider 和 model 是否存在於配置中，存在則直接使用
+  // 示例：req.body.model = "openai,gpt-4" -> 返回 "openai,gpt-4"
   if (typeof req.body?.model === "string" && req.body.model.includes(",")) {
     const [provider, model] = req.body.model.split(",");
     const finalProvider = (config.Providers || []).find(
@@ -271,16 +293,22 @@ const selectModel = async (req, tokenCount, config, lastUsage) => {
     );
     if (finalProvider && finalModel) {
       logger?.info?.(
-        `[router] 用户显式指定模型 -> ${finalProvider.name},${finalModel}`
+        `[router] 用戶顯式指定模型 -> ${finalProvider.name},${finalModel}`
       );
       return `${finalProvider.name},${finalModel}`;
     }
     logger?.info?.(
-      `[router] 未找到匹配的显式模型，回退原值: ${req.body.model}`
+      `[router] 未找到匹配的顯式模型，回退原值: ${req.body.model}`
     );
     return req.body.model;
   }
 
+  // ========== 情況 2：長上下文路由 ==========
+  // 條件：滿足以下任一條件且配置了 Router.longContext
+  //   - 當前 token 數 > longContextThreshold（預設 60000）
+  //   - 上次使用記錄的 input_tokens > longContextThreshold 且當前 token 數 > 20000
+  // 行為：返回 Router.longContext 指定的模型（通常是大上下文窗口模型）
+  // 用途：處理需要大量上下文歷史的對話
   const longContextThreshold = Router.longContextThreshold || 60000;
   const lastUsageThreshold =
     lastUsage &&
@@ -288,10 +316,15 @@ const selectModel = async (req, tokenCount, config, lastUsage) => {
     tokenCount > 20000;
   const tokenCountThreshold = tokenCount > longContextThreshold;
   if ((lastUsageThreshold || tokenCountThreshold) && Router.longContext) {
-    logger?.info?.("[router] 命中长上下文路由");
+    logger?.info?.("[router] 命中長上下文路由");
     return Router.longContext;
   }
 
+  // ========== 情況 3：子代理模型 ==========
+  // 條件：req.body.system 是陣列，且第二個元素包含 <CCR-SUBAGENT-MODEL> 標籤
+  // 行為：從標籤中提取模型名稱，並從 system 中移除該標籤
+  // 用途：支持子代理指定特定模型，用於多代理協作場景
+  // 示例：system[1].text = "<CCR-SUBAGENT-MODEL>claude-3-opus</CCR-SUBAGENT-MODEL>其他內容"
   if (
     Array.isArray(req.body?.system) &&
     req.body.system.length > 1 &&
@@ -309,27 +342,45 @@ const selectModel = async (req, tokenCount, config, lastUsage) => {
     }
   }
 
+  // ========== 情況 4：Claude Haiku 背景模型 ==========
+  // 條件：req.body.model 包含 "claude" 和 "haiku"（不區分大小寫）且配置了 Router.background
+  // 行為：返回 Router.background 指定的模型
+  // 用途：將 Haiku 請求路由到專門的背景處理模型
   const isClaudeHaiku =
     req.body?.model?.toLowerCase?.().includes("claude") &&
     req.body?.model?.toLowerCase?.().includes("haiku");
   if (isClaudeHaiku && Router.background) {
-    logger?.info?.("[router] 发现 haiku 背景模型，使用 background 配置");
+    logger?.info?.("[router] 發現 haiku 背景模型，使用 background 配置");
     return Router.background;
   }
 
+  // ========== 情況 5：Web 搜尋工具路由 ==========
+  // 條件：req.body.tools 是陣列，且包含 type 以 "web_search" 開頭的工具，且配置了 Router.webSearch
+  // 行為：返回 Router.webSearch 指定的模型
+  // 用途：使用 Web 搜尋功能時，可能需要特定模型來處理搜尋結果
   const hasWebSearchTool =
     Array.isArray(req.body?.tools) &&
     req.body.tools.some((tool) => tool?.type?.startsWith?.("web_search"));
   if (hasWebSearchTool && Router.webSearch) {
-    logger?.info?.("[router] 请求包含 web_search 工具，使用 webSearch 配置");
+    logger?.info?.("[router] 請求包含 web_search 工具，使用 webSearch 配置");
     return Router.webSearch;
   }
 
-  if (req.body?.thinking && Router.think) {
-    logger?.info?.("[router] 请求要求 thinking，使用 think 配置");
+  // ========== 情況 6：思考/推理路由 ==========
+  // 條件：req.body.thinking 或 req.body.reasoning 存在且不為 "none"，且配置了 Router.think
+  // 行為：返回 Router.think 指定的模型
+  // 用途：需要模型進行深度思考或推理時，使用專門的思考模型
+  const hasThinking = req.body?.thinking && req.body.thinking !== "none";
+  const hasReasoning = req.body?.reasoning && req.body.reasoning !== "none";
+  if ((hasThinking || hasReasoning) && Router.think) {
+    logger?.info?.("[router] 請求要求 thinking/reasoning，使用 think 配置");
     return Router.think;
   }
 
+  // ========== 情況 7：預設模型 ==========
+  // 條件：以上所有情況都不滿足
+  // 行為：返回 Router.default 指定的模型
+  // 用途：作為所有請求的最終回退選項
   return Router.default;
 };
 
