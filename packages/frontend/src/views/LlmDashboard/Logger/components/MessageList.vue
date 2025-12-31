@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from "vue";
-import { Trash2, CheckSquare, Square } from "lucide-vue-next";
+import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
+import { Trash2, CheckSquare, Square, Loader2 } from "lucide-vue-next";
 import type { MessageListItem, TimeRange } from "../types";
 import TimeRangePicker from "./TimeRangePicker.vue";
 import Popconfirm from "@/components/llm/Popconfirm.vue";
@@ -12,6 +12,8 @@ const props = defineProps<{
   searchQuery: string;
   filterTag: "all" | "completed" | "pending" | "error";
   isLoading?: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,6 +21,7 @@ const emit = defineEmits<{
   "update:filterTag": [tag: "all" | "completed" | "pending" | "error"];
   "update:searchQuery": [query: string];
   refresh: [];
+  "load-more": [];
 }>();
 
 const { deleteMessages: apiDeleteMessages } = useLlmApi();
@@ -159,10 +162,7 @@ async function handleDelete() {
       // 清空选中状态
       selectedIds.value.clear();
       // 如果当前选中的消息被删除，清空选中状态
-      if (
-        props.selectedMessageId &&
-        idsToDelete.includes(props.selectedMessageId)
-      ) {
+      if (props.selectedMessageId && idsToDelete.includes(props.selectedMessageId)) {
         emit("update:selectedMessageId", null);
       }
       // 通知父组件刷新列表
@@ -185,15 +185,64 @@ const now = ref(Date.now());
 
 // 定时更新当前时间，使相对时间能够实时更新
 let intervalId: number | null = null;
-onMounted(() => {
+
+// 滚动容器引用
+const scrollContainer = ref<HTMLElement | null>(null);
+
+// 节流定时器
+let scrollThrottleTimer: number | null = null;
+
+// 滚动到底部加载更多
+function handleScroll(event: Event) {
+  const target = event.target as HTMLElement;
+  if (!target) return;
+
+  // 节流：每 200ms 最多执行一次
+  if (scrollThrottleTimer !== null) return;
+
+  scrollThrottleTimer = window.setTimeout(() => {
+    scrollThrottleTimer = null;
+  }, 200);
+
+  // 计算是否接近底部（距离底部 100px 时触发）
+  const scrollTop = target.scrollTop;
+  const scrollHeight = target.scrollHeight;
+  const clientHeight = target.clientHeight;
+  const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+  // console.log("target", distanceToBottom, props.hasMore, props.isLoading);
+  // 如果距离底部小于 100px，且有更多数据，且不在加载中，则触发加载更多
+  if (distanceToBottom < 100 && props.hasMore && !props.isLoading) {
+    emit("load-more");
+  }
+}
+
+// 初始化
+onMounted(async () => {
+  // 启动定时器更新相对时间
   intervalId = window.setInterval(() => {
     now.value = Date.now();
   }, 60000); // 每分钟更新一次
+
+  // 添加滚动监听
+  await nextTick();
+  if (scrollContainer.value) {
+    scrollContainer.value.addEventListener("scroll", handleScroll);
+  }
 });
 
 onUnmounted(() => {
+  // 清除定时器
   if (intervalId !== null) {
     clearInterval(intervalId);
+  }
+  // 清除节流定时器
+  if (scrollThrottleTimer !== null) {
+    clearTimeout(scrollThrottleTimer);
+  }
+  // 移除滚动监听
+  if (scrollContainer.value) {
+    scrollContainer.value.removeEventListener("scroll", handleScroll);
   }
 });
 
@@ -402,7 +451,7 @@ function formatRelativeTime(timestamp: string | null): string {
     </div>
 
     <!-- 消息列表 -->
-    <div class="flex-1 overflow-y-auto relative">
+    <div ref="scrollContainer" class="flex-1 overflow-y-auto relative">
       <div v-if="isLoading" class="p-8 text-center text-slate-400">
         <p class="text-sm">加载中...</p>
       </div>
@@ -489,6 +538,25 @@ function formatRelativeTime(timestamp: string | null): string {
             formatRelativeTime(msg.timestamp)
           }}</span>
         </div>
+      </div>
+
+      <!-- 底部加载更多指示器 -->
+      <div
+        v-if="isLoadingMore"
+        class="p-4 text-center border-t border-slate-200 bg-slate-50"
+      >
+        <div class="flex items-center justify-center gap-2 text-slate-500">
+          <Loader2 class="w-4 h-4 animate-spin" />
+          <span class="text-xs font-medium">加载更多...</span>
+        </div>
+      </div>
+
+      <!-- 没有更多数据提示 -->
+      <div
+        v-else-if="!hasMore && filteredMessages.length > 0"
+        class="p-4 text-center border-t border-slate-200 bg-slate-50"
+      >
+        <span class="text-xs text-slate-400">没有更多数据了</span>
       </div>
     </div>
   </div>

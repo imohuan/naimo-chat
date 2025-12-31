@@ -10,19 +10,26 @@ export function useMessages() {
   const searchQuery = ref("");
   const filterTag = ref<"all" | "completed" | "pending" | "error">("all");
   const isLoading = ref(false);
+  const isLoadingMore = ref(false);
   const isLoadingDetail = ref(false);
   const isRefreshing = ref(false);
   const limit = ref(100);
   const offset = ref(0);
+  const total = ref(0);
 
   /** 获取对话列表 */
   async function loadMessages(reset = false) {
-    if (isLoading.value) return;
+    // 如果正在加载，直接返回
+    if (isLoading.value || isLoadingMore.value) return;
 
-    isLoading.value = true;
+    // 区分首次加载和加载更多
     if (reset) {
+      isLoading.value = true;
       isRefreshing.value = true;
+    } else {
+      isLoadingMore.value = true;
     }
+
     try {
       if (reset) {
         offset.value = 0;
@@ -31,16 +38,24 @@ export function useMessages() {
       const data = await apiFetchMessages(limit.value, offset.value);
 
       if (reset) {
+        // 重置时替换整个列表
         messages.value = data.messages;
       } else {
-        messages.value = [...messages.value, ...data.messages];
+        // 加载更多时，累加到现有列表（避免重复）
+        const existingIds = new Set(messages.value.map((msg) => msg.requestId));
+        const newMessages = data.messages.filter(
+          (msg) => !existingIds.has(msg.requestId)
+        );
+        messages.value = [...messages.value, ...newMessages];
       }
 
+      total.value = data.total;
       offset.value += data.messages.length;
     } catch (error) {
       console.error("Error loading messages:", error);
     } finally {
       isLoading.value = false;
+      isLoadingMore.value = false;
       if (reset) {
         isRefreshing.value = false;
       }
@@ -113,6 +128,12 @@ export function useMessages() {
     return filtered;
   });
 
+  /** 是否还有更多数据 */
+  const hasMore = computed(() => {
+    // 如果当前消息数量小于总数，说明还有更多
+    return messages.value.length < total.value;
+  });
+
   return {
     messages,
     selectedMessageId,
@@ -120,9 +141,11 @@ export function useMessages() {
     searchQuery,
     filterTag,
     isLoading,
+    isLoadingMore,
     isLoadingDetail,
     isRefreshing,
     filteredMessages,
+    hasMore,
     loadMessages,
     loadMessageDetail,
     selectMessage,

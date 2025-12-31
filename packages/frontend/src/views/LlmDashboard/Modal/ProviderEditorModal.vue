@@ -172,10 +172,7 @@ async function testAllApiKeys() {
         </div>
 
         <div class="flex-1 overflow-hidden relative bg-slate-50">
-          <div
-            v-show="editorTab === 'form'"
-            class="h-full overflow-y-auto p-6 space-y-5"
-          >
+          <div v-show="editorTab === 'form'" class="h-full overflow-y-auto p-6 space-y-5">
             <div class="grid grid-cols-2 gap-5">
               <div class="col-span-2 sm:col-span-1">
                 <label class="label-base"
@@ -191,7 +188,8 @@ async function testAllApiKeys() {
               <div class="col-span-2 sm:col-span-1">
                 <label class="label-base">速率限制</label>
                 <Input
-                  v-model.number="form.limit"
+                  :model-value="form.limit.toString()"
+                  @update:model-value="form.limit = Number($event) || 0"
                   type="number"
                   placeholder="0 (无限制)"
                 />
@@ -228,14 +226,9 @@ async function testAllApiKeys() {
                   class="btn-secondary px-3"
                   :disabled="form.apiKeys.length === 0 || isBatchTesting"
                   @click="testAllApiKeys"
-                  :title="
-                    isBatchTesting ? '正在批量测试...' : '批量测试所有密钥'
-                  "
+                  :title="isBatchTesting ? '正在批量测试...' : '批量测试所有密钥'"
                 >
-                  <RefreshOutlined
-                    v-if="isBatchTesting"
-                    class="w-4 h-4 animate-spin"
-                  />
+                  <RefreshOutlined v-if="isBatchTesting" class="w-4 h-4 animate-spin" />
                   <PlayArrowOutlined v-else class="w-4 h-4" />
                 </button>
               </div>

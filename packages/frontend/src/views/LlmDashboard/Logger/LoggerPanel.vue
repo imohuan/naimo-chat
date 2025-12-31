@@ -37,9 +37,11 @@ const {
   searchQuery: messageSearchQuery,
   filterTag,
   isLoading: isLoadingMessages,
+  isLoadingMore: isLoadingMoreMessages,
   isLoadingDetail,
   isRefreshing: isRefreshingMessages,
   filteredMessages,
+  hasMore,
   loadMessages,
   selectMessage,
 } = useMessages();
@@ -47,6 +49,13 @@ const {
 // 刷新对话列表
 async function refreshMessages() {
   await loadMessages(true);
+}
+
+// 加载更多消息
+async function loadMoreMessages() {
+  if (hasMore.value && !isLoadingMessages.value) {
+    await loadMessages(false);
+  }
 }
 
 // 刷新日志文件并重新加载内容
@@ -103,9 +112,7 @@ async function loadLogContent(filePath: string) {
     const { fetchLogs: apiFetchLogs } = useLlmApi();
 
     const logLines = await apiFetchLogs(filePath, 0, 10000);
-    selectedLogContent.value = Array.isArray(logLines)
-      ? logLines.join("\n")
-      : "";
+    selectedLogContent.value = Array.isArray(logLines) ? logLines.join("\n") : "";
   } catch (error) {
     console.error("Error loading log content:", error);
     selectedLogContent.value = "";
@@ -157,9 +164,7 @@ function convertMessageDetailToLogRequest(
   if (!body.tools && !request.tools && request.body) {
     try {
       const parsedBody =
-        typeof request.body === "string"
-          ? JSON.parse(request.body)
-          : request.body;
+        typeof request.body === "string" ? JSON.parse(request.body) : request.body;
       if (parsedBody.tools) {
         const bodyLog = logs.find((l) => l.type === "request body");
         if (bodyLog) {
@@ -171,6 +176,7 @@ function convertMessageDetailToLogRequest(
     }
   }
 
+  let hasContent = false;
   // 处理流式响应
   if (detail.response?.full && Array.isArray(detail.response.full)) {
     let fullResponseText = "";
@@ -185,6 +191,7 @@ function convertMessageDetailToLogRequest(
     }
 
     if (fullResponseText) {
+      hasContent = true;
       logs.push({
         type: "full_response",
         time: Date.now(),
@@ -195,7 +202,10 @@ function convertMessageDetailToLogRequest(
         },
       });
     }
-  } else if (detail.response?.content) {
+  }
+
+  if (!hasContent && detail.response?.content) {
+    hasContent = true;
     logs.push({
       type: "full_response",
       time: Date.now(),
@@ -210,9 +220,7 @@ function convertMessageDetailToLogRequest(
   // 构建 LogRequest
   const logRequest: LogRequest = {
     id: detail.requestId,
-    startTime: new Date(
-      detail.request?.timestamp || detail.requestId
-    ).getTime(),
+    startTime: new Date(detail.request?.timestamp || detail.requestId).getTime(),
     logs: logs,
     method: request.method || "POST",
     url: request.url || "/v1/messages",
@@ -334,21 +342,19 @@ onUnmounted(() => {
             :search-query="messageSearchQuery"
             :filter-tag="filterTag"
             :is-loading="isLoadingMessages"
+            :is-loading-more="isLoadingMoreMessages"
+            :has-more="hasMore"
             @update:selected-message-id="(id) => (selectedMessageId = id)"
             @update:filter-tag="(tag) => (filterTag = tag)"
             @update:search-query="(query) => (messageSearchQuery = query)"
             @refresh="refreshMessages"
+            @load-more="loadMoreMessages"
           />
         </div>
 
         <!-- 右侧：对话详情 -->
-        <div
-          class="flex-1 min-w-0 w-full h-full flex items-center justify-center"
-        >
-          <div
-            v-if="isLoadingMessages"
-            class="flex flex-col items-center gap-3"
-          >
+        <div class="flex-1 min-w-0 w-full h-full flex items-center justify-center">
+          <div v-if="isLoadingMessages" class="flex flex-col items-center gap-3">
             <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
             <p class="text-slate-400 text-sm">加载中...</p>
           </div>

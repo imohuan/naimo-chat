@@ -249,7 +249,7 @@ class TagNodeView implements NodeView {
 
     this.dom.innerHTML = `
       <span class="prompt-tag-icon-wrapper">
-        <span class="prompt-tag-icon">${escapeHtml(icon)}</span>
+        <span class="prompt-tag-icon">${icon}</span>
         <span class="prompt-tag-delete" contenteditable="false">×</span>
       </span>
       <span class="prompt-tag-label">${escapeHtml(label)}</span>

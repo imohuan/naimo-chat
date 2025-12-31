@@ -24,6 +24,7 @@ import ConsolePanel, { type LogEntry } from "./components/ConsolePanel.vue";
 import ImmersiveDiffEditor from "./components/ImmersiveDiffEditor.vue"; // Import Component
 import CodeEditor from "../code/CodeEditor.vue";
 import LoadingProgressBar from "./components/LoadingProgressBar.vue";
+import ErrorNotification from "./components/ErrorNotification.vue";
 import {
   Select,
   SelectContent,
@@ -54,6 +55,7 @@ const emit = defineEmits<{
     data: { code: string; startLine: number; endLine: number }
   ];
   "diff-exited": [code: string, recordId?: string];
+  "error-fix": [];
 }>();
 
 const {
@@ -92,6 +94,7 @@ const isStreaming = ref(false); // 标志：是否正在流式写入
 const isLoadingPreview = ref(false); // 标志：预览是否正在加载
 const previewLoadError = ref(false); // 标志：预览加载是否失败
 const throttledPreviewCode = ref(""); // 节流后的预览代码（用于流式写入期间）
+const errorMessage = ref<string | null>(null); // 错误消息（单例模式）
 let throttleTimer: ReturnType<typeof setTimeout> | null = null; // 节流计时器
 let isThrottling = false; // 标志：是否正在节流期间内
 
@@ -654,6 +657,12 @@ defineExpose({
   // 获取和设置历史版本
   getHistory,
   setHistory,
+  // 设置错误消息（用于外部调用）
+  setError: (message: string | null) => {
+    errorMessage.value = message;
+  },
+  // 刷新预览（用于修复功能）
+  refreshPreview,
 });
 
 // Sync Editor -> History (Debounced)
@@ -780,8 +789,10 @@ function handleLog(log: any) {
   // Emit error notification if it's an error
   if (entry.method === "error") {
     // const errorMessage = JSON.stringify(entry.args?.[0], null) + "\n" + entry.stack;
-    const errorMessage = `error: ${entry.args?.[0]?.message}\nstack: ${entry.stack}\ncaller: ${entry.caller}`;
-    emit("error", errorMessage);
+    const errorMsg = `error: ${entry.args?.[0]?.message}\nstack: ${entry.stack}\ncaller: ${entry.caller}`;
+    emit("error", errorMsg);
+    // 显示错误提示（单例模式：如果已有错误，则更新错误消息）
+    errorMessage.value = errorMsg;
   }
 }
 
@@ -820,10 +831,35 @@ function handlePreviewLoadError() {
   isRefreshing.value = false;
   isLoadingPreview.value = false;
   previewLoadError.value = true;
+  // 显示错误提示（单例模式：如果已有错误，则更新错误消息）
+  errorMessage.value = "预览加载失败：无法加载预览内容";
   // 2秒后清除错误状态，以便下次加载时可以重新显示
   setTimeout(() => {
     previewLoadError.value = false;
   }, 2000);
+}
+
+// 处理错误提示关闭
+function handleErrorClose() {
+  errorMessage.value = null;
+}
+
+// 处理错误修复（刷新预览）
+function handleErrorFix() {
+  errorMessage.value = null;
+  // 如果当前不在预览模式，切换到预览模式
+  if (mode.value !== "preview") {
+    uiMode.value = "preview";
+  }
+  // 刷新预览
+  refreshPreview();
+  // 通知父组件修复操作
+  emit("error-fix");
+}
+
+// 处理错误复制
+function handleErrorCopy() {
+  // 复制功能已在 ErrorNotification 组件中处理
 }
 
 // 监听代码变化，当处于预览模式时启动加载状态
@@ -1400,6 +1436,14 @@ onBeforeUnmount(() => {
           @expand="consoleExpanded = $event"
         />
       </div>
+
+      <!-- 错误提示组件（左下角，所有模式下显示） -->
+      <ErrorNotification
+        :error-message="errorMessage"
+        @close="handleErrorClose"
+        @fix="handleErrorFix"
+        @copy="handleErrorCopy"
+      />
     </div>
   </div>
 </template>

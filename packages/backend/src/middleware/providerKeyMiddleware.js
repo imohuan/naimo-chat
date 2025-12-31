@@ -30,11 +30,7 @@ function createKeyRotator(providers = []) {
     const hasApiKeys = Array.isArray(p.api_keys);
     // 读取可用密钥：优先使用 api_keys，多 key；无则回退单 key
     const keys =
-      hasApiKeys && p.api_keys.length
-        ? [...p.api_keys]
-        : p.api_key
-        ? [p.api_key]
-        : [];
+      hasApiKeys && p.api_keys.length ? [...p.api_keys] : p.api_key ? [p.api_key] : [];
     if (!keys.length) return;
 
     // 每个 provider 可选配置 limit（单 key 并发上限）；未配置或 <=0 则不做并发限制
@@ -67,10 +63,7 @@ function createKeyRotator(providers = []) {
       const key = s.keys[idx]; // 取出本次候选 key
       const inUse = s.inflight.get(key) || 0;
       // limit<=0 表示不限制并发；否则要求 inUse < limit
-      if (
-        (s.disabledUntil.get(key) || 0) <= now &&
-        (s.limit <= 0 || inUse < s.limit)
-      ) {
+      if ((s.disabledUntil.get(key) || 0) <= now && (s.limit <= 0 || inUse < s.limit)) {
         s.inflight.set(key, inUse + 1); // 占位，防止并发超限
         return key;
       }
@@ -165,11 +158,7 @@ function createProviderKeyMiddleware(config, server = null) {
         : "";
 
     if (bodyApiKey) {
-      const target = resolveProviderTarget(
-        providerService,
-        providerName,
-        config
-      );
+      const target = resolveProviderTarget(providerService, providerName, config);
 
       if (target) {
         await setProvider(target, { apiKey: bodyApiKey }, config, server);
@@ -196,9 +185,7 @@ function createProviderKeyMiddleware(config, server = null) {
     // 若并发已满或处于冷却，则等待可用 key
     const apiKey = await waitForAvailableKey(rotator, providerName, {
       timeoutMs:
-        Number(config.keyWaitTimeoutMs) > 0
-          ? Number(config.keyWaitTimeoutMs)
-          : 60_000,
+        Number(config.keyWaitTimeoutMs) > 0 ? Number(config.keyWaitTimeoutMs) : 60_000,
     });
 
     // 将选出的 key 写回当前 provider 配置，供后续上游请求使用
@@ -221,8 +208,7 @@ function createProviderKeyMiddleware(config, server = null) {
   };
 
   const releaseOnce = (req) => {
-    if (!req.rotatedProvider || !req.rotatedApiKey || req.rotatedReleased)
-      return;
+    if (!req.rotatedProvider || !req.rotatedApiKey || req.rotatedReleased) return;
     rotator.release(req.rotatedProvider, req.rotatedApiKey);
     req.rotatedReleased = true;
   };

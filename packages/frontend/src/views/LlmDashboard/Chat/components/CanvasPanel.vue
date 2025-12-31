@@ -25,6 +25,7 @@ const emit = defineEmits<{
     }
   ];
   "diff-exited": [code: string, recordId?: string];
+  "error-fix": [];
 }>();
 
 const immersiveCodeRef = ref<InstanceType<typeof ImmersiveCode> | null>(null);
@@ -84,6 +85,10 @@ watch(
 
 function handleError(message: string) {
   emit("error", message);
+  // 同时将错误传递给 ImmersiveCode 组件显示
+  if (immersiveCodeRef.value && typeof immersiveCodeRef.value.setError === "function") {
+    immersiveCodeRef.value.setError(message);
+  }
 }
 
 function handleElementSelected(selector: string, data?: any) {
@@ -130,6 +135,21 @@ onBeforeUnmount(() => {
   eventBus.off("codeblock:apply-diff", handleApplyDiff);
 });
 
+// 处理修复功能
+function handleFixError() {
+  // 清除错误消息
+  if (immersiveCodeRef.value && typeof immersiveCodeRef.value.setError === "function") {
+    immersiveCodeRef.value.setError("");
+  }
+  // 刷新预览
+  if (
+    immersiveCodeRef.value &&
+    typeof immersiveCodeRef.value.refreshPreview === "function"
+  ) {
+    immersiveCodeRef.value.refreshPreview();
+  }
+}
+
 // 暴露 ref 供父组件使用
 defineExpose({
   immersiveCodeRef,
@@ -140,6 +160,7 @@ defineExpose({
       immersiveCodeRef.value.setHistory(history);
     }
   },
+  fixError: handleFixError,
 });
 </script>
 
@@ -155,6 +176,7 @@ defineExpose({
         @element-selected="handleElementSelected"
         @ctrl-i-pressed="handleCtrlIPressed"
         @diff-exited="handleDiffExited"
+        @error-fix="() => emit('error-fix')"
         class="immersive-code-full-height"
       >
         <template #right-actions>

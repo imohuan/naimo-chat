@@ -99,10 +99,10 @@ function registerLogRoutes(server) {
       const limit = parseInt(req.query?.limit) || 100;
       const offset = parseInt(req.query?.offset) || 0;
 
-      const messages = getMessageList({ limit, offset });
+      const result = getMessageList({ limit, offset });
       return {
-        messages,
-        total: messages.length,
+        messages: result.messages,
+        total: result.total,
         limit,
         offset,
       };

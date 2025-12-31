@@ -374,8 +374,17 @@ const getMessageList = (options = {}) => {
         return timeB - timeA;
       });
 
+    // 获取总数
+    const total = messageList.length;
+
     // 应用分页
-    return messageList.slice(offset, offset + limit);
+    const paginatedMessages = messageList.slice(offset, offset + limit);
+
+    // 返回消息列表和总数
+    return {
+      messages: paginatedMessages,
+      total,
+    };
   } catch (error) {
     console.error("Failed to get message list:", error);
     throw error;

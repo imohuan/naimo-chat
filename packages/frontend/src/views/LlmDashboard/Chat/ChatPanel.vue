@@ -644,9 +644,56 @@ function handleDiffExited(code: string, recordId?: string) {
   handleDiffApplied(finalRecordId, code);
 }
 
+// 存储当前错误消息
+const currentErrorMessage = ref<string | null>(null);
+
+// 修复提示词模板
+function getFixPrompt(errorMsg: string | null): string {
+  if (!errorMsg) {
+    return "Please fix the errors in the current code to ensure it runs correctly.";
+  }
+  return `Please fix the errors in the current code. The error message is as follows:
+
+<error_message>
+${errorMsg}
+</error_message>
+
+Please analyze the error message and correct the code to ensure it runs correctly.`;
+}
+
 function handleError(msg: string) {
-  // pushToast(`错误: ${msg}`, "error");
-  console.log("handleError", msg);
+  // 如果正在请求（流式输出），不显示错误
+  if (status.value === "streaming") {
+    return;
+  }
+
+  // 将错误传递给 CanvasPanel 显示
+  currentErrorMessage.value = msg;
+  if (
+    canvasPanelRef.value?.immersiveCodeRef &&
+    typeof canvasPanelRef.value.immersiveCodeRef.setError === "function"
+  ) {
+    canvasPanelRef.value.immersiveCodeRef.setError(msg);
+  }
+}
+
+// 处理修复功能
+function handleFixError() {
+  // 获取当前错误消息
+  const errorMsg = currentErrorMessage.value;
+
+  // 清除错误消息
+  currentErrorMessage.value = null;
+  if (
+    canvasPanelRef.value?.immersiveCodeRef &&
+    typeof canvasPanelRef.value.immersiveCodeRef.setError === "function"
+  ) {
+    canvasPanelRef.value.immersiveCodeRef.setError(null);
+  }
+
+  // 发送修复消息，包含错误信息
+  const fixPrompt = getFixPrompt(errorMsg);
+  handleSubmit({ text: fixPrompt, files: [] });
 }
 
 // 监听对话切换，加载 canvas 数据
@@ -848,6 +895,7 @@ watch(activeConversationId, (_newId, oldId) => {
           :code-version="activeConversation?.codeVersion"
           @update:show="showCanvas = $event"
           @error="(msg) => handleError(msg)"
+          @error-fix="handleFixError"
           @element-selected="handleElementSelected"
           @ctrl-i-pressed="handleCtrlIPressed"
           @diff-exited="handleDiffExited"
