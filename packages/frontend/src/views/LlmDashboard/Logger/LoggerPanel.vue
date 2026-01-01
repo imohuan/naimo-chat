@@ -48,7 +48,28 @@ const {
 
 // 刷新对话列表
 async function refreshMessages() {
+  const currentSelectedId = selectedMessageId.value;
+
   await loadMessages(true);
+
+  // 刷新后保持选中状态
+  if (currentSelectedId) {
+    // 检查该消息是否仍然存在
+    const stillExists = filteredMessages.value.some(
+      (msg) => msg.requestId === currentSelectedId
+    );
+    if (stillExists) {
+      await selectMessage(currentSelectedId);
+    } else {
+      // 如果消息不存在了，选择第一个
+      if (filteredMessages.value.length > 0) {
+        const firstMessage = filteredMessages.value[0];
+        if (firstMessage?.requestId) {
+          await selectMessage(firstMessage.requestId);
+        }
+      }
+    }
+  }
 }
 
 // 加载更多消息
@@ -60,10 +81,32 @@ async function loadMoreMessages() {
 
 // 刷新日志文件并重新加载内容
 async function handleRefreshLogFile() {
+  const currentSelectedPath = selectedLogFileObj.value?.path;
+
+  // refreshLogFile 已经会更新 selectedLogFileObj（如果文件还在列表中）
   await refreshLogFile();
-  // 刷新后重新加载当前文件的内容
+
+  // 确保刷新后仍然选中同一个文件
+  if (currentSelectedPath) {
+    // 检查该文件是否仍然存在，如果不存在则选择第一个
+    const updatedFile = logFiles.value.find((f) => f.path === currentSelectedPath);
+    if (updatedFile && updatedFile.path !== selectedLogFileObj.value?.path) {
+      // 如果文件存在但 selectedLogFileObj 没有更新，手动选择
+      await selectLogFile(updatedFile);
+    } else if (!updatedFile && logFiles.value.length > 0) {
+      // 如果文件不存在了，选择第一个
+      const firstFile = logFiles.value[0];
+      if (firstFile) {
+        await selectLogFile(firstFile);
+      }
+    }
+  }
+
+  // 重新加载当前文件的内容（无感刷新，不显示loading）
   if (selectedLogFileObj.value) {
     await loadLogContent(selectedLogFileObj.value.path);
+  } else {
+    selectedLogContent.value = "";
   }
 }
 
@@ -410,12 +453,13 @@ onUnmounted(() => {
         <!-- 左侧：对话列表 -->
         <div class="w-80 shrink-0">
           <MessageList
-            :messages="filteredMessages"
+            :messages="messages"
             :selected-message-id="selectedMessageId"
             :search-query="messageSearchQuery"
             :filter-tag="filterTag"
             :is-loading="isLoadingMessages"
             :is-loading-more="isLoadingMoreMessages"
+            :is-refreshing="isRefreshingMessages"
             :has-more="hasMore"
             @update:selected-message-id="(id) => (selectedMessageId = id)"
             @update:filter-tag="(tag) => (filterTag = tag)"
@@ -427,7 +471,10 @@ onUnmounted(() => {
 
         <!-- 右侧：对话详情 -->
         <div class="flex-1 min-w-0 w-full h-full flex items-center justify-center">
-          <div v-if="isLoadingMessages" class="flex flex-col items-center gap-3">
+          <div
+            v-if="isLoadingMessages && !selectedMessageDetail"
+            class="flex flex-col items-center gap-3"
+          >
             <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
             <p class="text-slate-400 text-sm">加载中...</p>
           </div>

@@ -1,29 +1,14 @@
 <script setup lang="ts">
-import {
-  computed,
-  ref,
-  useTemplateRef,
-  watch,
-  onUnmounted,
-  onMounted,
-} from "vue";
+import { computed, ref, useTemplateRef, watch, onUnmounted, onMounted } from "vue";
 import { useIntersectionObserver, useDebounceFn } from "@vueuse/core";
 import {
   VisibilityOutlined,
   CodeOutlined,
-  PersonOutlined,
-  SmartToyOutlined,
-  SettingsOutlined,
   ListOutlined,
-  AutoAwesomeOutlined,
-  WarningOutlined,
   KeyboardArrowDownOutlined,
 } from "@vicons/material";
 import CodeEditor from "@/components/code/CodeEditor.vue";
-import MessageActionButtons from "./MessageActionButtons.vue";
-import ToolUseEdit from "./ToolUseEdit.vue";
-import ImageDisplay from "@/components/llm/ImageDisplay.vue";
-import QueueExample from "./QueueExample.vue";
+import PreviewMessageItem from "./PreviewMessageItem.vue";
 import MCPPreview from "./MCPPreview.vue";
 import type { LogRequest, LogChatMessage } from "../types";
 import { useCharLoading } from "@/hooks/useCharLoading";
@@ -42,11 +27,7 @@ const logsSource = computed(() => {
   const responseFull = props.request?.responseFull;
 
   // 如果没有 responseFull，直接返回原始日志
-  if (
-    !responseFull ||
-    !Array.isArray(responseFull) ||
-    responseFull.length === 0
-  ) {
+  if (!responseFull || !Array.isArray(responseFull) || responseFull.length === 0) {
     return baseLogs;
   }
 
@@ -54,21 +35,24 @@ const logsSource = computed(() => {
   const allLogs = [...baseLogs];
 
   // 计算基础时间（使用最后一个日志的时间，或者使用请求开始时间）
+  const lastLog = baseLogs.length > 0 ? baseLogs[baseLogs.length - 1] : undefined;
   const baseTime =
-    baseLogs.length > 0
-      ? baseLogs[baseLogs.length - 1].time
-      : props.request?.startTime || Date.now();
+    lastLog && typeof lastLog.time === "number"
+      ? lastLog.time
+      : props.request?.startTime ?? Date.now();
 
   // 将 responseFull 中的每一项转换为日志项
-  responseFull.forEach((event, index) => {
-    allLogs.push({
-      type: "stream_event",
-      time: baseTime + (index + 1) * 10, // 每个事件间隔 10ms，保持时间顺序
-      level: 30,
-      msg: `Stream Event: ${event.type}`,
-      data: event,
+  if (responseFull && Array.isArray(responseFull)) {
+    responseFull.forEach((event, index) => {
+      allLogs.push({
+        type: "stream_event",
+        time: baseTime + (index + 1) * 10, // 每个事件间隔 10ms，保持时间顺序
+        level: 30,
+        msg: `Stream Event: ${event?.type || "unknown"}`,
+        data: event,
+      });
     });
-  });
+  }
 
   // 按时间排序
   return allLogs.sort((a, b) => a.time - b.time);
@@ -151,15 +135,9 @@ const timelineLoading = useCharLoading(
 );
 
 const messageContainerRef = useTemplateRef<HTMLElement>("messageContainerRef");
-const timelineContainerRef = useTemplateRef<HTMLElement>(
-  "timelineContainerRef"
-);
-const messageLoadTriggerRef = useTemplateRef<HTMLElement>(
-  "messageLoadTriggerRef"
-);
-const timelineLoadTriggerRef = useTemplateRef<HTMLElement>(
-  "timelineLoadTriggerRef"
-);
+const timelineContainerRef = useTemplateRef<HTMLElement>("timelineContainerRef");
+const messageLoadTriggerRef = useTemplateRef<HTMLElement>("messageLoadTriggerRef");
+const timelineLoadTriggerRef = useTemplateRef<HTMLElement>("timelineLoadTriggerRef");
 
 // 使用字符加载hooks - 所有显示项
 const messageLoading = useCharLoading(
@@ -318,13 +296,16 @@ function formatTimeLong(ts: number): string {
 
 function formatTimeDetail(ts: number): string {
   const d = new Date(ts);
-  return `${d.getHours().toString().padStart(2, "0")}:${d
+  return `${d
+    .getHours()
+    .toString()
+    .padStart(2, "0")}:${d
     .getMinutes()
     .toString()
-    .padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}.${d
-    .getMilliseconds()
+    .padStart(2, "0")}:${d
+    .getSeconds()
     .toString()
-    .padStart(3, "0")}`;
+    .padStart(2, "0")}.${d.getMilliseconds().toString().padStart(3, "0")}`;
 }
 
 function computeTimeDelta(logs: any[], idx: number): number {
@@ -346,8 +327,7 @@ function formatJson(obj: any): string {
 
 function isChatRequest(req: LogRequest | null): boolean {
   return (
-    !!req &&
-    (req.url.includes("/messages") || req.url.includes("/chat/completions"))
+    !!req && (req.url.includes("/messages") || req.url.includes("/chat/completions"))
   );
 }
 
@@ -387,18 +367,14 @@ const allTools = computed(() => {
   if (!props.request) return [];
 
   // 首先从 request body 日志中查找
-  const bodyLog = props.request.logs.find(
-    (l) => l.type === "request body" && l.data
-  );
+  const bodyLog = props.request.logs.find((l) => l.type === "request body" && l.data);
 
   if (bodyLog && bodyLog.data.tools && Array.isArray(bodyLog.data.tools)) {
     return bodyLog.data.tools;
   }
 
   // 如果没有找到，尝试从其他日志中查找原始请求体
-  const finalReqLog = props.request.logs.find(
-    (l) => l.request && l.request.body
-  );
+  const finalReqLog = props.request.logs.find((l) => l.request && l.request.body);
   if (finalReqLog) {
     try {
       const parsedBody =
@@ -418,9 +394,7 @@ const allTools = computed(() => {
 
 // 提取 MCP 工具列表（仅以 mcp__ 开头的工具）
 const mcpTools = computed(() => {
-  return allTools.value.filter(
-    (tool: any) => tool.name && tool.name.startsWith("mcp__")
-  );
+  return allTools.value.filter((tool: any) => tool.name && tool.name.startsWith("mcp__"));
 });
 
 function getLevelColor(level: number): string {
@@ -435,6 +409,23 @@ const collapsedItems = ref(new Set<string>());
 
 // 复制成功状态管理
 const copySuccessStates = ref(new Map<string, boolean>());
+
+// 换行状态管理（每个 item 独立管理）
+const wordWrapStates = ref(new Map<string, boolean>());
+
+// 获取或设置 item 的换行状态
+function getWordWrap(itemId: string): boolean {
+  return wordWrapStates.value.get(itemId) ?? false; // 默认关闭换行
+}
+
+function toggleWordWrap(itemId: string) {
+  const current = getWordWrap(itemId);
+  wordWrapStates.value.set(itemId, !current);
+}
+
+function getItemId(item: any): string {
+  return `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+}
 
 function toggleCollapse(id: string) {
   const newSet = new Set(collapsedItems.value);
@@ -508,9 +499,7 @@ function getDisplayContent(item: any): string {
     return content.trim();
   }
 
-  const itemId = `${item.type}-${
-    item.data.time || item.data.role || Math.random()
-  }`;
+  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
   if (!isCollapsed(itemId)) {
     return content.trim();
   }
@@ -577,9 +566,7 @@ function getTimelineLogId(log: any, index: number): string {
 
 // 复制对象数据到剪贴板
 async function copyItemData(item: any) {
-  const itemId = `${item.type}-${
-    item.data.time || item.data.role || Math.random()
-  }`;
+  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
 
   try {
     const dataToCopy = {
@@ -641,7 +628,9 @@ function isTodoWrite(toolData: any): boolean {
 }
 
 // 转换 TodoWrite 的 todos 格式为 QueueTodo 格式
-function convertTodosToQueueFormat(todos: any[]): Array<{
+function convertTodosToQueueFormat(
+  todos: any[]
+): Array<{
   id: string;
   title: string;
   description?: string;
@@ -668,9 +657,7 @@ onMounted(() => {
   handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       // 关闭所有打开的图片预览
-      const openPreviews = document.querySelectorAll(
-        '[data-preview-open="true"]'
-      );
+      const openPreviews = document.querySelectorAll('[data-preview-open="true"]');
       openPreviews.forEach((preview) => {
         (preview as any).closePreview?.();
       });
@@ -687,8 +674,7 @@ onUnmounted(() => {
 
 // 加载全部内容并滚动到底部
 async function loadAllAndScrollToBottom() {
-  const currentLoading =
-    activeTab.value === "preview" ? messageLoading : timelineLoading;
+  const currentLoading = activeTab.value === "preview" ? messageLoading : timelineLoading;
   const currentContainer =
     activeTab.value === "preview"
       ? messageContainerRef.value
@@ -817,7 +803,7 @@ async function loadAllAndScrollToBottom() {
     </div>
 
     <!-- Tab 内容 -->
-    <div class="flex-1 overflow-hidden p-6 relative">
+    <div class="flex-1 overflow-hidden relative">
       <!-- 加载全部并滚动到底部按钮 -->
       <button
         v-if="activeTab === 'preview' || activeTab === 'timeline'"
@@ -828,370 +814,32 @@ async function loadAllAndScrollToBottom() {
         <KeyboardArrowDownOutlined class="w-6 h-6" />
       </button>
       <!-- 预览 Tab -->
-      <div v-if="activeTab === 'preview'" class="w-full h-full">
-        <div
-          v-if="!isChatRequest(request)"
-          class="text-center py-20 text-slate-400"
-        >
+      <div v-if="activeTab === 'preview'" class="w-full h-full p-6 pr-2">
+        <div v-if="!isChatRequest(request)" class="text-center py-20 text-slate-400">
           <p class="text-lg">此请求不是聊天补全请求，无法预览对话。</p>
           <p class="text-sm mt-2">请切换到"时间轴"或"原始数据"查看详情。</p>
         </div>
 
-        <div v-else class="h-full space-y-6">
+        <div v-else class="h-full flex flex-col">
           <!-- Messages (lazy loaded) -->
-          <div
-            ref="messageContainerRef"
-            class="max-h-full overflow-y-auto pr-1"
-          >
+          <div ref="messageContainerRef" class="flex-1 overflow-y-auto">
             <div>
               <template v-for="(item, index) in visibleItems" :key="index">
-                <!-- Message Item -->
-                <div
-                  v-if="item.type === 'message'"
-                  class="flex gap-4 mb-4 last:mb-0 w-10/12 mx-auto"
-                  :class="{ 'flex-row-reverse': item.data.role === 'user' }"
-                >
-                  <div
-                    class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-md"
-                    :class="
-                      item.data.role === 'user'
-                        ? 'bg-indigo-600'
-                        : item.data.role === 'system'
-                        ? 'bg-slate-600'
-                        : 'bg-orange-600'
-                    "
-                  >
-                    <PersonOutlined
-                      v-if="item.data.role === 'user'"
-                      class="w-5 h-5 text-white"
-                    />
-                    <SettingsOutlined
-                      v-else-if="item.data.role === 'system'"
-                      class="w-5 h-5 text-white"
-                    />
-                    <SmartToyOutlined v-else class="w-5 h-5 text-white" />
-                  </div>
-
-                  <div
-                    class="flex flex-col max-w-[85%]"
-                    :class="{ 'items-end': item.data.role === 'user' }"
-                  >
-                    <div
-                      class="text-xs text-slate-500 mb-1 font-bold uppercase tracking-wider"
-                    >
-                      {{ item.data.role }}
-                    </div>
-                    <div
-                      class="min-w-32 px-4 pt-4 rounded-2xl text-sm leading-relaxed shadow-sm whitespace-pre-wrap wrap-break-word font-mono select-text w-full flex flex-col gap-1 relative"
-                      :class="[
-                        item.data.role === 'system'
-                          ? 'bg-slate-100 text-slate-800 border border-slate-200'
-                          : 'bg-white text-slate-800 border border-slate-200',
-                      ]"
-                    >
-                      <template v-if="Array.isArray(item.data.content)">
-                        <div
-                          v-for="(part, pIdx) in item.data.content"
-                          :key="pIdx"
-                          class="mb-1 last:mb-0"
-                        >
-                          <!-- Text content -->
-                          <div
-                            v-if="part.type === 'text'"
-                            class="whitespace-pre-wrap"
-                          >
-                            <template
-                              v-if="
-                                shouldShowCollapse(item) &&
-                                isCollapsed(
-                                  `${item.type}-${
-                                    item.data.role || Math.random()
-                                  }`
-                                )
-                              "
-                            >
-                              {{
-                                (part.text?.trim() || "").substring(0, 200) +
-                                "..."
-                              }}
-                            </template>
-                            <template v-else>
-                              {{ part.text?.trim() || "" }}
-                            </template>
-                          </div>
-
-                          <!-- Tool use content -->
-                          <div v-else-if="part.type === 'tool_use'">
-                            <!-- TodoWrite: 使用 QueueExample 组件 -->
-                            <div v-if="isTodoWrite(part)" class="mb-1">
-                              <QueueExample
-                                :todos="
-                                  convertTodosToQueueFormat(part.input.todos)
-                                "
-                                :show-messages="false"
-                                :preview="true"
-                              />
-                            </div>
-                            <!-- 其他 tool_use: 使用 ToolUseEdit 组件 -->
-                            <ToolUseEdit
-                              v-else
-                              :tool-data="part"
-                              :is-collapsed="
-                                shouldShowCollapse(item) &&
-                                isCollapsed(
-                                  `${item.type}-${
-                                    item.data.role || Math.random()
-                                  }`
-                                )
-                              "
-                            />
-                          </div>
-
-                          <!-- Tool result content -->
-                          <div
-                            v-else-if="part.type === 'tool_result'"
-                            class="bg-green-50 border border-green-200 rounded-lg p-3 mb-1 shadow-sm"
-                          >
-                            <div class="flex items-center gap-2 mb-1">
-                              <span
-                                class="text-xs font-bold text-green-600 uppercase"
-                                >Tool Result:</span
-                              >
-                              <span
-                                v-if="part.tool_use_id"
-                                class="text-xs font-mono text-green-700"
-                                >{{ part.tool_use_id }}</span
-                              >
-                            </div>
-                            <div
-                              v-if="part.content"
-                              class="text-xs font-mono text-slate-700"
-                            >
-                              <template
-                                v-if="
-                                  shouldShowCollapse(item) &&
-                                  isCollapsed(
-                                    `${item.type}-${
-                                      item.data.role || Math.random()
-                                    }`
-                                  )
-                                "
-                              >
-                                <pre class="whitespace-pre-wrap">{{
-                                  (Array.isArray(part.content)
-                                    ? part.content.join("\n").trim()
-                                    : part.content?.trim() || ""
-                                  ).substring(0, 200) + "..."
-                                }}</pre>
-                              </template>
-                              <template v-else>
-                                <pre class="whitespace-pre-wrap">{{
-                                  Array.isArray(part.content)
-                                    ? part.content.join("\n").trim()
-                                    : part.content?.trim() || ""
-                                }}</pre>
-                              </template>
-                            </div>
-                            <div
-                              v-if="part.is_error"
-                              class="text-xs text-red-600 mt-1 font-bold"
-                            >
-                              Error: {{ part.is_error }}
-                            </div>
-                          </div>
-
-                          <!-- Image content -->
-                          <div v-else-if="part.type === 'image'" class="mb-1">
-                            <div class="flex items-center gap-2 mb-2">
-                              <span
-                                class="text-xs font-bold text-purple-700 uppercase"
-                                >Image:</span
-                              >
-                            </div>
-                            <ImageDisplay
-                              :src="part.source?.data || part.data || ''"
-                              :alt="part.alt || 'Generated image'"
-                              max-width="250px"
-                              max-height="250px"
-                              class="inline-block"
-                              :debug="false"
-                            />
-                            <div
-                              v-if="part.detail"
-                              class="text-xs text-slate-500 mt-2 ml-2"
-                            >
-                              {{ part.detail }}
-                            </div>
-                          </div>
-
-                          <!-- Other content types -->
-                          <div
-                            v-else
-                            class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-1 shadow-sm"
-                          >
-                            <div class="flex items-center gap-2 mb-1">
-                              <span
-                                class="text-xs font-bold text-yellow-700 uppercase"
-                                >{{ part.type }}:</span
-                              >
-                            </div>
-                            <pre
-                              class="text-xs font-mono text-slate-700 whitespace-pre-wrap"
-                            >
-                              <template
-                                v-if="
-                                  shouldShowCollapse(item) &&
-                                  isCollapsed(`${item.type}-${item.data.role || Math.random()}`)
-                                "
-                              >
-                                {{ formatJson(part).trim().substring(0, 200) + "..." }}
-                              </template>
-                              <template v-else>
-                                {{ formatJson(part).trim() }}
-                              </template>
-                            </pre>
-                          </div>
-                        </div>
-                      </template>
-                      <template v-else>
-                        {{ getDisplayContent(item) }}
-                      </template>
-
-                      <!-- 底部按钮组 -->
-                      <MessageActionButtons
-                        :item-type="item.type"
-                        :item-data="item.data"
-                        :should-show-collapse="shouldShowCollapse(item)"
-                        :is-collapsed="
-                          isCollapsed(
-                            `${item.type}-${item.data.role || Math.random()}`
-                          )
-                        "
-                        :collapsed-char-count="getCollapsedCharCount(item)"
-                        :is-copy-success="
-                          isCopySuccess(
-                            `${item.type}-${item.data.role || Math.random()}`
-                          )
-                        "
-                        @toggle-collapse="
-                          toggleCollapse(
-                            `${item.type}-${item.data.role || Math.random()}`
-                          )
-                        "
-                        @copy-item="copyItemData(item)"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Full Response Item -->
-                <div
-                  v-else-if="item.type === 'full_response'"
-                  class="flex gap-4 mb-4 last:mb-0 w-10/12 mx-auto"
-                >
-                  <div
-                    class="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center shrink-0 shadow-md"
-                  >
-                    <AutoAwesomeOutlined class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex flex-col max-w-[85%] w-full">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span
-                        class="text-xs text-green-600 font-bold uppercase tracking-wider"
-                        >Full Response (Reconstructed)</span
-                      >
-                      <span class="font-mono text-[10px] opacity-70"
-                        >Length:
-                        {{ item.data.data?.content?.length || 0 }} chars</span
-                      >
-                    </div>
-                    <div
-                      class="bg-white text-slate-800 border border-green-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm whitespace-pre-wrap font-mono select-text flex flex-col gap-1 relative"
-                    >
-                      <div
-                        class="w-1 h-full bg-green-600 rounded-r-sm mr-2"
-                      ></div>
-                      <div class="flex-1">
-                        {{ getDisplayContent(item) }}
-                      </div>
-
-                      <!-- 底部按钮组 -->
-                      <MessageActionButtons
-                        :item-type="item.type"
-                        :item-data="item.data"
-                        :should-show-collapse="shouldShowCollapse(item)"
-                        :is-collapsed="
-                          isCollapsed(`${item.type}-${item.data.time}`)
-                        "
-                        :collapsed-char-count="getCollapsedCharCount(item)"
-                        :is-copy-success="
-                          isCopySuccess(`${item.type}-${item.data.time}`)
-                        "
-                        @toggle-collapse="
-                          toggleCollapse(`${item.type}-${item.data.time}`)
-                        "
-                        @copy-item="copyItemData(item)"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Error Item -->
-                <div
-                  v-else-if="item.type === 'error'"
-                  class="flex gap-4 mb-4 last:mb-0 w-10/12 mx-auto"
-                >
-                  <div
-                    class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center shrink-0 shadow-md"
-                  >
-                    <WarningOutlined class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex flex-col max-w-[85%] w-full">
-                    <div
-                      class="text-xs text-red-600 mb-1 font-bold uppercase tracking-wider"
-                    >
-                      Error
-                    </div>
-                    <div
-                      class="bg-red-50 border border-red-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-1 relative"
-                    >
-                      <pre
-                        class="text-red-600 text-xs overflow-x-auto select-text flex-1"
-                        :class="{
-                          'max-h-40 overflow-y-auto':
-                            shouldShowCollapse(item) &&
-                            !isCollapsed(`${item.type}-${item.data.time}`),
-                        }"
-                        >{{
-                          isCollapsed(`${item.type}-${item.data.time}`) &&
-                          shouldShowCollapse(item)
-                            ? formatJson(item.data.err)
-                                .trim()
-                                .substring(0, 500) + "..."
-                            : formatJson(item.data.err).trim()
-                        }}</pre
-                      >
-
-                      <!-- 底部按钮组 -->
-                      <MessageActionButtons
-                        :item-type="item.type"
-                        :item-data="item.data"
-                        :should-show-collapse="shouldShowCollapse(item)"
-                        :is-collapsed="
-                          isCollapsed(`${item.type}-${item.data.time}`)
-                        "
-                        :collapsed-char-count="getCollapsedCharCount(item)"
-                        :is-copy-success="
-                          isCopySuccess(`${item.type}-${item.data.time}`)
-                        "
-                        @toggle-collapse="
-                          toggleCollapse(`${item.type}-${item.data.time}`)
-                        "
-                        @copy-item="copyItemData(item)"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <PreviewMessageItem
+                  :item="item"
+                  :should-show-collapse="shouldShowCollapse(item)"
+                  :is-collapsed="isCollapsed(getItemId(item))"
+                  :collapsed-char-count="getCollapsedCharCount(item)"
+                  :is-copy-success="isCopySuccess(getItemId(item))"
+                  :word-wrap="getWordWrap(getItemId(item))"
+                  :format-json="formatJson"
+                  :get-display-content="getDisplayContent"
+                  :is-todo-write="isTodoWrite"
+                  :convert-todos-to-queue-format="convertTodosToQueueFormat"
+                  @toggle-collapse="toggleCollapse(getItemId(item))"
+                  @copy-item="copyItemData(item)"
+                  @toggle-word-wrap="toggleWordWrap(getItemId(item))"
+                />
               </template>
             </div>
 
@@ -1216,13 +864,13 @@ async function loadAllAndScrollToBottom() {
       <div
         v-if="activeTab === 'timeline'"
         ref="timelineContainerRef"
-        class="h-full overflow-y-auto pr-1"
+        class="h-full overflow-y-auto overflow-x-hidden p-6 py-0 my-6 mr-2"
       >
-        <div>
+        <div class="max-w-5xl mx-auto">
           <div
             v-for="(log, index) in visibleLogs"
             :key="index"
-            class="flex gap-4 group mb-4 last:mb-0 max-w-5xl mx-auto"
+            class="flex gap-4 group mb-4 last:mb-0"
           >
             <!-- Time Column -->
             <div class="flex flex-col items-end w-24 shrink-0 pt-1">
@@ -1247,19 +895,15 @@ async function loadAllAndScrollToBottom() {
             </div>
 
             <!-- Content -->
-            <div class="pb-6 flex-1 min-w-0">
+            <div class="pb-6 flex-1 min-w-0 max-w-full">
               <div
-                class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm flex flex-col"
+                class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm flex flex-col w-full"
               >
                 <div class="flex justify-between items-start mb-1">
-                  <span
-                    class="text-xs font-bold text-indigo-600"
-                    v-if="log.msg"
-                    >{{ log.msg }}</span
-                  >
-                  <span class="text-xs font-bold text-slate-500" v-else
-                    >Log Entry</span
-                  >
+                  <span class="text-xs font-bold text-indigo-600" v-if="log.msg">{{
+                    log.msg
+                  }}</span>
+                  <span class="text-xs font-bold text-slate-500" v-else>Log Entry</span>
                   <span
                     class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded"
                     >Level {{ log.level }}</span
@@ -1279,24 +923,20 @@ async function loadAllAndScrollToBottom() {
                     log.res ||
                     log.err
                   "
-                  class="mt-2 text-xs font-mono bg-slate-50 p-3 rounded border border-slate-100 overflow-x-auto text-slate-600 flex flex-col relative"
+                  class="mt-2 text-xs font-mono bg-slate-50 p-3 rounded border border-slate-100 overflow-x-auto overflow-y-visible text-slate-600 flex flex-col relative wrap-break-word"
                 >
                   <!-- Full Response Log -->
                   <div v-if="log.type === 'full_response' && log.data?.content">
-                    <span
-                      class="text-green-600 font-bold mb-1 flex items-center gap-2"
-                    >
+                    <span class="text-green-600 font-bold mb-1 flex items-center gap-2">
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Full Response:
                     </span>
                     <div
                       class="bg-white border border-green-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
                     >
-                      <div
-                        class="absolute top-0 left-0 w-1 h-full bg-green-600"
-                      ></div>
+                      <div class="absolute top-0 left-0 w-1 h-full bg-green-600"></div>
                       <pre
-                        class="text-slate-800 whitespace-pre-wrap select-text"
+                        class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text overflow-x-auto"
                         >{{
                           shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
@@ -1318,20 +958,16 @@ async function loadAllAndScrollToBottom() {
 
                   <!-- Stream Event Log (response.full 中的每一项) -->
                   <div v-else-if="log.type === 'stream_event'">
-                    <span
-                      class="text-cyan-600 font-bold mb-1 flex items-center gap-2"
-                    >
+                    <span class="text-cyan-600 font-bold mb-1 flex items-center gap-2">
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Stream Event: {{ log.data?.type || "unknown" }}
                     </span>
                     <div
                       class="bg-cyan-50 border border-cyan-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
                     >
-                      <div
-                        class="absolute top-0 left-0 w-1 h-full bg-cyan-600"
-                      ></div>
+                      <div class="absolute top-0 left-0 w-1 h-full bg-cyan-600"></div>
                       <pre
-                        class="text-slate-800 whitespace-pre-wrap select-text pl-2"
+                        class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text pl-2 overflow-x-auto"
                         >{{
                           shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
@@ -1346,17 +982,13 @@ async function loadAllAndScrollToBottom() {
 
                   <!-- Error Log -->
                   <div v-else-if="log.type === 'error'">
-                    <span
-                      class="text-red-600 font-bold mb-1 flex items-center gap-2"
-                    >
+                    <span class="text-red-600 font-bold mb-1 flex items-center gap-2">
                       <WarningOutlined class="w-4 h-4" />
                       > Error:
                     </span>
-                    <div
-                      class="bg-red-50 border border-red-200 p-3 rounded mt-2"
-                    >
+                    <div class="bg-red-50 border border-red-200 p-3 rounded mt-2">
                       <pre
-                        class="text-red-600 select-text whitespace-pre-wrap"
+                        class="text-red-600 select-text whitespace-pre-wrap wrap-break-word overflow-x-auto"
                         >{{
                           shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
@@ -1375,71 +1007,84 @@ async function loadAllAndScrollToBottom() {
                       <span class="text-blue-600 font-bold block mb-1"
                         >> Payload Data:</span
                       >
-                      <pre class="text-slate-700 whitespace-pre-wrap">{{
-                        shouldShowTimelineCollapse(log) &&
-                        isCollapsed(getTimelineLogId(log, index))
-                          ? formatJson(log.data)
-                              .trim()
-                              .substring(0, showAutoCollapseNum) + "..."
-                          : formatJson(log.data).trim()
-                      }}</pre>
+                      <pre
+                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
+                        >{{
+                          shouldShowTimelineCollapse(log) &&
+                          isCollapsed(getTimelineLogId(log, index))
+                            ? formatJson(log.data)
+                                .trim()
+                                .substring(0, showAutoCollapseNum) + "..."
+                            : formatJson(log.data).trim()
+                        }}</pre
+                      >
                     </div>
                     <div v-if="log.req">
                       <span class="text-purple-600 font-bold block mb-1"
                         >> Request Info:</span
                       >
-                      <pre class="text-slate-700 whitespace-pre-wrap">{{
-                        shouldShowTimelineCollapse(log) &&
-                        isCollapsed(getTimelineLogId(log, index))
-                          ? formatJson(log.req)
-                              .trim()
-                              .substring(0, showAutoCollapseNum) + "..."
-                          : formatJson(log.req).trim()
-                      }}</pre>
+                      <pre
+                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
+                        >{{
+                          shouldShowTimelineCollapse(log) &&
+                          isCollapsed(getTimelineLogId(log, index))
+                            ? formatJson(log.req)
+                                .trim()
+                                .substring(0, showAutoCollapseNum) + "..."
+                            : formatJson(log.req).trim()
+                        }}</pre
+                      >
                     </div>
                     <div v-if="log.request">
                       <span class="text-purple-600 font-bold block mb-1"
                         >> Outbound Request:</span
                       >
-                      <pre class="text-slate-700 whitespace-pre-wrap">{{
-                        shouldShowTimelineCollapse(log) &&
-                        isCollapsed(getTimelineLogId(log, index))
-                          ? formatJson(log.request)
-                              .trim()
-                              .substring(0, showAutoCollapseNum) + "..."
-                          : formatJson(log.request).trim()
-                      }}</pre>
+                      <pre
+                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
+                        >{{
+                          shouldShowTimelineCollapse(log) &&
+                          isCollapsed(getTimelineLogId(log, index))
+                            ? formatJson(log.request)
+                                .trim()
+                                .substring(0, showAutoCollapseNum) + "..."
+                            : formatJson(log.request).trim()
+                        }}</pre
+                      >
                     </div>
                     <div v-if="log.response && !log.data">
                       <span class="text-green-600 font-bold block mb-1"
                         >> Response Info:</span
                       >
-                      <pre class="text-slate-700 whitespace-pre-wrap">{{
-                        shouldShowTimelineCollapse(log) &&
-                        isCollapsed(getTimelineLogId(log, index))
-                          ? formatJson(log.response)
-                              .trim()
-                              .substring(0, showAutoCollapseNum) + "..."
-                          : formatJson(log.response).trim()
-                      }}</pre>
+                      <pre
+                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
+                        >{{
+                          shouldShowTimelineCollapse(log) &&
+                          isCollapsed(getTimelineLogId(log, index))
+                            ? formatJson(log.response)
+                                .trim()
+                                .substring(0, showAutoCollapseNum) + "..."
+                            : formatJson(log.response).trim()
+                        }}</pre
+                      >
                     </div>
                     <div v-if="log.type === 'recieved data'" class="opacity-70">
-                      <span class="text-teal-600 font-bold"
-                        >> Stream Chunk Received</span
-                      >
+                      <span class="text-teal-600 font-bold">> Stream Chunk Received</span>
                     </div>
                     <div v-if="log.err">
                       <span class="text-red-600 font-bold block mb-1"
                         >> Error Trace:</span
                       >
-                      <pre class="text-red-600 whitespace-pre-wrap">{{
-                        shouldShowTimelineCollapse(log) &&
-                        isCollapsed(getTimelineLogId(log, index))
-                          ? formatJson(log.err)
-                              .trim()
-                              .substring(0, showAutoCollapseNum) + "..."
-                          : formatJson(log.err).trim()
-                      }}</pre>
+                      <pre
+                        class="text-red-600 whitespace-pre-wrap wrap-break-word overflow-x-auto"
+                        >{{
+                          shouldShowTimelineCollapse(log) &&
+                          isCollapsed(getTimelineLogId(log, index))
+                            ? formatJson(log.err)
+                                .trim()
+                                .substring(0, showAutoCollapseNum) + "..."
+                            : formatJson(log.err).trim()
+                        }}</pre
+                      >
                     </div>
                   </template>
                 </div>
@@ -1457,10 +1102,7 @@ async function loadAllAndScrollToBottom() {
                       v-if="isCollapsed(getTimelineLogId(log, index))"
                       class="w-3.5 h-3.5"
                     />
-                    <KeyboardArrowDownOutlined
-                      v-else
-                      class="w-3.5 h-3.5 rotate-180"
-                    />
+                    <KeyboardArrowDownOutlined v-else class="w-3.5 h-3.5 rotate-180" />
                     <span v-if="isCollapsed(getTimelineLogId(log, index))">
                       展开 ({{ getTimelineCollapsedCharCount(log) }} 字符)
                     </span>
@@ -1488,18 +1130,20 @@ async function loadAllAndScrollToBottom() {
       </div>
 
       <!-- 原始数据 Tab -->
-      <div v-if="activeTab === 'raw'" class="max-w-8xl h-full mx-auto">
-        <CodeEditor
-          class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm h-[560px]"
-          :model-value="rawJson"
-          language="json"
-          :readonly="true"
-          :options="{
-            wordWrap: 'on',
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-          }"
-        />
+      <div v-if="activeTab === 'raw'" class="w-full h-full p-6">
+        <div class="max-w-8xl h-full mx-auto">
+          <CodeEditor
+            class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm h-full"
+            :model-value="rawJson"
+            language="json"
+            :readonly="true"
+            :options="{
+              wordWrap: 'on',
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+            }"
+          />
+        </div>
       </div>
     </div>
   </div>

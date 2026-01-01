@@ -14,6 +14,7 @@ const props = defineProps<{
   isLoading?: boolean;
   isLoadingMore?: boolean;
   hasMore?: boolean;
+  isRefreshing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -452,7 +453,8 @@ function formatRelativeTime(timestamp: string | null): string {
 
     <!-- 消息列表 -->
     <div ref="scrollContainer" class="flex-1 overflow-y-auto relative">
-      <div v-if="isLoading" class="p-8 text-center text-slate-400">
+      <!-- 只在首次加载（没有数据）时显示加载状态 -->
+      <div v-if="isLoading && messages.length === 0" class="p-8 text-center text-slate-400">
         <p class="text-sm">加载中...</p>
       </div>
       <div

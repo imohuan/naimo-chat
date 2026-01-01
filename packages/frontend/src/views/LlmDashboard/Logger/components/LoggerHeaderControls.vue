@@ -4,10 +4,10 @@ import { useRoute } from "vue-router";
 import {
   DescriptionOutlined,
   ExpandMoreOutlined,
-  RefreshOutlined,
   DeleteOutlined,
 } from "@vicons/material";
 import type { LogFile } from "../types";
+import RefreshButton from "./RefreshButton.vue";
 
 const route = useRoute();
 // 判断当前是否在 logger 路由
@@ -156,21 +156,11 @@ function setActiveMode(mode: "logs" | "messages") {
         </div>
 
         <!-- 刷新按钮 -->
-        <button
+        <RefreshButton
           v-if="selectedLogFileObj"
-          @click="emit('refresh')"
-          type="button"
-          class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-all text-xs font-medium flex items-center gap-1.5 shadow-sm hover:shadow h-8"
-          title="刷新日志"
-        >
-          <RefreshOutlined
-            :class="[
-              'w-3.5 h-3.5 text-slate-600',
-              { 'animate-spin': isRefreshing },
-            ]"
-          />
-          <span class="text-slate-700">刷新</span>
-        </button>
+          :is-refreshing="isRefreshing"
+          @refresh="() => emit('refresh')"
+        />
 
         <!-- 清空当前日志按钮 -->
         <button
@@ -191,20 +181,10 @@ function setActiveMode(mode: "logs" | "messages") {
       <!-- 对话模式刷新按钮 -->
       <template v-if="activeMode === 'messages'">
         <!-- 刷新按钮 -->
-        <button
-          @click="emit('refreshMessages')"
-          type="button"
-          class="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-all text-xs font-medium flex items-center gap-1.5 shadow-sm hover:shadow h-8"
-          title="刷新对话列表"
-        >
-          <RefreshOutlined
-            :class="[
-              'w-3.5 h-3.5 text-slate-600',
-              { 'animate-spin': isRefreshingMessages },
-            ]"
-          />
-          <span class="text-slate-700">刷新</span>
-        </button>
+        <RefreshButton
+          :is-refreshing="isRefreshingMessages"
+          @refresh="() => emit('refreshMessages')"
+        />
 
         <!-- 分割线（始终显示） -->
         <div class="h-6 w-px bg-slate-200 mx-2"></div>
