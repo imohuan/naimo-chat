@@ -177,12 +177,75 @@ function convertMessageDetailToLogRequest(
   }
 
   let hasContent = false;
+  let errorInfo: any = null;
+
+  // 辅助函数：从错误消息中提取 message_zh
+  function extractErrorMessage(errorObj: any): any {
+    if (!errorObj) return null;
+
+    const error = { ...errorObj };
+
+    // 尝试从 error.message 中提取嵌套的 JSON 字符串
+    if (error.message && typeof error.message === "string") {
+      try {
+        // 尝试找到 JSON 对象（可能包含在错误消息中）
+        // 例如: "Error from provider(...): {\"error\":{\"message_zh\":\"...\"}}"
+        // 使用更精确的匹配，找到第一个完整的 JSON 对象
+        const message = error.message;
+        let braceCount = 0;
+        let jsonStart = -1;
+
+        for (let i = 0; i < message.length; i++) {
+          if (message[i] === "{") {
+            if (braceCount === 0) jsonStart = i;
+            braceCount++;
+          } else if (message[i] === "}") {
+            braceCount--;
+            if (braceCount === 0 && jsonStart !== -1) {
+              // 找到完整的 JSON 对象
+              const jsonStr = message.substring(jsonStart, i + 1);
+              try {
+                const parsed = JSON.parse(jsonStr);
+                if (parsed.error?.message_zh) {
+                  // 提取 message_zh 作为主要错误消息
+                  error.message = parsed.error.message_zh;
+                  error.originalMessage = errorObj.message;
+                  break;
+                } else if (parsed.message_zh) {
+                  error.message = parsed.message_zh;
+                  error.originalMessage = errorObj.message;
+                  break;
+                }
+              } catch (parseError) {
+                // 继续尝试下一个 JSON 对象
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // 如果解析失败，保持原始错误消息
+      }
+    }
+
+    return error;
+  }
+
   // 处理流式响应
   if (detail.response?.full && Array.isArray(detail.response.full)) {
     let fullResponseText = "";
     const events = detail.response.full;
 
     for (const event of events) {
+      // 检查事件中是否有错误（可能在不同的位置）
+      const eventAny = event as any;
+      if (eventAny.error) {
+        errorInfo = extractErrorMessage(eventAny.error);
+      } else if (eventAny.message?.error) {
+        errorInfo = extractErrorMessage(eventAny.message.error);
+      } else if (eventAny.delta?.error) {
+        errorInfo = extractErrorMessage(eventAny.delta.error);
+      }
+
       if (event.type === "content_block_delta" && event.delta) {
         if (event.delta.type === "text_delta" && event.delta.text) {
           fullResponseText += event.delta.text;
@@ -217,6 +280,16 @@ function convertMessageDetailToLogRequest(
     });
   }
 
+  // 如果有错误，添加错误日志条目
+  if (errorInfo) {
+    logs.push({
+      type: "error",
+      time: Date.now(),
+      level: 50, // 错误级别
+      err: errorInfo,
+    });
+  }
+
   // 构建 LogRequest
   const logRequest: LogRequest = {
     id: detail.requestId,
@@ -227,8 +300,8 @@ function convertMessageDetailToLogRequest(
     status: 200,
     model: body.model || request.model || "",
     fullResponse: detail.response?.content || "",
-    hasError: false,
-    error: null,
+    hasError: !!errorInfo,
+    error: errorInfo,
     responseFull: detail.response?.full || undefined,
   };
 
