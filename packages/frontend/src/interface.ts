@@ -25,6 +25,7 @@ export interface LlmProvider {
   type?: string;
   sort?: number;
   transformer?: TransformerConfig;
+  originalTransformer?: TransformerConfig;
 }
 
 /** 聊天消息内容片段（支持文本 + 图片） */

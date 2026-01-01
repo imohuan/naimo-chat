@@ -14,7 +14,7 @@ import ApiKeyItem from "./ApiKeyItem.vue";
 import TransformerConfigList from "@/components/Transformer/TransformerConfigList.vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
 
-import type { TransformerConfig } from "@/interface";
+import type { TransformerConfig, LlmProvider } from "@/interface";
 
 interface ProviderForm {
   name: string;
@@ -58,7 +58,7 @@ const apiKeyItemRefs = ref<(InstanceType<typeof ApiKeyItem> | null)[]>([]);
 const isBatchTesting = ref(false);
 
 // Transformers 相关
-const { endpoint } = useLlmApi();
+const { fetchTransformers: fetchTransformersApi } = useLlmApi();
 const transformers = ref<Array<{ name: string; endpoint: string | null }>>([]);
 const isLoadingTransformers = ref(false);
 
@@ -66,16 +66,7 @@ const isLoadingTransformers = ref(false);
 async function fetchTransformers() {
   isLoadingTransformers.value = true;
   try {
-    const url = `${endpoint.value}/api/transformers`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error("获取 transformers 列表失败");
-    }
-    const data = await response.json();
-    transformers.value = data.transformers || [];
-  } catch (err) {
-    console.error("获取 transformers 失败:", err);
-    transformers.value = [];
+    transformers.value = await fetchTransformersApi();
   } finally {
     isLoadingTransformers.value = false;
   }
@@ -93,14 +84,14 @@ watch(show, (newVal) => {
     isBatchTesting.value = false;
   } else {
     // 当模态框显示时，获取 transformers 列表
-    fetchTransformers();
+    // fetchTransformers();
   }
 });
 
 onMounted(() => {
   // 组件挂载时也获取一次 transformers 列表
   if (show.value) {
-    fetchTransformers();
+    // fetchTransformers();
   }
 });
 

@@ -87,6 +87,7 @@ function registerConfigRoutes(server) {
           api_key: provider.apiKey,
           models: provider.models || [],
           ...(provider.transformer && { transformer: provider.transformer }),
+          ...(provider.originalTransformer && { transformer: provider.originalTransformer }),
           ...(provider.limit !== undefined && { limit: provider.limit }),
           ...(provider.apiKeys && { api_keys: provider.apiKeys }),
           ...(provider.sort !== undefined && { sort: provider.sort }),

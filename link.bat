@@ -9,6 +9,7 @@ REM 文件的符号链接
 powershell -Command "New-Item -ItemType SymbolicLink -Path links/claude-llm -Target 'C:\Users\IMOHUAN\.claude-llm' -Force"
 powershell -Command "New-Item -ItemType SymbolicLink -Path links/claude -Target 'C:\Users\IMOHUAN\.claude' -Force"
 powershell -Command "New-Item -ItemType SymbolicLink -Path links/llm -Target 'G:\ClaudeCode\llms' -Force"
+powershell -Command "New-Item -ItemType SymbolicLink -Path links/claude-router -Target 'G:\ClaudeCode\claude-code-router-main' -Force"
 
 echo 符号链接创建完成！
 pause

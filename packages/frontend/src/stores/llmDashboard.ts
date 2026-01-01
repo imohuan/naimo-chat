@@ -110,7 +110,16 @@ export const useLlmDashboardStore = defineStore("llmDashboard", () => {
 
   // 加载 Providers
   async function loadProviders() {
-    providers.value = sortProvidersList(await fetchProvidersApi());
+    let providersList = await fetchProvidersApi()
+
+    providersList = providersList.map(p => {
+      if (p.originalTransformer) {
+        p.transformer = p.originalTransformer;
+      }
+      return p;
+    });
+
+    providers.value = sortProvidersList(providersList);
   }
 
   // 打开编辑器

@@ -25,6 +25,7 @@ const {
   createUsageCacheMiddleware,
   createProviderKeyMiddleware,
   createMessageLoggerMiddleware,
+  createProviderTransformerMiddleware,
 } = require("./middleware");
 const { runStatusLine } = require("./utils/statusline");
 const agentsManager = require("./agents");
@@ -324,6 +325,10 @@ async function startService() {
         .send({ error: "当前 Provider 已被禁用", provider: providerName });
     }
   });
+
+  // Provider Transformer 解析中间件 - 解析 PUT /providers/:id 请求中的 transformer 配置
+  const transformerMiddleware = createProviderTransformerMiddleware(server, appLogger);
+  server.addHook("preHandler", transformerMiddleware.preHandler);
 
   // Provider 密钥轮换 hook（api_keys / api_key）
   const keyMiddleware = createProviderKeyMiddleware(config, server);

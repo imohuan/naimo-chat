@@ -68,6 +68,37 @@ const builtinTransformers = [
   "CustomParamsTransformer",
 ];
 
+// 前端显示名称到后端实际 key 的映射
+const transformerNameToBackendKey: Record<string, string> = {
+  "AnthropicTransformer": "Anthropic",
+  "OpenAITransformer": "OpenAI",
+  "OpenrouterTransformer": "openrouter",
+  "GeminiTransformer": "gemini",
+  "VertexGeminiTransformer": "vertex-gemini",
+  "VertexClaudeTransformer": "vertex-claude",
+  "VercelTransformer": "vercel",
+  "GroqTransformer": "groq",
+  "DeepseekTransformer": "deepseek",
+  "CerebrasTransformer": "cerebras",
+  "OpenAIResponsesTransformer": "openai-responses",
+  "StreamOptionsTransformer": "streamoptions",
+  "TooluseTransformer": "tooluse",
+  "MaxTokenTransformer": "maxtoken",
+  "MaxCompletionTokens": "maxcompletiontokens",
+  "SamplingTransformer": "sampling",
+  "ReasoningTransformer": "reasoning",
+  "ForceReasoningTransformer": "forcereasoning",
+  "EnhanceToolTransformer": "enhancetool",
+  "CleancacheTransformer": "cleancache",
+  "CustomParamsTransformer": "customparams",
+};
+
+// 后端 key 到前端显示名称的反向映射
+const backendKeyToTransformerName: Record<string, string> = Object.fromEntries(
+  Object.entries(transformerNameToBackendKey).map(([key, value]) => [value, key])
+);
+
+
 const transformerSchemas: Record<string, TransformerSchema> = {
   AnthropicTransformer: {
     params: [
@@ -150,6 +181,16 @@ const transformerSchemas: Record<string, TransformerSchema> = {
 
 const schemaTypeNames = computed(() => Object.keys(transformerSchemas));
 
+// 将前端显示名称转换为后端实际 key
+function toBackendKey(frontendName: string): string {
+  return transformerNameToBackendKey[frontendName] || frontendName;
+}
+
+// 将后端 key 转换为前端显示名称
+function toFrontendName(backendKey: string): string {
+  return backendKeyToTransformerName[backendKey] || backendKey;
+}
+
 const props = defineProps<{
   modelValue?: TransformerConfig;
   models?: string[];
@@ -171,7 +212,8 @@ const isInternalUpdate = ref(false);
 
 const typeOptions = computed(() => {
   const allowed = new Set([...schemaTypeNames.value, ...builtinTransformers]);
-  const external = (props.options?.map((o) => o.name) ?? []).filter((n) =>
+  // 将 props.options 中的后端 key 转换为前端显示名称
+  const external = (props.options?.map((o) => toFrontendName(o.name)) ?? []).filter((n) =>
     allowed.has(n)
   );
   const merged = [...builtinTransformers, ...external].filter(
@@ -226,7 +268,7 @@ function loadFromConfig(config?: TransformerConfig) {
   let id = 1;
 
   const pushItems = (scope: string, transformers?: TransformerConfigItem[]) => {
-    if (!Array.isArray(transformers)) return;
+    if (!Array.isArray(transformers) || transformers.length === 0) return;
     if (!scopeMap.has(scope)) {
       scopeMap.set(scope, []);
     }
@@ -236,19 +278,20 @@ function loadFromConfig(config?: TransformerConfig) {
     });
   };
 
-  if (config?.use) {
+  if (config?.use && Array.isArray(config.use) && config.use.length > 0) {
     pushItems("use", config.use);
   }
 
   models.forEach((model) => {
     const value = config ? (config as any)[model] : undefined;
-    if (Array.isArray(value)) {
+    if (Array.isArray(value) && value.length > 0) {
       pushItems(model, value);
     } else if (
       value &&
       typeof value === "object" &&
       "use" in value &&
-      Array.isArray((value as any).use)
+      Array.isArray((value as any).use) &&
+      (value as any).use.length > 0
     ) {
       // 对象模式也统一转换为数组模式处理
       pushItems(model, (value as any).use);
@@ -307,6 +350,9 @@ function normalizeItem(item: TransformerConfigItem): {
     params = cfg && typeof cfg === "object" ? { ...cfg } : {};
   }
 
+  // 将后端 key 转换为前端显示名称
+  type = toFrontendName(type);
+
   // 为固定参数创建条目（如果不存在）
   if (type) {
     const schema = getSchema(type);
@@ -336,10 +382,12 @@ function rebuildConfig(): TransformerConfig {
     scopeConfig.transformers.forEach((item) => {
       if (!item.type.trim()) return;
       const params = sanitizeParams(item.params);
+      // 将前端显示名称转换为后端 key
+      const backendKey = toBackendKey(item.type.trim());
       const transformer: TransformerConfigItem =
         params && Object.keys(params).length > 0
-          ? [item.type.trim(), params]
-          : item.type.trim();
+          ? [backendKey, params]
+          : backendKey;
       transformers.push(transformer);
     });
     if (transformers.length > 0) {
@@ -694,8 +742,7 @@ function getReadonlyKeys(item: FlatConfigItem): string[] {
         <div class="p-1.5 flex flex-col gap-1.5">
           <!-- 作用域行 -->
           <div class="flex items-center gap-0.5">
-            <label
-              class="text-xs font-medium text-slate-600 shrink-0 whitespace-nowrap"
+            <label class="text-xs font-medium text-slate-600 shrink-0 whitespace-nowrap"
               >作用域：</label
             >
             <div class="w-48 max-w-48">
@@ -856,10 +903,7 @@ function getReadonlyKeys(item: FlatConfigItem): string[] {
       </div>
     </div>
 
-    <div
-      v-else
-      class="text-xs text-slate-400 text-center py-4 rounded-md bg-white/60"
-    >
+    <div v-else class="text-xs text-slate-400 text-center py-4 rounded-md bg-white/60">
       暂无配置项，点击"添加配置"按钮添加
     </div>
   </div>

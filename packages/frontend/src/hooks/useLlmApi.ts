@@ -498,6 +498,22 @@ export function useLlmApi() {
   }
 
   /**
+   * 获取 transformers 列表
+   * @returns transformers 列表
+   */
+  async function fetchTransformers(): Promise<Array<{ name: string; endpoint: string | null }>> {
+    try {
+      const data = await apiCall<{ transformers?: Array<{ name: string; endpoint: string | null }> }>(
+        "/api/transformers"
+      );
+      return data.transformers || [];
+    } catch (err) {
+      console.error("获取 transformers 失败:", err);
+      return [];
+    }
+  }
+
+  /**
    * 发送消息
    * @param messages 对话消息
    * @param model 目标模型（格式：provider,model）
@@ -772,5 +788,6 @@ export function useLlmApi() {
     deleteMessages,
     fetchMcpServerTools,
     refreshMcpServerTools,
+    fetchTransformers,
   };
 }

@@ -6,6 +6,7 @@ const { createRouteMiddleware } = require("./routeMiddleware");
 const { createUsageCacheMiddleware } = require("./usageCacheMiddleware");
 const { createProviderKeyMiddleware } = require("./providerKeyMiddleware");
 const { createMessageLoggerMiddleware } = require("./messageLoggerMiddleware");
+const { createProviderTransformerMiddleware } = require("./providerTransformerMiddleware");
 
 module.exports = {
   createAuthMiddleware,
@@ -13,5 +14,6 @@ module.exports = {
   createUsageCacheMiddleware,
   createProviderKeyMiddleware,
   createMessageLoggerMiddleware,
+  createProviderTransformerMiddleware,
 };
 
