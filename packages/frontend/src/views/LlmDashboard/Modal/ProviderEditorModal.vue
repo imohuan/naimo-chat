@@ -63,6 +63,9 @@ const isBatchTesting = ref(false);
 const store = useLlmDashboardStore();
 const { pushToast } = useToasts();
 
+// 记录初始的 Provider 数据快照，用于检测变化
+const initialProviderSnapshot = ref<string>("");
+
 // Transformers 相关
 const { fetchTransformers: fetchTransformersApi } = useLlmApi();
 const transformers = ref<Array<{ name: string; endpoint: string | null }>>([]);
@@ -89,6 +92,13 @@ watch(show, (newVal) => {
   if (!newVal) {
     isBatchTesting.value = false;
   } else {
+    // 当模态框显示时，记录初始状态快照
+    try {
+      const initialProvider = store.providerFromForm();
+      initialProviderSnapshot.value = JSON.stringify(initialProvider);
+    } catch (err) {
+      initialProviderSnapshot.value = "";
+    }
     // 当模态框显示时，获取 transformers 列表
     // fetchTransformers();
   }
@@ -115,15 +125,26 @@ async function testAllApiKeys() {
     return;
   }
 
-  // 先执行保存（使用与保存按钮相同的逻辑，但不关闭模态框）
+  // 检测数据是否变化，只有在变化时才保存
   try {
-    const payload = store.providerFromForm();
-    if (!payload.name || !payload.baseUrl || (payload.models || []).length === 0) {
-      pushToast("请完善 Provider 信息", "error");
-      return;
+    const currentProvider = store.providerFromForm();
+    const currentSnapshot = JSON.stringify(currentProvider);
+
+    // 如果数据有变化，先执行保存
+    if (initialProviderSnapshot.value !== currentSnapshot) {
+      if (
+        !currentProvider.name ||
+        !currentProvider.baseUrl ||
+        (currentProvider.models || []).length === 0
+      ) {
+        pushToast("请完善 Provider 信息", "error");
+        return;
+      }
+      await store.saveProvider(currentProvider, props.isEditing);
+      // 更新快照
+      initialProviderSnapshot.value = currentSnapshot;
+      pushToast("保存成功，开始测试密钥...", "success");
     }
-    await store.saveProvider(payload, props.isEditing);
-    pushToast("保存成功，开始测试密钥...", "success");
   } catch (err) {
     pushToast((err as Error).message, "error");
     return;
