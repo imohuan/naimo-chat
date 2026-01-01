@@ -6,6 +6,8 @@ import {
   CodeOutlined,
   ListOutlined,
   KeyboardArrowDownOutlined,
+  WarningOutlined,
+  AutoAwesomeOutlined,
 } from "@vicons/material";
 import CodeEditor from "@/components/code/CodeEditor.vue";
 import PreviewMessageItem from "./PreviewMessageItem.vue";
