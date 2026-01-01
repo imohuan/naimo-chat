@@ -12,6 +12,7 @@ import CodeEditor from "@/components/code/CodeEditor.vue";
 import ModelListSelector from "@/components/llm/ModelListSelector.vue";
 import ApiKeyItem from "./ApiKeyItem.vue";
 import TransformerConfigList from "@/components/Transformer/TransformerConfigList.vue";
+import TemplateSelector from "@/components/Transformer/TemplateSelector.vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import { useLlmDashboardStore } from "@/stores/llmDashboard";
 import { useToasts } from "@/hooks/useToasts";
@@ -160,6 +161,51 @@ async function testAllApiKeys() {
 
   isBatchTesting.value = false;
 }
+
+/**
+ * 应用模板数据到表单
+ */
+function applyTemplate(template: any) {
+  if (!template) return;
+
+  // 只在非编辑模式下填充名称
+  if (!props.isEditing && template.name) {
+    form.value.name = template.name;
+  }
+
+  // 填充基础地址
+  if (template.api_base_url) {
+    form.value.baseUrl = template.api_base_url;
+  }
+
+  // 填充 API 密钥
+  if (template.api_key) {
+    // 如果已有密钥，添加到列表；否则替换
+    if (form.value.apiKeys.length === 0) {
+      form.value.apiKeys = [template.api_key];
+    } else if (!form.value.apiKeys.includes(template.api_key)) {
+      form.value.apiKeys.push(template.api_key);
+    }
+  }
+
+  // 填充模型列表
+  if (Array.isArray(template.models) && template.models.length > 0) {
+    // 合并模板模型，去重
+    const existingModels = new Set(form.value.models);
+    template.models.forEach((model: string) => {
+      if (!existingModels.has(model)) {
+        form.value.models.push(model);
+      }
+    });
+  }
+
+  // 填充 Transformer 配置
+  if (template.transformer) {
+    form.value.transformer = template.transformer;
+  }
+
+  // pushToast(`已应用模板: ${template.name}`, "success");
+}
 </script>
 
 <template>
@@ -174,9 +220,16 @@ async function testAllApiKeys() {
         <div
           class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"
         >
-          <h3 class="font-bold text-lg text-slate-800">
-            {{ isEditing ? "编辑 Provider" : "新增 Provider" }}
-          </h3>
+          <div class="flex items-center gap-3">
+            <h3 class="font-bold text-lg text-slate-800">
+              {{ isEditing ? "编辑 Provider" : "新增 Provider" }}
+            </h3>
+            <TemplateSelector
+              v-if="!isEditing"
+              :disabled="isEditing"
+              @apply="applyTemplate"
+            />
+          </div>
           <div class="bg-slate-100 p-1 rounded-lg flex text-xs font-medium">
             <button
               class="px-3 py-1 rounded transition-all"

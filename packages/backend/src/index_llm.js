@@ -249,6 +249,7 @@ async function startService() {
           provider.limit = cfgProvider.limit;
           provider.sort = cfgProvider.sort;
           provider.enabled = cfgProvider.enabled;
+          provider.originalTransformer = cfgProvider.transformer;
         }
       });
     } catch (error) {
