@@ -13,8 +13,10 @@ import ModelListSelector from "@/components/llm/ModelListSelector.vue";
 import ApiKeyItem from "./ApiKeyItem.vue";
 import TransformerConfigList from "@/components/Transformer/TransformerConfigList.vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
+import { useLlmDashboardStore } from "@/stores/llmDashboard";
+import { useToasts } from "@/hooks/useToasts";
 
-import type { TransformerConfig, LlmProvider } from "@/interface";
+import type { TransformerConfig } from "@/interface";
 
 interface ProviderForm {
   name: string;
@@ -56,6 +58,10 @@ const jsonPreview = useVModel(props, "jsonPreview", emit);
 // API Key Item 组件的引用
 const apiKeyItemRefs = ref<(InstanceType<typeof ApiKeyItem> | null)[]>([]);
 const isBatchTesting = ref(false);
+
+// Store 和 Toasts
+const store = useLlmDashboardStore();
+const { pushToast } = useToasts();
 
 // Transformers 相关
 const { fetchTransformers: fetchTransformersApi } = useLlmApi();
@@ -106,6 +112,20 @@ async function testAllApiKeys() {
 
   // 需要 baseUrl 和至少一个模型才能测试
   if (!form.value.baseUrl?.trim() || form.value.models.length === 0) {
+    return;
+  }
+
+  // 先执行保存（使用与保存按钮相同的逻辑，但不关闭模态框）
+  try {
+    const payload = store.providerFromForm();
+    if (!payload.name || !payload.baseUrl || (payload.models || []).length === 0) {
+      pushToast("请完善 Provider 信息", "error");
+      return;
+    }
+    await store.saveProvider(payload, props.isEditing);
+    pushToast("保存成功，开始测试密钥...", "success");
+  } catch (err) {
+    pushToast((err as Error).message, "error");
     return;
   }
 
