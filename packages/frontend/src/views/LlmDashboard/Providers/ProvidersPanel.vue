@@ -3,19 +3,21 @@ import { computed, onMounted, ref, watch } from "vue";
 import type { LlmProvider } from "@/interface";
 import {
   CodeOutlined,
-  InfoOutlined,
-  EditOutlined,
-  DeleteOutlined,
   AddOutlined,
   SaveOutlined,
   HelpOutlineOutlined,
-  DragIndicatorOutlined,
+  SearchOutlined,
+  ViewListOutlined,
+  GridViewOutlined,
+  ListOutlined,
 } from "@vicons/material";
-import Popconfirm from "@/components/llm/Popconfirm.vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import { useToasts } from "@/hooks/useToasts";
 import RouterModelSelect from "@/components/llm/RouterModelSelect.vue";
-import { VueDraggable } from "vue-draggable-plus";
+import Input from "@/components/llm/Input.vue";
+import ProviderListLayout from "./components/ProviderListLayout.vue";
+import ProviderGridLayout from "./components/ProviderGridLayout.vue";
+import ProviderCompactLayout from "./components/ProviderCompactLayout.vue";
 
 const props = defineProps<{
   providers: LlmProvider[];
@@ -70,8 +72,12 @@ const isLoadingConfig = ref(false);
 const isSavingConfig = ref(false);
 const fullConfig = ref<Record<string, any>>({});
 
-// 展开状态：存储已展开的 provider 的 key
-const expandedProviders = ref<Set<string>>(new Set());
+// 搜索关键词
+const searchQuery = ref("");
+
+// 布局类型：'list' | 'grid' | 'compact'
+type LayoutType = "list" | "grid" | "compact";
+const layoutType = ref<LayoutType>("list");
 
 // 默认显示的模型数量
 const defaultVisibleModelCount = ref(5);
@@ -87,6 +93,29 @@ const allModelOptions = computed(() => {
     }
   });
   return options.sort();
+});
+
+// 过滤后的 providers（根据搜索关键词）
+const filteredProviders = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return props.providers;
+  }
+  const query = searchQuery.value.toLowerCase().trim();
+  return props.providers.filter((provider) => {
+    // 搜索 provider 名称
+    if (provider.name.toLowerCase().includes(query)) {
+      return true;
+    }
+    // 搜索 baseUrl
+    if (provider.baseUrl?.toLowerCase().includes(query)) {
+      return true;
+    }
+    // 搜索模型名称
+    if (provider.models?.some((model) => model.toLowerCase().includes(query))) {
+      return true;
+    }
+    return false;
+  });
 });
 
 // 获取 Router 配置值（返回实际存储的值，可能为空）
@@ -168,43 +197,13 @@ function clearRouterItem(key: string) {
 }
 
 // 复制模型标识（格式：provider名称,模型名称）
-async function copyModelTag(providerName: string, modelName: string) {
-  const text = `${providerName},${modelName}`;
-  try {
-    await navigator.clipboard.writeText(text);
-    pushToast(`已复制: ${text}`, "success");
-  } catch (err) {
-    pushToast(`复制失败: ${(err as Error).message}`, "error");
-  }
+function handleCopyModelTag(providerName: string, modelName: string) {
+  // 事件已经由子组件处理，这里只是转发
 }
 
-// 切换 provider 的展开状态
-function toggleProviderExpanded(providerKey: string) {
-  if (expandedProviders.value.has(providerKey)) {
-    expandedProviders.value.delete(providerKey);
-  } else {
-    expandedProviders.value.add(providerKey);
-  }
-}
-
-// 检查 provider 是否已展开
-function isProviderExpanded(providerKey: string): boolean {
-  return expandedProviders.value.has(providerKey);
-}
-
-// 可拖拽的 provider 列表
-const draggableProviders = ref<LlmProvider[]>([...props.providers]);
-
-watch(
-  () => props.providers,
-  (val) => {
-    draggableProviders.value = [...val];
-  },
-  { immediate: true, deep: true }
-);
-
-function handleReorder() {
-  emit("reorder", draggableProviders.value);
+// 切换布局类型
+function setLayoutType(type: LayoutType) {
+  layoutType.value = type;
 }
 
 onMounted(() => {
@@ -234,163 +233,124 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="flex-1 overflow-hidden flex gap-1 p-6">
-      <!-- 左侧：Provider 卡片列表 -->
-      <div class="flex-1 overflow-y-auto pr-3">
-        <div
-          v-if="providers.length === 0"
-          class="py-16 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50"
-        >
-          <CodeOutlined class="w-12 h-12 mb-4 text-slate-300" />
-          <p class="font-medium">暂无 Provider 配置</p>
-          <button
-            class="mt-4 text-primary-600 hover:underline text-sm"
-            @click="emit('create')"
-          >
-            点击添加第一个
-          </button>
+    <div class="flex-1 overflow-hidden flex gap-2">
+      <!-- 左侧：Provider 列表 -->
+      <div class="flex-1 overflow-hidden flex flex-col p-6">
+        <!-- 搜索栏和布局切换 -->
+        <div class="flex items-center gap-3 mb-4 shrink-0">
+          <div class="flex-1 relative">
+            <SearchOutlined
+              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10"
+            />
+            <Input
+              v-model="searchQuery"
+              type="text"
+              placeholder="搜索 Provider、模型或 URL..."
+              class="w-full pl-10"
+            />
+          </div>
+          <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1 shrink-0">
+            <button
+              type="button"
+              class="p-1.5 rounded transition-colors"
+              :class="
+                layoutType === 'list'
+                  ? 'bg-white text-primary-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-800'
+              "
+              title="列表布局"
+              @click="setLayoutType('list')"
+            >
+              <ListOutlined class="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              class="p-1.5 rounded transition-colors"
+              :class="
+                layoutType === 'grid'
+                  ? 'bg-white text-primary-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-800'
+              "
+              title="网格布局"
+              @click="setLayoutType('grid')"
+            >
+              <GridViewOutlined class="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              class="p-1.5 rounded transition-colors"
+              :class="
+                layoutType === 'compact'
+                  ? 'bg-white text-primary-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-800'
+              "
+              title="紧凑布局"
+              @click="setLayoutType('compact')"
+            >
+              <ViewListOutlined class="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        <VueDraggable
-          v-model="draggableProviders"
-          :animation="150"
-          handle=".provider-drag-handle"
-          :item-key="(p: LlmProvider) => p.id || p.name"
-          class="grid grid-cols-1 gap-3"
-          @end="handleReorder"
-        >
+        <!-- Provider 列表内容 -->
+        <div class="flex-1 overflow-y-auto pr-2">
           <div
-            v-for="element in draggableProviders"
-            :key="element.id || element.name"
-            class="bg-white rounded-xl border border-slate-200 p-3 pl-7 shadow-sm hover:shadow-md transition-shadow group relative"
+            v-if="filteredProviders.length === 0"
+            class="py-16 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50"
           >
+            <CodeOutlined class="w-12 h-12 mb-4 text-slate-300" />
+            <p class="font-medium">
+              {{ searchQuery ? "未找到匹配的 Provider" : "暂无 Provider 配置" }}
+            </p>
             <button
-              class="provider-drag-handle absolute -left-3 top-3 w-6 h-6 rounded-full bg-slate-100 text-slate-500 hover:bg-primary-50 hover:text-primary-600 flex items-center justify-center shadow-sm"
-              title="拖动以排序"
+              v-if="!searchQuery"
+              class="mt-4 text-primary-600 hover:underline text-sm"
+              @click="emit('create')"
             >
-              <DragIndicatorOutlined class="w-4 h-4" />
+              点击添加第一个
             </button>
-            <div class="flex justify-between items-start mb-2">
-              <div class="flex items-center gap-2">
-                <div
-                  class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-sm uppercase"
-                >
-                  {{ element.name.substring(0, 2) }}
-                </div>
-                <div>
-                  <h3 class="font-bold text-slate-800 text-sm">
-                    {{ element.name }}
-                  </h3>
-                  <div class="flex items-center gap-1.5 mt-0.5">
-                    <span
-                      class="w-2 h-2 rounded-full"
-                      :class="element.enabled === false ? 'bg-slate-300' : 'bg-green-500'"
-                    ></span>
-                    <span class="text-xs text-slate-500">{{
-                      element.enabled === false ? "已禁用" : "运行中"
-                    }}</span>
-                  </div>
-                </div>
-              </div>
-              <div
-                class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <button
-                  class="btn-icon text-slate-400 hover:text-primary-600"
-                  title="编辑"
-                  @click="emit('edit', element)"
-                >
-                  <EditOutlined class="w-4 h-4" />
-                </button>
-                <Popconfirm
-                  title="删除 Provider"
-                  description="确定要删除该 Provider 吗？此操作不可撤销。"
-                  type="danger"
-                  confirm-text="删除"
-                  @confirm="emit('remove', element)"
-                >
-                  <template #reference="{ toggle }">
-                    <button
-                      class="btn-icon text-slate-400 hover:text-red-600"
-                      title="删除"
-                      @click="toggle"
-                    >
-                      <DeleteOutlined class="w-4 h-4" />
-                    </button>
-                  </template>
-                </Popconfirm>
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              <div
-                class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100 truncate"
-              >
-                <InfoOutlined class="w-3 h-3 shrink-0" />
-                <span class="truncate">{{ element.baseUrl }}</span>
-              </div>
-
-              <div
-                class="flex flex-wrap gap-1.5 content-start"
-                :class="
-                  isProviderExpanded(element.id || element.name) ? '' : 'overflow-hidden'
-                "
-              >
-                <span
-                  v-for="m in isProviderExpanded(element.id || element.name)
-                    ? element.models || []
-                    : (element.models || []).slice(0, defaultVisibleModelCount)"
-                  :key="m"
-                  class="text-[10px] px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-600 font-mono cursor-pointer hover:bg-gray-100 -300 hover:text-primary-700 transition-colors"
-                  :title="`点击复制: ${element.name},${m}`"
-                  @click="copyModelTag(element.name, m)"
-                >
-                  {{ m }}
-                </span>
-                <span
-                  v-if="(element.models || []).length > defaultVisibleModelCount"
-                  class="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded font-mono cursor-pointer hover:bg-gray-200 hover:text-slate-700 transition-colors"
-                  :title="
-                    isProviderExpanded(element.id || element.name)
-                      ? '点击收起'
-                      : `点击展开全部 ${element.models.length} 个模型`
-                  "
-                  @click="toggleProviderExpanded(element.id || element.name)"
-                >
-                  {{
-                    isProviderExpanded(element.id || element.name)
-                      ? "收起"
-                      : `+${element.models.length - defaultVisibleModelCount}`
-                  }}
-                </span>
-              </div>
-            </div>
-
-            <div
-              class="mt-2 pt-2 border-t border-slate-100 flex justify-between items-center"
+            <button
+              v-else
+              class="mt-4 text-primary-600 hover:underline text-sm"
+              @click="searchQuery = ''"
             >
-              <span class="text-xs text-slate-400"
-                >速率限制: {{ element.limit ?? "无限制" }}</span
-              >
-              <button
-                class="text-xs font-medium px-2.5 py-1 rounded-md transition-colors"
-                :class="
-                  element.enabled === false
-                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                    : 'bg-red-50 text-red-600 hover:bg-red-100'
-                "
-                @click="emit('toggle', element)"
-              >
-                {{ element.enabled === false ? "启用" : "禁用" }}
-              </button>
-            </div>
+              清除搜索
+            </button>
           </div>
-        </VueDraggable>
+
+          <ProviderListLayout
+            v-else-if="layoutType === 'list'"
+            :providers="filteredProviders"
+            :default-visible-model-count="defaultVisibleModelCount"
+            @edit="emit('edit', $event)"
+            @remove="emit('remove', $event)"
+            @toggle="emit('toggle', $event)"
+            @copy-model-tag="handleCopyModelTag"
+          />
+          <ProviderGridLayout
+            v-else-if="layoutType === 'grid'"
+            :providers="filteredProviders"
+            :default-visible-model-count="defaultVisibleModelCount"
+            @edit="emit('edit', $event)"
+            @remove="emit('remove', $event)"
+            @toggle="emit('toggle', $event)"
+            @copy-model-tag="handleCopyModelTag"
+          />
+          <ProviderCompactLayout
+            v-else-if="layoutType === 'compact'"
+            :providers="filteredProviders"
+            :default-visible-model-count="defaultVisibleModelCount"
+            @edit="emit('edit', $event)"
+            @remove="emit('remove', $event)"
+            @toggle="emit('toggle', $event)"
+            @copy-model-tag="handleCopyModelTag"
+          />
+        </div>
       </div>
 
       <!-- 右侧：Router 配置 -->
       <div
-        class="w-96 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col"
+        class="ml-0 m-6 w-96 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col"
       >
         <div class="p-5 border-b border-slate-200">
           <h3 class="text-lg font-bold text-slate-800">Router 配置</h3>
