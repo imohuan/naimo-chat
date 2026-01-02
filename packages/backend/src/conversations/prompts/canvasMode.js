@@ -47,48 +47,64 @@ TECHNICAL STACK (use by default):
 
 Always prioritize user experience and create responsive, accessible designs.
 
-**重要说明：**
-- 用户可能会提供自定义的提示词或指令，这些内容会被添加到格式选择提示中
-- 请仔细阅读用户的完整输入，包括可能包含的自定义提示词和指令
-- 自定义提示词通常会出现在"用户输入："之后的内容中`,
+**Important Notes:**
+- Users may provide custom prompts or instructions, which will be added to the format selection prompt
+- Please carefully read the user's complete input, including any custom prompts and instructions that may be included
+- Custom prompts usually appear in the content after "User input:"`,
       },
     ],
   },
   {
     role: "user",
-    content: `当前编辑器中的代码：\n\`\`\`\n{{editorCode}}\n\`\`\``,
+    content: `Current code in editor:\n\`\`\`\n{{editorCode}}\n\`\`\``,
     _checkVariables: ["editorCode"],
   },
   {
     role: "user",
     content: `<format_selection>
-⚠️ 格式选择提示：你看到上面有现有代码（文件 index.html 的代码）。请根据用户输入智能判断应该使用哪种格式：
+⚠️ Format Selection Guide: Intelligently choose the output format based on the actual situation
 
-**判断规则：**
-1. 如果用户输入包含"修改"、"更新"、"改变"、"编辑"、"改进"、"调整"、"添加"、"删除"、"替换"、"将"、"改成"等关键词 → 使用 **Format B (Diff Blocks)**
-   - 只修改用户指定的部分
-   - 使用 SEARCH/REPLACE 格式
-   - 不要返回完整的 HTML 文件
+**Primary Decision: Check if existing code exists**
+- If there is no code in the editor (code is empty or does not exist) → **Must use Format A (Complete HTML)**
+- If existing code is present, proceed with the following decision
 
-**Format B 示例：**
+**Core Decision Principle: Choose the most efficient approach based on the complexity of work required by user intent**
+
+1. **When to use Format A (Complete HTML):**
+   - No existing code in the editor
+   - User wants to create a completely new page or feature
+   - Requires significant code structure changes (involving multiple modules, extensive style adjustments, logic refactoring, etc.)
+   - **The complexity of partial modifications approaches or exceeds direct refactoring** → Providing complete code is more efficient at this point
+   - User explicitly requests comprehensive changes like "rewrite" or "completely redesign"
+
+2. **When to use Format B (Diff Blocks):**
+   - Existing code is present in the editor
+   - User only needs **small-scale, precise modifications** (e.g., changing a color, adjusting an element's style, modifying specific text, adding a small feature, etc.)
+   - Modification scope is clear and limited, using SEARCH/REPLACE is more precise and efficient
+   - Multiple independent small modifications can be represented with different diff blocks
+
+**Format B Example (must strictly adhere to format):**
 \`\`\`
 ------- SEARCH
-[要查找的精确代码，必须与现有代码完全一致]
+[Exact code to find, must exactly match existing code]
 =======
-[替换后的代码]
+[Replacement code]
 +++++++ REPLACE
 \`\`\`
 
-每个修改使用一个独立的代码块。
+**⚠️ Format B Strict Requirements:**
+- **Must wrap in code block**: The entire diff block must be wrapped in \`\`\` code block
+- **Symbols are absolutely not allowed to change**: Must use "------- SEARCH", "=======", "+++++++ REPLACE" these three markers, no changes allowed (including number of hyphens, case, spaces, etc.)
+- SEARCH section must exactly match existing code (including indentation, spaces, line breaks, etc.)
 
-2. 如果用户输入包含"重构"、"重写"、"全部"、"整体"、"完全"、"新建"、"创建新"、"从头"等关键词 → 使用 **Format A (完整 HTML)**
-   - 提供完整的 HTML 文件会更快捷高效
-   - 返回完整的单文件 HTML 代码
-
+**Important Guidelines:**
+- Do not rely on keyword matching, understand the user's actual intent and work objectives
+- Efficiency first: If modification points are many, scattered, or require extensive context to modify correctly, use Format A
+- Precision first: If it's just a few clear small modifications, Format B is more precise
 
 </format_selection>
 
-用户输入：{{userInput}}`,
+User input: {{userInput}}`,
     // _noInsertFiles: true, // 标记此消息不允许插入文件
   },
 ];

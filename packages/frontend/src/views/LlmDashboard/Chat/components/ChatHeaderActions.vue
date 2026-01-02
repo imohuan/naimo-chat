@@ -16,7 +16,7 @@ const emit = defineEmits<{
   <Teleport defer to="#header-right-target" :disabled="currentTab !== 'chat'">
     <div class="flex items-center gap-2">
       <Popconfirm
-        v-if="hasMessages"
+        v-if="hasMessages && false"
         title="清空对话"
         description="确定要清空当前所有对话记录吗？此操作不可撤销。"
         type="danger"
