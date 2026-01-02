@@ -4,6 +4,7 @@ const {
   writeConfigFile,
 } = require("../utils/configFile");
 const { getProviderService } = require("../utils");
+const { setProvider } = require("../utils/providerService");
 const {
   CLAUDE_DIR,
   CLAUDE_SETTINGS_PATH,
@@ -41,6 +42,31 @@ function registerConfigRoutes(server) {
     }
 
     await writeConfigFile(newConfig);
+
+    const providerService = getProviderService(server);
+    if (providerService) {
+      const providers = providerService.getProviders() || [];
+      for (const provider of providers) {
+        const cfgProvider = newConfig.Providers.find(
+          (p) => p.name === provider.name
+        );
+        if (cfgProvider) {
+          await setProvider(
+            provider,
+            {
+              apiKeys: cfgProvider.api_keys,
+              limit: cfgProvider.limit,
+              sort: cfgProvider.sort,
+              enabled: cfgProvider.enabled,
+              originalTransformer: cfgProvider.transformer,
+            },
+            newConfig,
+            server
+          );
+        }
+      }
+    }
+
     return { success: true, message: "配置保存成功" };
   });
 
@@ -55,7 +81,6 @@ function registerConfigRoutes(server) {
     }
 
     try {
-      const { setProvider } = require("../utils/providerService");
       const configData = (await readConfigFile()) || {};
       const ok = await setProvider({ name }, { enabled }, configData, server);
       if (!ok) {
@@ -80,17 +105,32 @@ function registerConfigRoutes(server) {
 
       const localConfig = (await readConfigFile()) || {};
 
+      // 找出所有有 sort 值的 provider 的最大 sort 值
+      const maxSort = providers.reduce((max, provider) => {
+        if (provider.sort !== undefined && provider.sort !== null) {
+          return Math.max(max, provider.sort);
+        }
+        return max;
+      }, -1);
+
+      // 为没有 sort 值的 provider 分配 sort 值
+      let nextSort = maxSort + 1;
       const configProviders = providers.map((provider) => {
+        let sortValue = provider.sort;
+        if (sortValue === undefined || sortValue === null) {
+          sortValue = nextSort++;
+        }
+
         return {
           name: provider.name,
           api_base_url: provider.baseUrl,
           api_key: provider.apiKey,
           models: provider.models || [],
-          ...(provider.transformer && { transformer: provider.transformer }),
+          // ...(provider.transformer && { transformer: provider.transformer }),
           ...(provider.originalTransformer && { transformer: provider.originalTransformer }),
           ...(provider.limit !== undefined && { limit: provider.limit }),
           ...(provider.apiKeys && { api_keys: provider.apiKeys }),
-          ...(provider.sort !== undefined && { sort: provider.sort }),
+          sort: sortValue,
           ...(provider.enabled !== undefined && { enabled: provider.enabled }),
         };
       });

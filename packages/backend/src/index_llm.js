@@ -28,6 +28,7 @@ const {
   createProviderTransformerMiddleware,
 } = require("./middleware");
 const { runStatusLine } = require("./utils/statusline");
+const { setProvider } = require("./utils/providerService");
 const agentsManager = require("./agents");
 const { refreshMcpAgentTools } = require("./agents");
 const { mcpAgent } = require("./agents/mcp.agent");
@@ -232,7 +233,7 @@ async function startService() {
    * @param {Object} config - 配置对象
    * @param {Object} logger - 日志对象
    */
-  function setProviderCustomFields(server, config, logger) {
+  async function setProviderCustomFields(server, config, logger) {
     const { getProviderService } = require("./utils");
     const providerService = getProviderService(server);
     if (!providerService) {
@@ -240,33 +241,48 @@ async function startService() {
     }
 
     try {
-      providerService.getProviders().forEach((provider) => {
+      const providers = providerService.getProviders() || [];
+      for (const provider of providers) {
         const cfgProvider = config.Providers.find(
           (p) => p.name === provider.name
         );
-        if (cfgProvider && !provider?.apiKeys) {
-          provider.apiKeys = cfgProvider.api_keys;
-          provider.limit = cfgProvider.limit;
-          provider.sort = cfgProvider.sort;
-          provider.enabled = cfgProvider.enabled;
-          provider.originalTransformer = cfgProvider.transformer;
+        if (cfgProvider) {
+          await setProvider(
+            provider,
+            {
+              apiKeys: cfgProvider.api_keys,
+              limit: cfgProvider.limit,
+              sort: cfgProvider.sort,
+              enabled: cfgProvider.enabled,
+            },
+            config,
+            server
+          );
+
+          // 不能一起修改，否则会导致transform异常，修改
+          // 说明一下：originalTransformer值是为了前端UI正常显示对应的transformer组件 因为在开始阶段 这个值是不存在的所以需要进行初始化
+          if (!provider.originalTransformer) {
+            await setProvider(
+              provider,
+              { originalTransformer: cfgProvider.transformer, },
+              config,
+              server
+            );
+          }
         }
-      });
+      }
     } catch (error) {
       logger.error("设置 provider 字段时出错:", error);
     }
   }
 
   // 注入配置
-  server.addHook("preHandler", (req, _reply) => {
-    return new Promise((resolve, _reject) => {
-      // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
-      if (req.url === "/providers" && req.method === "GET") {
-        setProviderCustomFields(server, config, appLogger);
-      }
-      // 不返回值，让请求继续处理
-      resolve();
-    });
+  server.addHook("preHandler", async (req, _reply) => {
+    // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
+    if (req.url === "/providers" && req.method === "GET") {
+      await setProviderCustomFields(server, config, appLogger);
+    }
+    // 不返回值，让请求继续处理
   });
 
   // 添加全局错误处理器以防止服务崩溃
@@ -393,7 +409,7 @@ async function startService() {
   console.log(`[llm-server] 服务已启动，地址: ${serviceUrl}`);
 
   // 初始化时设置 provider 自定义字段
-  setProviderCustomFields(server, config, appLogger);
+  await setProviderCustomFields(server, config, appLogger);
 
 }
 

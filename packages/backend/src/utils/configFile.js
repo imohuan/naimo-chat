@@ -2,7 +2,7 @@ const { existsSync, readFileSync, copyFileSync } = require("fs");
 const { mkdir, writeFile, readFile } = require("fs/promises");
 const { join } = require("path");
 const { homedir } = require("os");
-const { HOME_DIR, CONFIG_FILE } = require("../config/constants");
+const { HOME_DIR, CONFIG_FILE, CONFIG_BACKUP_DIR } = require("../config/constants");
 const { PROVIDER_CONFIG } = require("../config/provider");
 
 /**
@@ -30,8 +30,9 @@ const readConfigFile = async () => {
 const backupConfigFile = async () => {
   try {
     if (existsSync(CONFIG_FILE)) {
+      await mkdir(CONFIG_BACKUP_DIR, { recursive: true });
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const backupPath = `${CONFIG_FILE}.${timestamp}.bak`;
+      const backupPath = join(CONFIG_BACKUP_DIR, `config.${timestamp}.bak`);
       copyFileSync(CONFIG_FILE, backupPath);
       return backupPath;
     }

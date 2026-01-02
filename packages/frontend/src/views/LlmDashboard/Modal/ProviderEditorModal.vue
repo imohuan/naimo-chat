@@ -142,6 +142,10 @@ async function testAllApiKeys() {
         return;
       }
       await store.saveProvider(currentProvider, props.isEditing);
+      // 如果原来是新增模式，保存成功后需要切换到编辑模式
+      if (!props.isEditing) {
+        store.isEditing = true;
+      }
       // 更新快照
       initialProviderSnapshot.value = currentSnapshot;
       pushToast("保存成功，开始测试密钥...", "success");

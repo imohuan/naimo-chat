@@ -38,8 +38,16 @@ function instantiateTransformer(transformerInstance, options, transformerName) {
  * @returns {any} 解析后的 transformer 对象
  */
 function parseTransformerConfig(transformerConfig, transformerService) {
-  if (!transformerConfig || !transformerService) {
+  if (!transformerService) {
     return undefined;
+  }
+
+  // 如果 transformerConfig 为空值，直接返回空对象
+  if (!transformerConfig ||
+    (typeof transformerConfig === 'object' &&
+      !Array.isArray(transformerConfig) &&
+      Object.keys(transformerConfig).length === 0)) {
+    return {};
   }
 
   const transformer = {};
@@ -109,9 +117,9 @@ function parseTransformerConfig(transformerConfig, transformerService) {
     }
   });
 
-  // 如果 transformer 对象为空，返回 undefined
+  // 如果 transformer 对象为空，返回空对象 {}
   if (Object.keys(transformer).length === 0) {
-    return undefined;
+    return {};
   }
 
   return transformer;
@@ -133,7 +141,8 @@ function createProviderTransformerMiddleware(server = null, logger = null) {
     }
 
     // 检查请求体中是否有 transformer 配置
-    if (!req.body || !req.body.transformer) {
+    // 如果 transformer 字段不存在，不处理（保持原样）
+    if (!req.body || !('transformer' in req.body)) {
       return;
     }
 
@@ -150,6 +159,20 @@ function createProviderTransformerMiddleware(server = null, logger = null) {
     }
 
     const originalTransformer = req.body.transformer;
+
+    // 如果 transformer 为空值（null, undefined, {}, []），直接设置为 {}
+    if (!originalTransformer ||
+      (typeof originalTransformer === 'object' &&
+        !Array.isArray(originalTransformer) &&
+        Object.keys(originalTransformer).length === 0) ||
+      (Array.isArray(originalTransformer) && originalTransformer.length === 0)) {
+      req.body.transformer = {};
+      req.body.originalTransformer = originalTransformer;
+      log.debug(
+        `ProviderTransformerMiddleware: Transformer is empty, set to {} for provider ${req.params?.id || "unknown"}`
+      );
+      return;
+    }
 
     try {
       // 解析 transformer 配置
