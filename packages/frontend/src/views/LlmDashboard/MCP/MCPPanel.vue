@@ -14,8 +14,12 @@ import {
   OpenInNewOutlined,
   SettingsOutlined,
   EditOutlined,
+  GridViewOutlined,
+  ViewListOutlined,
 } from "@vicons/material";
+import Input from "@/components/llm/Input.vue";
 import MCPItem from "./components/MCPItem.vue";
+import MCPListItem from "./components/MCPListItem.vue";
 import ToolModal from "./components/ToolModal.vue";
 import ServerModal from "./components/ServerModal.vue";
 import ApiKeyModal from "./components/ApiKeyModal.vue";
@@ -49,6 +53,7 @@ const filteredServers = ref<McpServer[]>([]);
 const searchQuery = ref("");
 const isSavingServer = ref(false);
 const currentTab = ref<"servers" | "empty" | "builtin">("servers");
+const viewMode = ref<"grid" | "list">("grid");
 
 type CloudMcpServer = {
   name: string;
@@ -148,8 +153,7 @@ function openEditServerModal(server: McpServer) {
 
 // 从云端模板添加服务器
 function openCloudServerModal(server: CloudMcpServer) {
-  const realName =
-    server.realName || server.value.split("/").pop() || server.value;
+  const realName = server.realName || server.value.split("/").pop() || server.value;
   editingServer.value = null;
   serverModalDefaultName.value = realName;
   // 如果已配置 API Key，使用配置的值，否则使用占位符
@@ -188,9 +192,7 @@ async function handleSaveServer(name: string, config: McpServerConfig) {
       await updateServer(serverToEdit.name, config);
 
       // 更新本地状态
-      const index = servers.value.findIndex(
-        (s) => s.name === serverToEdit.name
-      );
+      const index = servers.value.findIndex((s) => s.name === serverToEdit.name);
       if (index !== -1 && servers.value[index]) {
         servers.value[index].config = config;
         filteredServers.value = [...servers.value];
@@ -255,9 +257,7 @@ async function handleExecuteTool(tool: McpTool, args: Record<string, any>) {
     toolExecutionError.value = null;
     toolExecutionResult.value = null;
 
-    const server = servers.value.find(
-      (s) => s.name === selectedServerName.value
-    );
+    const server = servers.value.find((s) => s.name === selectedServerName.value);
     const result = await callTool(
       selectedServerName.value,
       tool.name,
@@ -348,7 +348,7 @@ onMounted(() => {
           >
             <span class="font-mono">MCPRouter</span>
           </button>
-          <button
+          <!-- <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
             :class="
               currentTab === 'builtin'
@@ -358,24 +358,53 @@ onMounted(() => {
             @click="currentTab = 'builtin'"
           >
             内置服务器
-          </button>
+          </button> -->
         </div>
 
         <!-- 搜索框 -->
         <div v-if="currentTab === 'servers'" class="flex-1 max-w-md relative">
           <SearchOutlined
-            class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400"
+            class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 z-10 pointer-events-none"
           />
-          <input
+          <Input
             v-model="searchQuery"
             type="text"
-            class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             placeholder="搜索服务器..."
+            class="w-full pl-10"
           />
         </div>
       </div>
 
       <div v-if="currentTab === 'servers'" class="flex items-center gap-3">
+        <!-- 视图切换 -->
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <button
+            type="button"
+            class="p-1.5 rounded transition-colors"
+            :class="
+              viewMode === 'grid'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+            "
+            title="网格布局"
+            @click="viewMode = 'grid'"
+          >
+            <GridViewOutlined class="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            class="p-1.5 rounded transition-colors"
+            :class="
+              viewMode === 'list'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+            "
+            title="列表布局"
+            @click="viewMode = 'list'"
+          >
+            <ViewListOutlined class="w-4 h-4" />
+          </button>
+        </div>
         <button
           class="btn-secondary shadow-sm"
           :disabled="isLoading"
@@ -465,8 +494,29 @@ onMounted(() => {
       </div>
 
       <!-- Servers Grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div
+        v-else-if="viewMode === 'grid'"
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      >
         <MCPItem
+          v-for="server in filteredServersComputed"
+          :key="server.name"
+          :server="server"
+          :tools="serverTools[server.name] || []"
+          :is-loading-tools="serverToolsLoading[server.name] || false"
+          :is-toggling="serverToggleLoading[server.name] || false"
+          :is-saving-config="isSavingConfig"
+          @delete="handleDeleteServerWithConfirm"
+          @toggle="handleToggleServer"
+          @edit="openEditServerModal"
+          @tool-click="(tool) => handleToolClick(tool, server.name)"
+          @refresh="(server) => loadToolsForServer(server.name)"
+        />
+      </div>
+
+      <!-- Servers List -->
+      <div v-else class="flex flex-col gap-4">
+        <MCPListItem
           v-for="server in filteredServersComputed"
           :key="server.name"
           :server="server"
@@ -518,10 +568,7 @@ onMounted(() => {
     </div>
 
     <!-- Built-in MCP 列表 -->
-    <div
-      v-else-if="currentTab === 'builtin'"
-      class="flex-1 overflow-y-auto p-6"
-    >
+    <div v-else-if="currentTab === 'builtin'" class="flex-1 overflow-y-auto p-6">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <div
           v-for="builtin in builtInServers"
