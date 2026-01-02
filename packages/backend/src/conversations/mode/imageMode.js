@@ -27,7 +27,6 @@ async function processImageMode(context) {
     temperature,
     topP,
     maxTokens,
-    mcpIds,
     tools,
     reasoning,
   } = context;
@@ -78,7 +77,6 @@ async function processImageMode(context) {
     temperature,
     topP,
     maxTokens,
-    mcpIds,
     tools,
     reasoning,
   });

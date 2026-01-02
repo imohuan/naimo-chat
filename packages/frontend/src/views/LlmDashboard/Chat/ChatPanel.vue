@@ -70,7 +70,7 @@ const modelConfig = ref<ChatModelConfig>({
   temperature: 0.7,
   topP: 0.9,
   maxTokens: 4096,
-  selectedMcpIds: [],
+  selectedMcpTools: {},
 });
 
 // 组件引用
@@ -133,8 +133,7 @@ watch(
     // 恢复代码历史（仅在 canvas 模式下）
     if (selectedMode.value === "canvas" && conversation.codeHistory) {
       const hasCodeHistory =
-        conversation.codeHistory.versions &&
-        conversation.codeHistory.versions.length > 0;
+        conversation.codeHistory.versions && conversation.codeHistory.versions.length > 0;
 
       if (hasCodeHistory) {
         showCanvas.value = true;
@@ -180,8 +179,7 @@ watch(
 
     // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才显示
     if (codeVersion !== undefined && codeHistory) {
-      const hasCodeHistory =
-        codeHistory.versions && codeHistory.versions.length > 0;
+      const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
       showCanvas.value = hasCodeHistory || false;
       // 设置侧边栏为折叠状态
       conversationStore.sidebarCollapsed = true;
@@ -204,20 +202,27 @@ function getModelConfigExtension(): {
   // 从当前页面的 modelConfig 获取配置
   const config = modelConfig.value;
   const activeModelId = config.modelId || modelId.value;
-  const mcpIds = config.selectedMcpIds;
+  const selectedMcpTools = config.selectedMcpTools || {};
 
-  // 根据 MCP 选择，从 Pinia 中获取对应服务器的工具配置，组装为 tools 列表
-  const tools =
-    mcpIds && mcpIds.length > 0
-      ? mcpIds.flatMap((serverName) => {
-          const toolsForServer = serverTools.value[serverName] || [];
-          return toolsForServer.map((tool) => ({
-            ...tool,
-            // 统一使用 mcp__server__tool 的命名规则，便于后端识别
-            name: `mcp__${serverName}__${tool.name}`,
-          }));
-        })
-      : undefined;
+  // 将 selectedMcpTools 转换为新的 tools 格式
+  // 格式：Record<string, "all" | string[]>
+  // 如果某个服务器的所有工具都被选中，值为 "all"，否则为工具名称数组
+  const tools: Record<string, "all" | string[]> = {};
+  for (const [serverName, toolNames] of Object.entries(selectedMcpTools)) {
+    if (!toolNames || toolNames.length === 0) {
+      continue;
+    }
+    const allToolsForServer = serverTools.value[serverName] || [];
+    // 检查是否所有工具都被选中
+    if (allToolsForServer.length > 0 && toolNames.length === allToolsForServer.length) {
+      // 检查是否真的所有工具都被选中
+      const allToolNames = allToolsForServer.map((t) => t.name);
+      const isAllSelected = allToolNames.every((name) => toolNames.includes(name));
+      tools[serverName] = isAllSelected ? "all" : toolNames;
+    } else {
+      tools[serverName] = toolNames;
+    }
+  }
 
   // 组装扩展配置对象
   const extensionConfig: ChatModelExtensionConfig | undefined =
@@ -225,8 +230,7 @@ function getModelConfigExtension(): {
     config.topP !== undefined ||
     config.maxTokens !== undefined ||
     config.reasoning !== undefined ||
-    (mcpIds && mcpIds.length > 0) ||
-    (tools && tools.length > 0)
+    Object.keys(tools).length > 0
       ? {
           ...(config.temperature !== undefined && {
             temperature: config.temperature,
@@ -238,8 +242,7 @@ function getModelConfigExtension(): {
           ...(config.reasoning !== undefined && {
             reasoning: config.reasoning,
           }),
-          ...(mcpIds && mcpIds.length > 0 && { mcpIds }),
-          ...(tools && tools.length > 0 && { tools }),
+          ...(Object.keys(tools).length > 0 && { tools }),
         }
       : undefined;
 
@@ -345,7 +348,7 @@ function handleRetry(messageKey: string) {
   }
 
   // 查找前一条用户消息
-  let userMessage: (typeof messages)[0] | undefined;
+  let userMessage: typeof messages[0] | undefined;
   for (let i = messageIndex - 1; i >= 0 && i < messages.length; i--) {
     const candidate = messages[i];
     if (candidate && candidate.from === "user") {
@@ -416,11 +419,7 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (
-      codeRef &&
-      typeof codeRef === "object" &&
-      "setCodeAndSelectLines" in codeRef
-    ) {
+    if (codeRef && typeof codeRef === "object" && "setCodeAndSelectLines" in codeRef) {
       (codeRef as any).setCodeAndSelectLines(code, startLine, endLine);
     }
   }
@@ -429,9 +428,7 @@ function handleTagClick(data: {
   if (
     data.data?.type === "browser_selector" ||
     data.data?.selector ||
-    (data.icon &&
-      typeof data.icon === "string" &&
-      data.icon.includes("browser"))
+    (data.icon && typeof data.icon === "string" && data.icon.includes("browser"))
   ) {
     const selector = data.data?.selector || data.data?.text || data.label;
     if (!selector) return;
@@ -440,11 +437,7 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (
-      codeRef &&
-      typeof codeRef === "object" &&
-      "selectElementInPreview" in codeRef
-    ) {
+    if (codeRef && typeof codeRef === "object" && "selectElementInPreview" in codeRef) {
       (codeRef as any).selectElementInPreview(selector);
     }
   }
@@ -537,10 +530,7 @@ onMounted(() => {
 
   // 监听对话加载完成事件，设置 selectedMode
   eventBus.on("conversation:loaded", (data) => {
-    if (
-      data.conversation.mode &&
-      data.conversation.mode !== selectedMode.value
-    ) {
+    if (data.conversation.mode && data.conversation.mode !== selectedMode.value) {
       selectedMode.value = data.conversation.mode;
     }
   });
@@ -582,8 +572,7 @@ onMounted(() => {
     currentOriginalCode.value = data.originalCode || null;
 
     // 获取原始代码，用于添加历史记录和diff操作
-    const originalCode =
-      data.originalCode || immersiveCode.getCurrentCode?.() || "";
+    const originalCode = data.originalCode || immersiveCode.getCurrentCode?.() || "";
 
     // 在diff操作前添加历史记录，创建一个新的major version，并添加一个使用recordId的记录
     // addMajorDiffVersion 内部会处理 diff 验证和 UI 更新
@@ -633,11 +622,7 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
   try {
-    await chatApi.applyCanvasDiff(
-      activeConversationId.value,
-      recordId,
-      appliedCode
-    );
+    await chatApi.applyCanvasDiff(activeConversationId.value, recordId, appliedCode);
     // 不重新加载对话，避免强制刷新页面和canvas
     // 代码已经在本地更新，后端也已保存，无需重新加载
     // await loadConversation(activeConversationId.value);
@@ -765,8 +750,7 @@ function saveCodeHistory() {
           );
 
           if (streamingRecords.length > 0) {
-            const lastStreamingRecord =
-              streamingRecords[streamingRecords.length - 1];
+            const lastStreamingRecord = streamingRecords[streamingRecords.length - 1];
             if (lastStreamingRecord) {
               return {
                 id: version.id,
@@ -853,9 +837,7 @@ watch(activeConversationId, (_newId, oldId) => {
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="
-              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
-            "
+            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
           >
             <!-- 消息列表 -->
             <ChatMessages

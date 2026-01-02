@@ -27,7 +27,6 @@ async function processVideoMode(context) {
     temperature,
     topP,
     maxTokens,
-    mcpIds,
     tools,
     reasoning,
   } = context;
@@ -77,7 +76,6 @@ async function processVideoMode(context) {
     temperature,
     topP,
     maxTokens,
-    mcpIds,
     tools,
     reasoning,
   });

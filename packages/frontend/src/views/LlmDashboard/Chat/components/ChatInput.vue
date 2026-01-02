@@ -78,7 +78,7 @@ const modelConfig = ref<ChatModelConfig>(
     temperature: 0.7,
     topP: 0.9,
     maxTokens: 4096,
-    selectedMcpIds: [],
+    selectedMcpTools: {},
   }
 );
 

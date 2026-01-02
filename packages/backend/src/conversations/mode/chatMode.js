@@ -28,7 +28,6 @@ async function processChatMode(context) {
     temperature,
     topP,
     maxTokens,
-    mcpIds,
     tools,
     reasoning,
   } = context;
@@ -80,7 +79,6 @@ async function processChatMode(context) {
     temperature,
     topP,
     maxTokens,
-    mcpIds,
     tools,
     reasoning,
   });

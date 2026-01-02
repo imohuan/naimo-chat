@@ -22,7 +22,6 @@ const fetch =
  * @param {number} [options.temperature] - 温度参数
  * @param {number} [options.topP] - Top P 参数
  * @param {number} [options.maxTokens] - 最大 token 数
- * @param {string[]} [options.mcpIds] - MCP 服务器 ID 列表
  * @param {Array} [options.tools] - 工具列表
  * @returns {Promise<Object>} { requestId, fullResponse, events }
  */
@@ -37,7 +36,6 @@ async function requestLLM(options) {
     temperature,
     topP,
     maxTokens,
-    // mcpIds,
     tools,
     reasoning,
   } = options;

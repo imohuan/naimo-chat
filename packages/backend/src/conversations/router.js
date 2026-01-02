@@ -24,6 +24,7 @@ const {
   updateMessageByRequestId,
   deleteConversationFile,
 } = require("./utils/conversationFileLock");
+const mcpService = require("../mcp/mcpService");
 
 // 模式处理函数
 const processChatMode = require("./mode/chatMode");
@@ -78,19 +79,72 @@ function generateMessageKey(role, requestId) {
 }
 
 /**
+ * 将新的 tools 格式转换为可用的 tools 数组
+ * @param {Object} toolsConfig - Record<string, "all" | string[]>，key 是 MCP 服务器名称，value 是 "all" 或工具名称数组
+ * @returns {Array} 工具数组
+ */
+function convertToolsConfigToTools(toolsConfig) {
+  if (!toolsConfig || typeof toolsConfig !== "object") {
+    return [];
+  }
+
+  const tools = [];
+  for (const [serverName, toolSelection] of Object.entries(toolsConfig)) {
+    // 获取该服务器的所有工具
+    const serverTools = mcpService.getServerTools(serverName);
+    if (!serverTools || serverTools.length === 0) {
+      continue;
+    }
+
+    if (toolSelection === "all") {
+      // 如果值为 "all"，使用该服务器的所有工具
+      for (const tool of serverTools) {
+        tools.push({
+          name: `mcp__${serverName}__${tool.name}`,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+        });
+      }
+    } else if (Array.isArray(toolSelection) && toolSelection.length > 0) {
+      // 如果值是数组，根据选中的工具名称过滤工具
+      for (const toolName of toolSelection) {
+        const tool = serverTools.find((t) => t.name === toolName);
+        if (tool) {
+          tools.push({
+            name: `mcp__${serverName}__${tool.name}`,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          });
+        }
+      }
+    }
+  }
+
+  return tools;
+}
+
+/**
  * 从请求体中提取模型扩展配置参数
- * 优先从 config 对象中读取，如果没有则从 req.body 中读取（向后兼容）
+ * 优先从 config 对象中读取，如果没有则从 req.body 中读取
  * @param {Object} config - config 对象（可选）
  * @param {Object} body - 请求体对象
- * @returns {Object} 配置参数对象 { temperature, topP, maxTokens, mcpIds, tools }
+ * @returns {Object} 配置参数对象 { temperature, topP, maxTokens, tools, reasoning }
  */
 function extractModelConfig(config, body) {
+  // 优先从 config.tools 读取，如果没有则从 body.tools 读取
+  // 格式：Record<string, "all" | string[]>
+  const toolsConfig = config?.tools ?? body.tools;
+
+  // 将 tools 配置转换为可用的 tools 数组
+  const tools = toolsConfig
+    ? convertToolsConfigToTools(toolsConfig)
+    : [];
+
   return {
     temperature: config?.temperature ?? body.temperature,
     topP: config?.topP ?? body.topP,
     maxTokens: config?.maxTokens ?? body.maxTokens,
-    mcpIds: config?.mcpIds ?? body.mcpIds,
-    tools: config?.tools ?? body.tools,
+    tools,
     reasoning: config?.reasoning ?? body.reasoning,
   };
 }
@@ -154,7 +208,8 @@ async function handleStreamResponse({
           // 内容块开始
           if (event.content_block?.name) {
             // 工具调用块（正常情况下，工具未被拦截时会收到此事件）
-            const toolId = event.content_block.id || `tool-${Date.now()}-${Math.random()}`;
+            const toolId =
+              event.content_block.id || `tool-${Date.now()}-${Math.random()}`;
             // 检查是否已存在该工具块（避免与 tool:start 重复创建）
             const existingToolBlock = contentBlocks.find(
               (block) => block.type === "tool" && block.id === toolId
@@ -174,7 +229,8 @@ async function handleStreamResponse({
             }
           } else {
             // 文本块
-            const textId = event.content_block?.id || `text-${Date.now()}-${Math.random()}`;
+            const textId =
+              event.content_block?.id || `text-${Date.now()}-${Math.random()}`;
             currentBlock = {
               type: "text",
               id: textId,
@@ -218,7 +274,10 @@ async function handleStreamResponse({
               } catch (error) {
                 // 如果最终解析失败，保留已解析的部分或空对象
                 console.warn("工具参数 JSON 解析失败:", error, currentToolInputJson);
-                if (!currentBlock.toolCall.input || Object.keys(currentBlock.toolCall.input).length === 0) {
+                if (
+                  !currentBlock.toolCall.input ||
+                  Object.keys(currentBlock.toolCall.input).length === 0
+                ) {
                   currentBlock.toolCall.input = {};
                 }
               }
@@ -307,7 +366,11 @@ async function handleStreamResponse({
               }
             }
             // 如果当前块就是这个工具块，清空 currentBlock
-            if (currentBlock && currentBlock.type === "tool" && currentBlock.id === event.tool_id) {
+            if (
+              currentBlock &&
+              currentBlock.type === "tool" &&
+              currentBlock.id === event.tool_id
+            ) {
               currentBlock = null;
             }
           }
@@ -340,7 +403,11 @@ async function handleStreamResponse({
               toolBlock.toolCall.errorText = event.error || "未知错误";
             }
             // 如果当前块就是这个工具块，清空 currentBlock
-            if (currentBlock && currentBlock.type === "tool" && currentBlock.id === event.tool_id) {
+            if (
+              currentBlock &&
+              currentBlock.type === "tool" &&
+              currentBlock.id === event.tool_id
+            ) {
               currentBlock = null;
             }
           }
@@ -366,7 +433,10 @@ async function handleStreamResponse({
           currentBlock.toolCall.state = "input-available";
         } catch (error) {
           console.warn("工具参数 JSON 解析失败:", error, currentToolInputJson);
-          if (!currentBlock.toolCall.input || Object.keys(currentBlock.toolCall.input).length === 0) {
+          if (
+            !currentBlock.toolCall.input ||
+            Object.keys(currentBlock.toolCall.input).length === 0
+          ) {
             currentBlock.toolCall.input = {};
           }
         }
@@ -375,16 +445,12 @@ async function handleStreamResponse({
     }
 
     // 更新消息版本内容（使用 requestId 查找）
-    await updateMessageByRequestId(
-      conversationId,
-      requestId,
-      (version, _message) => {
-        // 保存 contentBlocks 数组（与前端一致）
-        version.contentBlocks = contentBlocks;
-        version.isRequesting = false;
-        return true;
-      }
-    );
+    await updateMessageByRequestId(conversationId, requestId, (version, _message) => {
+      // 保存 contentBlocks 数组（与前端一致）
+      version.contentBlocks = contentBlocks;
+      version.isRequesting = false;
+      return true;
+    });
 
     // 发送完成事件
     sendEvent(requestId, {
@@ -440,7 +506,7 @@ async function generateConversationTitle(firstUserContent, model, apiKey) {
 
     // 限制长度（最多10个字符）
     // const finalTitle = normalized.slice(0, 10);
-    const finalTitle = normalized
+    const finalTitle = normalized;
     return finalTitle || "新对话";
   } catch (error) {
     console.error("生成标题失败:", error);
@@ -543,7 +609,7 @@ function registerAiChatRoutes(server) {
       } = req.body;
 
       // 从 config 对象中提取配置参数（向后兼容：也支持直接传递这些字段）
-      const { temperature, topP, maxTokens, mcpIds, tools, reasoning } = extractModelConfig(
+      const { temperature, topP, maxTokens, tools, reasoning } = extractModelConfig(
         config,
         req.body
       );
@@ -646,7 +712,6 @@ function registerAiChatRoutes(server) {
             temperature,
             topP,
             maxTokens,
-            mcpIds,
             tools,
             reasoning,
           },
@@ -684,7 +749,7 @@ function registerAiChatRoutes(server) {
       } = req.body;
 
       // 从 config 对象中提取配置参数（向后兼容：也支持直接传递这些字段）
-      const { temperature, topP, maxTokens, mcpIds, tools, reasoning } = extractModelConfig(
+      const { temperature, topP, maxTokens, tools, reasoning } = extractModelConfig(
         config,
         req.body
       );
@@ -741,8 +806,8 @@ function registerAiChatRoutes(server) {
 
       const assistantMessageKey = generateMessageKey("assistant", requestId);
 
-      let existingMessageIndex = -1
-      let existingMessage = null
+      let existingMessageIndex = -1;
+      let existingMessage = null;
 
       // 如果是重试，在同一消息下添加新版本
       if (retryMessageKey) {
@@ -819,7 +884,6 @@ function registerAiChatRoutes(server) {
             temperature,
             topP,
             maxTokens,
-            mcpIds,
             tools,
             reasoning,
           },

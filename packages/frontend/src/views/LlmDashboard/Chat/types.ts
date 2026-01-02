@@ -149,7 +149,7 @@ export interface ChatModelConfig {
   temperature: number;
   topP: number;
   maxTokens: number;
-  selectedMcpIds: string[];
+  selectedMcpTools: Record<string, string[]>; // key: MCP 服务器名称, value: 选中的工具名称数组
   reasoning?: "none" | "normal" | "hard" | "mega" | "ultra" | undefined;
 }
 
@@ -160,8 +160,7 @@ export interface ChatModelExtensionConfig {
   temperature?: number;
   topP?: number;
   maxTokens?: number;
-  mcpIds?: string[];
-  tools?: McpTool[];
+  tools?: Record<string, "all" | string[]>; // key: MCP 服务器名称, value: "all" 或工具名称数组
   reasoning?: "none" | "normal" | "hard" | "mega" | "ultra" | undefined;
 }
 
