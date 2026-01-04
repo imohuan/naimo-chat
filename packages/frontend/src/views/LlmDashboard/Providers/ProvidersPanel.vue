@@ -10,6 +10,7 @@ import {
   ViewListOutlined,
   GridViewOutlined,
   ListOutlined,
+  DeleteOutlined,
 } from "@vicons/material";
 import { useLlmApi } from "@/hooks/useLlmApi";
 import { useToasts } from "@/hooks/useToasts";
