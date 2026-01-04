@@ -614,6 +614,8 @@ export function getEditorContent(state: EditorState): {
   state.doc.descendants((node: ProseMirrorNode, pos: number) => {
     if (node.isText) {
       text.push(node.text || "");
+    } else if (node.type.name === "hard_break") {
+      text.push("\n");
     } else if (node.type.name === "tag") {
       tags.push({
         id: node.attrs.id,
@@ -621,6 +623,13 @@ export function getEditorContent(state: EditorState): {
         icon: node.attrs.icon,
         position: pos,
       });
+      // 将标签的内容也添加到 text 中，与 getEditorTextContent 保持一致
+      const data = node.attrs.data || {};
+      if (data.raw) {
+        text.push(String(data.raw));
+      } else if (data.text) {
+        text.push(String(data.text));
+      }
     }
   });
 
