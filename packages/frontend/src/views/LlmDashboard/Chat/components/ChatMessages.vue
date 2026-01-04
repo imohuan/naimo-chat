@@ -277,8 +277,15 @@ watch(
                     <div v-if="version.contentBlocks?.length" class="space-y-2">
                       <template v-for="block in version.contentBlocks" :key="block.id">
                         <!-- 文字块 -->
+                        <!-- 用户消息不进行 markdown 转换，直接显示纯文本 -->
+                        <div
+                          v-if="block.type === 'text' && message.from === 'user'"
+                          class="whitespace-pre-wrap break-words"
+                        >
+                          {{ block.content }}
+                        </div>
                         <MessageResponse
-                          v-if="block.type === 'text'"
+                          v-else-if="block.type === 'text'"
                           :content="block.content"
                         />
 
