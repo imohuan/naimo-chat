@@ -10,7 +10,7 @@ import {
 import MessageActionButtons from "./MessageActionButtons.vue";
 import ToolUseEdit from "./ToolUseEdit.vue";
 import ImageDisplay from "@/components/llm/ImageDisplay.vue";
-import QueueExample from "./QueueExample.vue";
+import Queue from "./Queue.vue";
 
 interface Props {
   item: {
@@ -145,9 +145,9 @@ watch(
 
               <!-- Tool use content -->
               <div v-else-if="part.type === 'tool_use'">
-                <!-- TodoWrite: 使用 QueueExample 组件 -->
+                <!-- TodoWrite: 使用 Queue 组件 -->
                 <div v-if="isTodoWrite(part)" class="mb-1">
-                  <QueueExample
+                  <Queue
                     :todos="convertTodosToQueueFormat(part.input.todos)"
                     :show-messages="false"
                     :preview="true"

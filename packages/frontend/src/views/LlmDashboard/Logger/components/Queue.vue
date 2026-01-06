@@ -249,7 +249,7 @@ const hasQueue = computed(() => messages.value.length > 0 || todos.value.length 
             </div>
 
             <QueueItemDescription
-              v-if="todo.description"
+              v-if="todo.description && todo.description !== todo.title"
               :completed="todo.status === 'completed'"
             >
               {{ todo.description }}
