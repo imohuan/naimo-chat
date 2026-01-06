@@ -10,6 +10,7 @@
  * @param {string} context.apiKey - API Key（可选）
  * @param {Function} context.onStreamEvent - 流式事件回调函数 (event) => void
  * @param {string} context.conversationId - 对话ID（用于保存 canvas 文件）
+ * @param {AbortSignal} [context.abortSignal] - 中断信号（可选）
  * @returns {Promise<Object>} 返回请求结果 { requestId, fullResponse, events }
  */
 const canvasModePrompt = require("../prompts/canvasMode");
@@ -40,6 +41,7 @@ async function processCanvasMode(context) {
     maxTokens,
     tools,
     reasoning,
+    abortSignal,
   } = context;
 
   // 1. 构建消息数组
@@ -147,6 +149,7 @@ async function processCanvasMode(context) {
     maxTokens,
     tools,
     reasoning,
+    abortSignal,
   });
 
   // 5. 流式完成后，识别完整代码并保存

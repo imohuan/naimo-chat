@@ -7,6 +7,7 @@
  * @param {string} context.model - 模型ID
  * @param {string} context.apiKey - API Key（可选）
  * @param {Function} context.onStreamEvent - 流式事件回调函数 (event) => void
+ * @param {AbortSignal} [context.abortSignal] - 中断信号（可选）
  * @returns {Promise<Object>} 返回请求结果 { requestId, fullResponse, events }
  */
 const videoModePrompt = require("../prompts/videoMode");
@@ -29,6 +30,7 @@ async function processVideoMode(context) {
     maxTokens,
     tools,
     reasoning,
+    abortSignal,
   } = context;
 
   // 1. 构建消息数组
@@ -78,6 +80,7 @@ async function processVideoMode(context) {
     maxTokens,
     tools,
     reasoning,
+    abortSignal,
   });
 
   // 3. 返回结果

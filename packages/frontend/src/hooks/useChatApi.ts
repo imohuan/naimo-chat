@@ -251,6 +251,21 @@ export function useChatApi() {
     );
   }
 
+  /**
+   * 中断正在进行的流式请求
+   */
+  async function abortRequest(
+    conversationId: string,
+    requestId: string
+  ): Promise<{ success: boolean; message: string }> {
+    return apiCall<{ success: boolean; message: string }>(
+      `/api/ai_chat/conversations/${conversationId}/stream/${requestId}/abort`,
+      {
+        method: "POST",
+      }
+    );
+  }
+
   return {
     endpoint: computed(() => endpoint.value),
     fetchConversations,
@@ -261,5 +276,6 @@ export function useChatApi() {
     fetchCanvas,
     updateCanvas,
     applyCanvasDiff,
+    abortRequest,
   };
 }

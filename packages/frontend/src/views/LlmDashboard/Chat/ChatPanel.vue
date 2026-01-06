@@ -66,6 +66,8 @@ const refreshImmersiveCode = ref(true);
 const hasCreatedEmptyVersion = ref(false);
 // 中断控制器
 const abortController = ref<AbortController | null>(null);
+// 当前请求ID
+const currentRequestId = ref<string | null>(null);
 // 模型配置（统一管理，通过 v-model 传递给 ModelConfigPanel）
 const modelConfig = ref<ChatModelConfig>({
   modelId: modelId.value,
@@ -287,7 +289,7 @@ async function handleSubmit(message: PromptInputMessage) {
     status.value = "streaming";
 
     if (shouldCreateNewConversation) {
-      await createConversation({
+      const result = await createConversation({
         initialInput: content,
         mode: selectedMode.value,
         model: activeModelId,
@@ -299,10 +301,12 @@ async function handleSubmit(message: PromptInputMessage) {
             : undefined,
         abortSignal: abortController.value.signal,
       });
+      // 存储 requestId 用于中断
+      currentRequestId.value = result.requestId;
       // createConversation 已经处理了第一条消息，继续执行 finally 块进行清理
     } else {
       // 如果已有活跃对话且有消息，发送消息
-      await sendMessage(activeConversationId.value!, {
+      const result = await sendMessage(activeConversationId.value!, {
         content,
         mode: selectedMode.value,
         model: activeModelId,
@@ -314,6 +318,8 @@ async function handleSubmit(message: PromptInputMessage) {
             : undefined,
         abortSignal: abortController.value.signal,
       });
+      // 存储 requestId 用于中断
+      currentRequestId.value = result.requestId;
     }
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
@@ -391,7 +397,7 @@ async function handleRetry(messageKey: string) {
 
     // latestVersion.content
     // 传递助手消息的 messageKey 用于重试（后端会在该助手消息下创建新版本）
-    await sendMessage(activeConversationId.value, {
+    const result = await sendMessage(activeConversationId.value, {
       content: latestVersion.contentBlocks
         .map((block) => (block.type === "text" ? block.content : ""))
         .join("\n"),
@@ -406,6 +412,8 @@ async function handleRetry(messageKey: string) {
           : undefined,
       abortSignal: abortController.value.signal,
     });
+    // 存储 requestId 用于中断
+    currentRequestId.value = result.requestId;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       pushToast("重试已中断", "info");
@@ -529,12 +537,23 @@ function handleClear() {
 }
 
 // 处理中断请求
-function handleAbort() {
-  if (abortController.value) {
-    abortController.value.abort();
-    pushToast("正在中断请求...", "info");
-    // 立即清理 abortController，确保按钮状态正确更新
+async function handleAbort() {
+  if (!currentRequestId.value || !activeConversationId.value) {
+    return;
+  }
+
+  try {
+    // 调用后端中断 API
+    await chatApi.abortRequest(
+      activeConversationId.value,
+      currentRequestId.value
+    );
+  } catch (error) {
+    console.error("中断请求失败:", error);
+  } finally {
+    // 清理状态
     abortController.value = null;
+    currentRequestId.value = null;
     status.value = "ready";
   }
 }
@@ -546,9 +565,12 @@ const currentOriginalCode = ref<string | null>(null);
 // 监听事件总线事件
 onMounted(() => {
   eventBus.on("message:complete", () => {
-    // SSE 流完成时清理 abortController
+    // SSE 流完成时清理 abortController 和 requestId
     if (abortController.value) {
       abortController.value = null;
+    }
+    if (currentRequestId.value) {
+      currentRequestId.value = null;
     }
     status.value = "ready";
     // 消息完成后重置标记，为下一次流式输出做准备
@@ -915,7 +937,7 @@ watch(activeConversationId, (_newId, oldId) => {
                 :providers="providers"
                 :has-messages="hasMessages"
                 :model-config="modelConfig"
-                :can-abort="status === 'streaming' && !!abortController"
+                :can-abort="status === 'streaming' && !!currentRequestId"
                 @submit="handleSubmit"
                 @abort="handleAbort"
                 @update:mode="selectedMode = $event"

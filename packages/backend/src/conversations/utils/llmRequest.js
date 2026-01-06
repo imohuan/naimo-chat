@@ -23,6 +23,7 @@ const fetch =
  * @param {number} [options.topP] - Top P 参数
  * @param {number} [options.maxTokens] - 最大 token 数
  * @param {Array} [options.tools] - 工具列表
+ * @param {AbortSignal} [options.abortSignal] - 中断信号（可选）
  * @returns {Promise<Object>} { requestId, fullResponse, events }
  */
 async function requestLLM(options) {
@@ -38,6 +39,7 @@ async function requestLLM(options) {
     maxTokens,
     tools,
     reasoning,
+    abortSignal,
   } = options;
   const config = await getClaudeConfig();
   const port = config.PORT || 3457;
@@ -163,9 +165,13 @@ async function requestLLM(options) {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      signal: abortSignal,
     });
   } catch (fetchError) {
-    // 处理网络错误
+    // 处理网络错误和中断错误
+    if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+      throw new Error('请求已中断');
+    }
     const errorMessage =
       fetchError instanceof Error
         ? fetchError.message
@@ -352,7 +358,10 @@ async function requestLLM(options) {
       }
     }
   } catch (streamError) {
-    // 处理流读取错误
+    // 处理流读取错误和中断错误
+    if (streamError instanceof Error && streamError.name === 'AbortError') {
+      throw new Error('请求已中断');
+    }
     const errorMessage =
       streamError instanceof Error ? streamError.message : "流式读取失败";
     throw new Error(`流式响应处理失败: ${errorMessage}`);

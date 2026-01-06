@@ -125,7 +125,7 @@ export function useConversation() {
   /**
    * 创建新对话
    */
-  async function createConversation(params: CreateConversationParams): Promise<string> {
+  async function createConversation(params: CreateConversationParams): Promise<{ conversationId: string; requestId: string }> {
     store.setLoading(true);
     store.setError(null);
 
@@ -155,7 +155,7 @@ export function useConversation() {
       // 发送事件
       eventBus.emit("conversation:created", { id: result.id });
 
-      return result.id;
+      return { conversationId: result.id, requestId: result.requestId };
     } catch (error) {
       const message = error instanceof Error ? error.message : "创建对话失败";
       store.setError(message);
@@ -172,7 +172,7 @@ export function useConversation() {
   async function sendMessage(
     conversationId: string,
     params: SendMessageParams
-  ): Promise<void> {
+  ): Promise<{ requestId: string }> {
     if (!conversationId) {
       throw new Error("对话 ID 不能为空");
     }
@@ -218,6 +218,8 @@ export function useConversation() {
           mode: params.mode,
         });
       }
+
+      return { requestId: result.requestId };
     } catch (error) {
       const message = error instanceof Error ? error.message : "发送消息失败";
       store.setError(message);

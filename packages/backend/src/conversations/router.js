@@ -17,6 +17,8 @@ const {
   createSession,
   getSession,
   hasSession,
+  setAbortController,
+  abortSession,
 } = require("./sessionService");
 const {
   readConversationFile,
@@ -626,6 +628,10 @@ function registerAiChatRoutes(server) {
       // 创建 SSE 会话
       createSession(requestId);
 
+      // 创建 AbortController 并设置到会话中
+      const abortController = new AbortController();
+      setAbortController(requestId, abortController);
+
       // 生成对话标题（异步，不阻塞）
       const titlePromise = generateConversationTitle(initialInput || "", model, apiKey);
 
@@ -714,6 +720,7 @@ function registerAiChatRoutes(server) {
             maxTokens,
             tools,
             reasoning,
+            abortSignal: abortController.signal,
           },
           titlePromise,
         });
@@ -782,6 +789,10 @@ function registerAiChatRoutes(server) {
       // 生成新的请求ID
       const requestId = randomUUID();
       createSession(requestId);
+
+      // 创建 AbortController 并设置到会话中
+      const abortController = new AbortController();
+      setAbortController(requestId, abortController);
 
       // 检查是否有重试请求（通过 messageKey 参数判断）
       const { messageKey: retryMessageKey } = req.body;
@@ -886,6 +897,7 @@ function registerAiChatRoutes(server) {
             maxTokens,
             tools,
             reasoning,
+            abortSignal: abortController.signal,
           },
         });
       })();
@@ -1066,6 +1078,44 @@ function registerAiChatRoutes(server) {
       }
     }
   );
+
+  /**
+   * POST /api/ai_chat/conversations/:id/stream/:requestId/abort
+   * 中断正在进行的流式请求
+   */
+  app.post("/api/ai_chat/conversations/:id/stream/:requestId/abort", async (req, reply) => {
+    try {
+      const { requestId } = req.params;
+
+      // 检查会话是否存在
+      if (!hasSession(requestId)) {
+        reply.code(404).send({ error: "Stream not found" });
+        return;
+      }
+
+      // 尝试中断请求
+      const aborted = abortSession(requestId);
+
+      if (aborted) {
+        // 发送中断事件到客户端
+        sendEvent(requestId, {
+          type: "request_aborted",
+          requestId: requestId,
+          timestamp: new Date().toISOString(),
+        });
+
+        // 关闭会话
+        closeSession(requestId);
+
+        return { success: true, message: "请求已中断" };
+      } else {
+        reply.code(409).send({ error: "无法中断请求" });
+      }
+    } catch (error) {
+      console.error("中断请求失败:", error);
+      reply.code(500).send({ error: error.message });
+    }
+  });
 }
 
 module.exports = { registerAiChatRoutes };

@@ -14,6 +14,7 @@ const SESSION_TTL_MS = 30_000;
  * @property {Set<import('http').ServerResponse>} clients - SSE 客户端连接集合
  * @property {Array<Object>} events - 已发送的事件列表（用于重连回放）
  * @property {boolean} closed - 会话是否已关闭
+ * @property {AbortController} [abortController] - 可选的中断控制器
  */
 
 /**
@@ -52,6 +53,11 @@ function closeSession(streamingId) {
   if (!session) return;
 
   session.closed = true;
+
+  // 如果存在 AbortController，触发中断
+  if (session.abortController) {
+    session.abortController.abort();
+  }
 
   // 发送会话结束事件
   sendEvent(streamingId, {
@@ -101,12 +107,39 @@ function getSession(streamingId) {
 
 /**
  * 检查会话是否存在
- * 
+ *
  * @param {string} streamingId - 会话唯一标识
  * @returns {boolean}
  */
 function hasSession(streamingId) {
   return sessions.has(streamingId);
+}
+
+/**
+ * 为会话设置 AbortController
+ *
+ * @param {string} streamingId - 会话唯一标识
+ * @param {AbortController} abortController - 中断控制器
+ */
+function setAbortController(streamingId, abortController) {
+  const session = sessions.get(streamingId);
+  if (!session) return;
+
+  session.abortController = abortController;
+}
+
+/**
+ * 中断会话的请求
+ *
+ * @param {string} streamingId - 会话唯一标识
+ * @returns {boolean} 是否成功中断
+ */
+function abortSession(streamingId) {
+  const session = sessions.get(streamingId);
+  if (!session || !session.abortController) return false;
+
+  session.abortController.abort();
+  return true;
 }
 
 module.exports = {
@@ -115,6 +148,8 @@ module.exports = {
   createSession,
   getSession,
   hasSession,
+  setAbortController,
+  abortSession,
   SESSION_TTL_MS,
 };
 
