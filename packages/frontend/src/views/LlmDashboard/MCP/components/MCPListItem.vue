@@ -93,25 +93,31 @@ function handleRefresh() {
 <template>
   <div
     class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group"
-    :class="compact ? 'p-3' : 'p-4'"
+    :class="compact ? 'px-4 pb-2 pt-4' : 'p-4'"
   >
-    <div class="flex items-start gap-4">
+    <div class="flex items-start" :class="compact ? 'gap-3' : 'gap-4'">
       <!-- 左侧：服务器信息 -->
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between" :class="compact ? 'mb-2' : 'mb-3'">
-          <div class="flex items-center gap-3 flex-1 min-w-0">
-            <h3 class="font-bold text-slate-800 text-base truncate">
+          <div class="flex items-center flex-1 min-w-0" :class="compact ? 'gap-2' : 'gap-3'">
+            <h3 class="font-bold text-slate-800 truncate" :class="compact ? 'text-sm' : 'text-base'">
               {{ server.name }}
             </h3>
             <span
-              class="px-2 py-0.5 text-xs font-mono font-bold rounded shrink-0"
-              :class="serverTypeColor"
+              class="text-xs font-mono font-bold rounded shrink-0"
+              :class="[
+                compact ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
+                serverTypeColor
+              ]"
             >
               {{ serverTypeLabel }}
             </span>
             <span
-              class="px-2 py-0.5 text-xs font-semibold rounded flex items-center gap-1 shrink-0"
-              :class="isEnabled ? 'text-green-700' : 'text-slate-600'"
+              class="text-xs font-semibold rounded flex items-center gap-1 shrink-0"
+              :class="[
+                compact ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
+                isEnabled ? 'text-green-700' : 'text-slate-600'
+              ]"
             >
               <span
                 class="w-2 h-2 rounded-full"
@@ -207,8 +213,9 @@ function handleRefresh() {
       <!-- 最右侧：操作按钮 -->
       <div class="flex flex-col gap-2 shrink-0">
         <button
-          class="text-xs font-medium px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 whitespace-nowrap"
+          class="text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 whitespace-nowrap"
           :class="[
+            compact ? 'px-2 py-1' : 'px-3 py-1.5',
             isEnabled
               ? 'bg-red-50 text-red-600 hover:bg-red-100'
               : 'bg-green-50 text-green-600 hover:bg-green-100',
