@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add packages/frontend/src/views/LlmDashboard/Providers/ProvidersPanel.vue)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\n🐛 fix\\(ui\\): add missing DeleteOutlined import\n\nFix Vue warning about unresolved DeleteOutlined component in ProvidersPanel.\nThe component was used in the template but missing from the imports.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git add packages/frontend/src/components/prompt-input/editor/prosemirrorSetup.ts)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\n🐛 fix\\(editor\\): improve getEditorContent to handle hard breaks and tag content\n\n- Add support for hard_break nodes to preserve line breaks\n- Include tag content \\(data.raw or data.text\\) in text output\n- Ensures consistency with getEditorTextContent behavior\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\n🐛 fix\\(chat\\): display user messages as plain text instead of markdown\n\nUser messages are now displayed as plain text with proper whitespace\npreservation, preventing unintended markdown rendering for user input.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

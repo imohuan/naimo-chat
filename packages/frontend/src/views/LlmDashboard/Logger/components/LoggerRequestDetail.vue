@@ -816,16 +816,27 @@ async function loadAllAndScrollToBottom() {
         <KeyboardArrowDownOutlined class="w-6 h-6" />
       </button>
       <!-- 预览 Tab -->
-      <div v-if="activeTab === 'preview'" class="w-full h-full p-6 pr-2">
-        <div v-if="!isChatRequest(request)" class="text-center py-20 text-slate-400">
-          <p class="text-lg">此请求不是聊天补全请求，无法预览对话。</p>
-          <p class="text-sm mt-2">请切换到"时间轴"或"原始数据"查看详情。</p>
+      <div
+        v-if="activeTab === 'preview'"
+        class="w-full h-full flex flex-col overflow-hidden"
+      >
+        <div
+          v-if="!isChatRequest(request)"
+          class="flex-1 flex items-center justify-center text-slate-400"
+        >
+          <div class="text-center">
+            <p class="text-lg">此请求不是聊天补全请求，无法预览对话。</p>
+            <p class="text-sm mt-2">请切换到"时间轴"或"原始数据"查看详情。</p>
+          </div>
         </div>
 
-        <div v-else class="h-full flex flex-col">
-          <!-- Messages (lazy loaded) -->
-          <div ref="messageContainerRef" class="flex-1 overflow-y-auto">
-            <div>
+        <div v-else class="flex-1 flex flex-col overflow-hidden">
+          <!-- Messages (lazy loaded) - 文字区域，整体滚动 -->
+          <div
+            ref="messageContainerRef"
+            class="flex-1 overflow-y-auto overflow-x-hidden px-6 pr-2"
+          >
+            <div class="py-6">
               <template v-for="(item, index) in visibleItems" :key="index">
                 <PreviewMessageItem
                   :item="item"

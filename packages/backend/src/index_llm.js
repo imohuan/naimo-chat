@@ -32,6 +32,33 @@ const { setProvider } = require("./utils/providerService");
 const agentsManager = require("./agents");
 const { refreshMcpAgentTools } = require("./agents");
 const { mcpAgent } = require("./agents/mcp.agent");
+const { AsyncLocalStorage } = require("async_hooks");
+
+// 创建异步存储用于传递请求的中断信号
+const requestSignalStore = new AsyncLocalStorage();
+
+// 劫持全局 fetch 以支持中断透传
+const originalFetch = global.fetch;
+global.fetch = function (url, options = {}) {
+  const requestSignal = requestSignalStore.getStore();
+  if (requestSignal) {
+    if (options.signal) {
+      if (typeof AbortSignal.any === "function") {
+        options.signal = AbortSignal.any([options.signal, requestSignal]);
+      } else {
+        // 兼容不支持 AbortSignal.any 的环境
+        const controller = new AbortController();
+        const onAbort = () => controller.abort();
+        options.signal.addEventListener("abort", onAbort);
+        requestSignal.addEventListener("abort", onAbort);
+        options.signal = controller.signal;
+      }
+    } else {
+      options.signal = requestSignal;
+    }
+  }
+  return originalFetch(url, options);
+};
 
 const sessionUsageCache = new SimpleLRUCache(100);
 
@@ -64,7 +91,16 @@ async function run(_options = {}) {
 
   // 如果是服务模式（子进程），直接启动服务，不检查 PID
   if (isServiceMode) {
-    await startService();
+    try {
+      await startService();
+    } catch (error) {
+      console.error("❌ 服务启动失败:");
+      console.error(error);
+      if (error.stack) {
+        console.error(error.stack);
+      }
+      process.exit(1);
+    }
     return;
   }
 
@@ -166,251 +202,279 @@ async function startProcessManager() {
  * 启动服务（子进程模式）
  */
 async function startService() {
-  await initializeClaudeConfig();
-  await initDir();
+  try {
+    await initializeClaudeConfig();
+    await initDir();
 
-  // 清理旧日志文件，只保留最近的 10 个
-  await cleanupLogFiles(10);
-  const config = await initConfig();
+    // 清理旧日志文件，只保留最近的 10 个
+    await cleanupLogFiles(10);
+    const config = await initConfig();
 
-  let HOST = config.HOST || "127.0.0.1";
-  if (config.HOST && !config.APIKEY) {
-    HOST = "127.0.0.1";
-    console.warn("⚠️ 未设置 API 密钥。HOST 已强制设置为 127.0.0.1。");
-  }
-
-  const port = config.PORT || 3457;
-
-  // 保存后台进程的 PID
-  savePid(process.pid);
-
-  // 处理 SIGINT (Ctrl+C) 以清理 PID 文件
-  process.on("SIGINT", () => {
-    console.log("收到 SIGINT 信号，正在清理...");
-    cleanupPidFile();
-    process.exit(0);
-  });
-
-  // 处理 SIGTERM 以清理 PID 文件
-  process.on("SIGTERM", () => {
-    cleanupPidFile();
-    process.exit(0);
-  });
-
-  // 使用环境变量中的端口（用于后台进程）
-  const servicePort = process.env.SERVICE_PORT
-    ? parseInt(process.env.SERVICE_PORT)
-    : port;
-
-  // 配置日志
-  const loggerConfig = createLoggerConfig(config, HOME_DIR);
-  const initialConfig = {
-    Providers:
-      config.Providers || config.providers || PROVIDER_CONFIG.Providers,
-    Router: config.Router || PROVIDER_CONFIG.Router,
-    HOST: HOST,
-    PORT: servicePort,
-    LOG_FILE: LOG_FILE,
-  };
-
-  writeConfigFile({ ...config, ...initialConfig });
-
-  const server = createServer({
-    jsonPath: CONFIG_FILE,
-    initialConfig: {
-      ...initialConfig,
-      providers:
-        config.Providers || config.providers || PROVIDER_CONFIG.Providers,
-    },
-    logger: loggerConfig,
-  });
-
-  const appLogger = server.app?.log || console;
-
-  /**
-   * 给每一个 provider 设置 api_keys 和 limit 自定义字段
-   * @param {Object} server - 服务器实例
-   * @param {Object} config - 配置对象
-   * @param {Object} logger - 日志对象
-   */
-  async function setProviderCustomFields(server, config, logger) {
-    const { getProviderService } = require("./utils");
-    const providerService = getProviderService(server);
-    if (!providerService) {
-      return;
+    let HOST = config.HOST || "127.0.0.1";
+    if (config.HOST && !config.APIKEY) {
+      HOST = "127.0.0.1";
+      console.warn("⚠️ 未设置 API 密钥。HOST 已强制设置为 127.0.0.1。");
     }
 
-    try {
-      const providers = providerService.getProviders() || [];
-      for (const provider of providers) {
-        const cfgProvider = config.Providers.find(
-          (p) => p.name === provider.name
-        );
-        if (cfgProvider) {
-          await setProvider(
-            provider,
-            {
-              apiKeys: cfgProvider.api_keys,
-              limit: cfgProvider.limit,
-              sort: cfgProvider.sort,
-              enabled: cfgProvider.enabled,
-            },
-            config,
-            server
-          );
+    const port = config.PORT || 3457;
 
-          // 不能一起修改，否则会导致transform异常，修改
-          // 说明一下：originalTransformer值是为了前端UI正常显示对应的transformer组件 因为在开始阶段 这个值是不存在的所以需要进行初始化
-          if (!provider.originalTransformer) {
+    // 保存后台进程的 PID
+    savePid(process.pid);
+
+    // 处理 SIGINT (Ctrl+C) 以清理 PID 文件
+    process.on("SIGINT", () => {
+      console.log("收到 SIGINT 信号，正在清理...");
+      cleanupPidFile();
+      process.exit(0);
+    });
+
+    // 处理 SIGTERM 以清理 PID 文件
+    process.on("SIGTERM", () => {
+      cleanupPidFile();
+      process.exit(0);
+    });
+
+    // 使用环境变量中的端口（用于后台进程）
+    const servicePort = process.env.SERVICE_PORT
+      ? parseInt(process.env.SERVICE_PORT)
+      : port;
+
+    // 配置日志
+    const loggerConfig = createLoggerConfig(config, HOME_DIR);
+    const initialConfig = {
+      Providers:
+        config.Providers || config.providers || PROVIDER_CONFIG.Providers,
+      Router: config.Router || PROVIDER_CONFIG.Router,
+      HOST: HOST,
+      PORT: servicePort,
+      LOG_FILE: LOG_FILE,
+    };
+
+    writeConfigFile({ ...config, ...initialConfig });
+
+    const server = createServer({
+      jsonPath: CONFIG_FILE,
+      initialConfig: {
+        ...initialConfig,
+        providers:
+          config.Providers || config.providers || PROVIDER_CONFIG.Providers,
+      },
+      logger: loggerConfig,
+    });
+
+    const appLogger = server.app?.log || console;
+
+    /**
+     * 给每一个 provider 设置 api_keys 和 limit 自定义字段
+     * @param {Object} server - 服务器实例
+     * @param {Object} config - 配置对象
+     * @param {Object} logger - 日志对象
+     */
+    async function setProviderCustomFields(server, config, logger) {
+      const { getProviderService } = require("./utils");
+      const providerService = getProviderService(server);
+      if (!providerService) {
+        return;
+      }
+
+      try {
+        const providers = providerService.getProviders() || [];
+        for (const provider of providers) {
+          const cfgProvider = config.Providers.find(
+            (p) => p.name === provider.name
+          );
+          if (cfgProvider) {
             await setProvider(
               provider,
-              { originalTransformer: cfgProvider.transformer, },
+              {
+                apiKeys: cfgProvider.api_keys,
+                limit: cfgProvider.limit,
+                sort: cfgProvider.sort,
+                enabled: cfgProvider.enabled,
+              },
               config,
               server
             );
+
+            // 不能一起修改，否则会导致transform异常，修改
+            // 说明一下：originalTransformer值是为了前端UI正常显示对应的transformer组件 因为在开始阶段 这个值是不存在的所以需要进行初始化
+            if (!provider.originalTransformer) {
+              await setProvider(
+                provider,
+                { originalTransformer: cfgProvider.transformer, },
+                config,
+                server
+              );
+            }
           }
         }
+      } catch (error) {
+        logger.error("设置 provider 字段时出错:", error);
       }
-    } catch (error) {
-      logger.error("设置 provider 字段时出错:", error);
-    }
-  }
-
-  // 注入配置
-  server.addHook("preHandler", async (req, _reply) => {
-    // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
-    if (req.url === "/providers" && req.method === "GET") {
-      await setProviderCustomFields(server, config, appLogger);
-    }
-    // 不返回值，让请求继续处理
-  });
-
-  // 添加全局错误处理器以防止服务崩溃
-  process.on("uncaughtException", (err) => {
-    appLogger.error("未捕获的异常:", err);
-  });
-
-  process.on("unhandledRejection", (reason, promise) => {
-    appLogger.error("未处理的 Promise 拒绝:", promise, "原因:", reason);
-  });
-
-  // 添加异步 preHandler hook 用于认证
-  server.addHook("preHandler", createAuthMiddleware(config));
-
-  // 添加路由处理 hook
-  server.addHook(
-    "preHandler",
-    createRouteMiddleware(config, sessionUsageCache, appLogger)
-  );
-
-  // 通过provider的配置中的enable来判断当前模型是否可用，如果没有则直接返回报错
-  // 添加一个 hook prehandler 来判断 当前的provider 是否启用，如果没有则直接返回报错
-  server.addHook("preHandler", async (req, reply) => {
-    // 仅拦截模型请求
-    if (
-      !req.url.startsWith("/v1/messages") ||
-      req.url.startsWith("/v1/messages/count_tokens")
-    ) {
-      return;
     }
 
-    const model = req.body?.model;
-    if (!model || typeof model !== "string") return;
-    const [providerName] = model.split(",");
+    // 注入配置
+    server.addHook("onRequest", (req, reply, done) => {
+      // 将客户端的中断信号存入异步上下文
+      requestSignalStore.run(req.raw.signal, done);
+    });
 
-    const { getProviderService } = require("./utils");
-    const providerService = getProviderService(server);
+    server.addHook("preHandler", async (req, _reply) => {
+      // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
+      if (req.url === "/providers" && req.method === "GET") {
+        await setProviderCustomFields(server, config, appLogger);
+      }
+      // 不返回值，让请求继续处理
+    });
 
-    // 优先从运行中的 providerService 获取状态，否则回退配置
-    const runtimeProvider = providerService?.getProvider(providerName);
-    const configProvider = (config.Providers || config.providers || []).find(
-      (p) => p.name === providerName
+    // 添加全局错误处理器以防止服务崩溃
+    // 注意：这些处理器应该在 appLogger 初始化之前就设置好，以便在早期错误时也能输出
+    // 但为了确保 appLogger 可用，我们在它初始化后再添加，同时也输出到 console.error
+    const errorHandler = (type, err) => {
+      // 同时输出到 console.error 和 appLogger（如果可用）
+      console.error(`❌ ${type}:`, err);
+      if (err && err.stack) {
+        console.error(err.stack);
+      }
+      if (appLogger && appLogger.error) {
+        appLogger.error(`${type}:`, err);
+      }
+    };
+
+    process.on("uncaughtException", (err) => {
+      errorHandler("未捕获的异常", err);
+      // 不要立即退出，让服务尝试恢复或优雅关闭
+    });
+
+    process.on("unhandledRejection", (reason, promise) => {
+      errorHandler("未处理的 Promise 拒绝", { promise, reason });
+    });
+
+    // 添加异步 preHandler hook 用于认证
+    server.addHook("preHandler", createAuthMiddleware(config));
+
+    // 添加路由处理 hook
+    server.addHook(
+      "preHandler",
+      createRouteMiddleware(config, sessionUsageCache, appLogger)
     );
 
-    const enabledFromRuntime = runtimeProvider?.enabled;
-    const enabledFromConfig = configProvider?.enabled;
+    // 通过provider的配置中的enable来判断当前模型是否可用，如果没有则直接返回报错
+    // 添加一个 hook prehandler 来判断 当前的provider 是否启用，如果没有则直接返回报错
+    server.addHook("preHandler", async (req, reply) => {
+      // 仅拦截模型请求
+      if (
+        !req.url.startsWith("/v1/messages") ||
+        req.url.startsWith("/v1/messages/count_tokens")
+      ) {
+        return;
+      }
 
-    // 默认启用，只有显式 false 才视为禁用
-    const isEnabled =
-      enabledFromRuntime !== undefined
-        ? enabledFromRuntime !== false
-        : enabledFromConfig !== false;
+      const model = req.body?.model;
+      if (!model || typeof model !== "string") return;
+      const [providerName] = model.split(",");
 
-    if (!isEnabled) {
-      return reply
-        .status(403)
-        .send({ error: "当前 Provider 已被禁用", provider: providerName });
+      const { getProviderService } = require("./utils");
+      const providerService = getProviderService(server);
+
+      // 优先从运行中的 providerService 获取状态，否则回退配置
+      const runtimeProvider = providerService?.getProvider(providerName);
+      const configProvider = (config.Providers || config.providers || []).find(
+        (p) => p.name === providerName
+      );
+
+      const enabledFromRuntime = runtimeProvider?.enabled;
+      const enabledFromConfig = configProvider?.enabled;
+
+      // 默认启用，只有显式 false 才视为禁用
+      const isEnabled =
+        enabledFromRuntime !== undefined
+          ? enabledFromRuntime !== false
+          : enabledFromConfig !== false;
+
+      if (!isEnabled) {
+        return reply
+          .status(403)
+          .send({ error: "当前 Provider 已被禁用", provider: providerName });
+      }
+    });
+
+    // Provider Transformer 解析中间件 - 解析 PUT /providers/:id 请求中的 transformer 配置
+    const transformerMiddleware = createProviderTransformerMiddleware(server, appLogger);
+    server.addHook("preHandler", transformerMiddleware.preHandler);
+
+    // Provider 密钥轮换 hook（api_keys / api_key）
+    const keyMiddleware = createProviderKeyMiddleware(config, server);
+    server.addHook("preHandler", keyMiddleware.preHandler);
+
+    // 添加错误处理 hook
+    server.addHook("onError", async (request, _reply, error) => {
+      await keyMiddleware.onError(request, _reply, error);
+      appLogger.error("请求错误:", error);
+    });
+
+    // 消息日志记录中间件 - 保存 /v1/messages 的请求和响应
+    const messageLogger = createMessageLoggerMiddleware({
+      logDir: CHAT_MESSAGE_DIR,
+      saveToFile: true,
+      logStream: true, // 流式响应较大，默认不记录
+      // 可选：自定义保存函数，例如保存到数据库
+      // onSave: async (requestData, responseData) => {
+      //   // 保存到数据库或其他存储
+      //   await saveToDatabase(requestData, responseData);
+      // },
+    });
+    server.addHook("preHandler", messageLogger.preHandler);
+    server.addHook("onSend", messageLogger.onSend);
+
+    // 初始化 agentsManager 和注册 MCP agent
+    // 注意：mcpService.initUpstreamServers() 在 registerMcpRoutes 中异步执行
+    // 这里先注册 agent，工具将在 mcpService 初始化完成后自动加载
+    try {
+      // 注册 MCP agent
+      agentsManager.registerAgent(mcpAgent);
+      // 刷新 MCP agent 工具
+      refreshMcpAgentTools(appLogger);
+    } catch (error) {
+      appLogger.error("初始化 agentsManager 失败:", error);
     }
-  });
 
-  // Provider Transformer 解析中间件 - 解析 PUT /providers/:id 请求中的 transformer 配置
-  const transformerMiddleware = createProviderTransformerMiddleware(server, appLogger);
-  server.addHook("preHandler", transformerMiddleware.preHandler);
+    // 添加用量缓存中间件（包含 preHandler 和 onSend）
+    // preHandler: 在请求处理前准备好所有 agents
+    // onSend: 处理响应和缓存用量
+    const usageCacheMiddleware = createUsageCacheMiddleware(sessionUsageCache, config, agentsManager);
+    server.addHook("preHandler", usageCacheMiddleware.preHandler);
+    server.addHook("onSend", usageCacheMiddleware.onSend);
 
-  // Provider 密钥轮换 hook（api_keys / api_key）
-  const keyMiddleware = createProviderKeyMiddleware(config, server);
-  server.addHook("preHandler", keyMiddleware.preHandler);
+    // onSend 释放 key 并发占用
+    server.addHook("onSend", keyMiddleware.onSend);
 
-  // 添加错误处理 hook
-  server.addHook("onError", async (request, _reply, error) => {
-    await keyMiddleware.onError(request, _reply, error);
-    appLogger.error("请求错误:", error);
-  });
-
-  // 消息日志记录中间件 - 保存 /v1/messages 的请求和响应
-  const messageLogger = createMessageLoggerMiddleware({
-    logDir: CHAT_MESSAGE_DIR,
-    saveToFile: true,
-    logStream: true, // 流式响应较大，默认不记录
-    // 可选：自定义保存函数，例如保存到数据库
-    // onSave: async (requestData, responseData) => {
-    //   // 保存到数据库或其他存储
-    //   await saveToDatabase(requestData, responseData);
-    // },
-  });
-  server.addHook("preHandler", messageLogger.preHandler);
-  server.addHook("onSend", messageLogger.onSend);
-
-  // 初始化 agentsManager 和注册 MCP agent
-  // 注意：mcpService.initUpstreamServers() 在 registerMcpRoutes 中异步执行
-  // 这里先注册 agent，工具将在 mcpService 初始化完成后自动加载
-  try {
-    // 注册 MCP agent
-    agentsManager.registerAgent(mcpAgent);
-    // 刷新 MCP agent 工具
-    refreshMcpAgentTools(appLogger);
-  } catch (error) {
-    appLogger.error("初始化 agentsManager 失败:", error);
-  }
-
-  // 添加用量缓存中间件（包含 preHandler 和 onSend）
-  // preHandler: 在请求处理前准备好所有 agents
-  // onSend: 处理响应和缓存用量
-  const usageCacheMiddleware = createUsageCacheMiddleware(sessionUsageCache, config, agentsManager);
-  server.addHook("preHandler", usageCacheMiddleware.preHandler);
-  server.addHook("onSend", usageCacheMiddleware.onSend);
-
-  // onSend 释放 key 并发占用
-  server.addHook("onSend", keyMiddleware.onSend);
-
-  // 启动服务器
-  try {
-    await server.start();
-  } catch (error) {
-    // 如果 start() 不是 Promise，尝试直接调用
-    if (typeof server.start === "function") {
-      server.start();
-    } else {
-      throw error;
+    // 启动服务器
+    try {
+      await server.start();
+    } catch (error) {
+      // 如果 start() 不是 Promise，尝试直接调用
+      if (typeof server.start === "function") {
+        server.start();
+      } else {
+        throw error;
+      }
     }
+
+    const serviceUrl = `http://${HOST}:${servicePort}/ui/`;
+    console.log(`[llm-server] 服务已启动，地址: ${serviceUrl}`);
+
+    // 初始化时设置 provider 自定义字段
+    await setProviderCustomFields(server, config, appLogger);
+  } catch (error) {
+    // 确保错误信息输出到 stderr
+    console.error("❌ startService() 内部错误:");
+    console.error(error);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    throw error; // 重新抛出错误，让上层处理
   }
-
-  const serviceUrl = `http://${HOST}:${servicePort}/ui/`;
-  console.log(`[llm-server] 服务已启动，地址: ${serviceUrl}`);
-
-  // 初始化时设置 provider 自定义字段
-  await setProviderCustomFields(server, config, appLogger);
-
 }
 
 // 如果直接运行此文件，则启动服务

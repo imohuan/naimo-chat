@@ -6,7 +6,7 @@ const { readdir, readFile, stat } = require("fs/promises");
 const { join, relative, sep } = require("path");
 const { writeFileSync } = require("fs");
 
-const publicDir = join(__dirname, "..", "public");
+const publicDir = join(__dirname, "..", "internal-public");
 const outputFile = join(
   __dirname,
   "..",
@@ -153,8 +153,7 @@ module.exports = {
       `   - 文本文件: ${Object.values(files).filter((f) => !f.isBinary).length}`
     );
     console.log(
-      `   - 二进制文件: ${
-        Object.values(files).filter((f) => f.isBinary).length
+      `   - 二进制文件: ${Object.values(files).filter((f) => f.isBinary).length
       }`
     );
   } catch (error) {

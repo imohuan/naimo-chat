@@ -113,14 +113,14 @@ watch(
       </div>
       <div
         ref="contentRef"
-        class="min-w-32 px-4 pt-4 rounded-2xl text-sm leading-relaxed shadow-sm font-mono select-text w-full flex flex-col gap-1 relative"
+        class="min-w-32 px-4 pt-4 rounded-2xl text-sm leading-relaxed shadow-sm font-mono select-text w-full flex flex-col gap-1 relative overflow-y-visible"
         :class="[
           item.data.role === 'system'
             ? 'bg-slate-100 text-slate-800 border border-slate-200'
             : 'bg-white text-slate-800 border border-slate-200',
           wordWrap
             ? 'whitespace-pre-wrap wrap-break-word'
-            : 'whitespace-pre overflow-x-auto overflow-y-visible',
+            : 'whitespace-pre overflow-x-auto',
         ]"
       >
         <template v-if="Array.isArray(item.data.content)">
@@ -280,13 +280,13 @@ watch(
       </div>
       <div
         ref="contentRef"
-        class="bg-white text-slate-800 border border-green-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm font-mono select-text flex flex-col gap-1 relative"
+        class="bg-white text-slate-800 border border-green-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm font-mono select-text flex flex-col gap-1 relative overflow-y-visible"
       >
         <div
-          class="text-slate-800 text-xs flex-1 overflow-y-visible"
+          class="text-slate-800 text-xs flex-1 overflow-y-visible overflow-x-auto"
           :class="{
             'whitespace-pre-wrap wrap-break-word': wordWrap,
-            'whitespace-pre overflow-x-auto': !wordWrap,
+            'whitespace-pre': !wordWrap,
           }"
         >
           {{ getDisplayContent(item) }}
@@ -325,15 +325,15 @@ watch(
       </div>
       <div
         ref="contentRef"
-        class="bg-red-50 border border-red-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-1 relative"
+        class="bg-red-50 border border-red-200 px-4 pt-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-1 relative overflow-y-visible"
       >
         <pre
-          class="text-red-600 text-xs select-text flex-1 overflow-y-visible"
+          class="text-red-600 text-xs select-text flex-1 overflow-y-visible overflow-x-auto"
           :class="{
             'whitespace-pre-wrap wrap-break-word': wordWrap,
-            'whitespace-pre overflow-x-auto': !wordWrap,
+            'whitespace-pre': !wordWrap,
           }"
-          >{{
+        >{{
             isCollapsed && shouldShowCollapse
               ? formatJson(item.data.err).trim().substring(0, 500) + "..."
               : formatJson(item.data.err).trim()

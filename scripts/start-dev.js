@@ -82,28 +82,46 @@ function startBackend() {
 
     processes.push(backendProcess);
 
-    backendProcess.stdout.on("data", (data) => {
-      const message = data.toString().trim();
-      if (message) {
-        colorLog("blue", "BACKEND", message);
+    // 收集所有输出，以便在进程退出时显示完整的错误信息
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
 
-        // 检测服务启动成功
-        if (
-          message.includes("服务已启动") ||
-          message.includes("Server listening") ||
-          message.includes("listening on") ||
-          message.includes("ready")
-        ) {
-          colorLog("green", "BACKEND", "✅ 后端服务启动成功");
-          resolve();
+    backendProcess.stdout.on("data", (data) => {
+      const message = data.toString();
+      stdoutBuffer += message;
+
+      // 实时输出每一行
+      const lines = message.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) {
+          colorLog("blue", "BACKEND", trimmed);
+
+          // 检测服务启动成功
+          if (
+            trimmed.includes("服务已启动") ||
+            trimmed.includes("Server listening") ||
+            trimmed.includes("listening on") ||
+            trimmed.includes("ready")
+          ) {
+            colorLog("green", "BACKEND", "✅ 后端服务启动成功");
+            resolve();
+          }
         }
       }
     });
 
     backendProcess.stderr.on("data", (data) => {
-      const message = data.toString().trim();
-      if (message) {
-        colorLog("red", "BACKEND", message);
+      const message = data.toString();
+      stderrBuffer += message;
+
+      // 实时输出每一行
+      const lines = message.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) {
+          colorLog("red", "BACKEND", trimmed);
+        }
       }
     });
 
@@ -115,8 +133,32 @@ function startBackend() {
     backendProcess.on("exit", (code) => {
       if (code !== 0 && code !== null) {
         colorLog("red", "BACKEND", `进程退出，代码: ${code}`);
+
+        // 如果进程异常退出，显示所有收集到的输出
         if (code !== 143) {
           // 143 是 SIGTERM 的正常退出码
+          if (stderrBuffer.trim()) {
+            colorLog("red", "BACKEND", "=== 错误输出 ===");
+            const errorLines = stderrBuffer.split("\n");
+            for (const line of errorLines) {
+              const trimmed = line.trim();
+              if (trimmed) {
+                colorLog("red", "BACKEND", trimmed);
+              }
+            }
+          }
+          if (stdoutBuffer.trim() && !stdoutBuffer.includes("服务已启动")) {
+            // 如果 stdout 中有输出但未检测到启动成功消息，也显示出来
+            colorLog("yellow", "BACKEND", "=== 标准输出 ===");
+            const outputLines = stdoutBuffer.split("\n");
+            for (const line of outputLines.slice(-20)) {
+              // 只显示最后 20 行，避免输出过多
+              const trimmed = line.trim();
+              if (trimmed) {
+                colorLog("yellow", "BACKEND", trimmed);
+              }
+            }
+          }
           reject(new Error(`后端服务异常退出: ${code}`));
         }
       }

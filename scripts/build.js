@@ -37,7 +37,7 @@ const rootDir = path.resolve(__dirname, "..");
 const frontendDir = path.join(rootDir, "packages", "frontend");
 const backendDir = path.join(rootDir, "packages", "backend");
 const frontendDistDir = path.join(frontendDir, "dist");
-const backendPublicDir = path.join(backendDir, "public");
+const backendPublicDir = path.join(backendDir, "internal-public");
 const backendDistDir = path.join(backendDir, "dist");
 const rootDistDir = path.join(rootDir, "dist");
 

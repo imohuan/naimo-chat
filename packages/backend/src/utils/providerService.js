@@ -62,7 +62,7 @@ async function setProvider(target, options = {}, config = {}, server = null) {
     );
 
     if (updatedProvider) {
-      console.log("设置 Provider 成功", target.name, options);
+      // console.log("设置 Provider 成功", target.name, options);
       return true;
     }
     console.warn("更新 Provider 失败，未找到:", target.name);
@@ -89,7 +89,7 @@ async function setProvider(target, options = {}, config = {}, server = null) {
   );
   const data = await response.json().catch(() => null);
   if (debug) console.log("setProvider", data);
-  console.log("设置 Provider 成功", target.name, options);
+  // console.log("设置 Provider 成功", target.name, options);
 
   return true;
 }
