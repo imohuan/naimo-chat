@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { McpServer, McpTool } from "@/interface";
+import { useLlmApi } from "@/hooks/useLlmApi";
 import {
   DeleteOutlined,
   BuildOutlined,
@@ -26,6 +27,7 @@ const emit = defineEmits<{
   refresh: [server: McpServer];
 }>();
 
+const { endpoint } = useLlmApi();
 const isEnabled = computed(() => props.server.config.enabled !== false);
 const copyState = ref<"idle" | "copying" | "done">("idle");
 
@@ -86,9 +88,11 @@ function handleRefresh() {
 
 async function handleCopyConfig() {
   if (!navigator?.clipboard || copyState.value === "copying") return;
+  const baseUrl = endpoint.value;
   const payload = {
     [props.server.name]: {
-      url: "{baseurl}/mcp/" + props.server.name,
+      type: "http",
+      url: `${baseUrl}/mcp/${props.server.name}`,
     },
   };
   const text = JSON.stringify(payload, null, 2);

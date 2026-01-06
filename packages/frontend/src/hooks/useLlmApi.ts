@@ -434,7 +434,9 @@ export function useLlmApi() {
    * @param requestId 请求 ID
    * @returns 对话详情
    */
-  async function fetchMessageDetail(requestId: string): Promise<{
+  async function fetchMessageDetail(
+    requestId: string
+  ): Promise<{
     requestId: string;
     request: any;
     response: {
@@ -501,11 +503,13 @@ export function useLlmApi() {
    * 获取 transformers 列表
    * @returns transformers 列表
    */
-  async function fetchTransformers(): Promise<Array<{ name: string; endpoint: string | null }>> {
+  async function fetchTransformers(): Promise<
+    Array<{ name: string; endpoint: string | null }>
+  > {
     try {
-      const data = await apiCall<{ transformers?: Array<{ name: string; endpoint: string | null }> }>(
-        "/api/transformers"
-      );
+      const data = await apiCall<{
+        transformers?: Array<{ name: string; endpoint: string | null }>;
+      }>("/api/transformers");
       return data.transformers || [];
     } catch (err) {
       console.error("获取 transformers 失败:", err);

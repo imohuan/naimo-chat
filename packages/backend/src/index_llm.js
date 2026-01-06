@@ -322,7 +322,9 @@ async function startService() {
     server.addHook("preHandler", async (req, _reply) => {
       // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
       if (req.url === "/providers" && req.method === "GET") {
-        await setProviderCustomFields(server, config, appLogger);
+        // 读取最新的config文件
+        const nowConfig = await initConfig();
+        await setProviderCustomFields(server, nowConfig, appLogger);
       }
       // 不返回值，让请求继续处理
     });
