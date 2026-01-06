@@ -16,9 +16,11 @@ const props = withDefaults(
     isToggling?: boolean;
     isSavingConfig?: boolean;
     showTools?: boolean;
+    compact?: boolean;
   }>(),
   {
     showTools: false,
+    compact: false,
   }
 );
 
@@ -90,12 +92,13 @@ function handleRefresh() {
 
 <template>
   <div
-    class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow group"
+    class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group"
+    :class="compact ? 'p-3' : 'p-4'"
   >
     <div class="flex items-start gap-4">
       <!-- 左侧：服务器信息 -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between" :class="compact ? 'mb-2' : 'mb-3'">
           <div class="flex items-center gap-3 flex-1 min-w-0">
             <h3 class="font-bold text-slate-800 text-base truncate">
               {{ server.name }}
@@ -147,6 +150,7 @@ function handleRefresh() {
           </div>
         </div>
         <div
+          v-if="!compact"
           class="text-sm text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 mb-3"
         >
           {{ serverDescription }}

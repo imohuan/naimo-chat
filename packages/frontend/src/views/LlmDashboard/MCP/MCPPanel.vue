@@ -16,6 +16,7 @@ import {
   EditOutlined,
   GridViewOutlined,
   ViewListOutlined,
+  ListOutlined,
 } from "@vicons/material";
 import Input from "@/components/llm/Input.vue";
 import MCPItem from "./components/MCPItem.vue";
@@ -53,7 +54,7 @@ const filteredServers = ref<McpServer[]>([]);
 const searchQuery = ref("");
 const isSavingServer = ref(false);
 const currentTab = ref<"servers" | "empty" | "builtin">("servers");
-const viewMode = ref<"grid" | "list">("grid");
+const viewMode = ref<"grid" | "list" | "compact-list">("grid");
 
 type CloudMcpServer = {
   name: string;
@@ -404,6 +405,19 @@ onMounted(() => {
           >
             <ViewListOutlined class="w-4 h-4" />
           </button>
+          <button
+            type="button"
+            class="p-1.5 rounded transition-colors"
+            :class="
+              viewMode === 'compact-list'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-800'
+            "
+            title="紧凑列表"
+            @click="viewMode = 'compact-list'"
+          >
+            <ListOutlined class="w-4 h-4" />
+          </button>
         </div>
         <button
           class="btn-secondary shadow-sm"
@@ -524,6 +538,7 @@ onMounted(() => {
           :is-loading-tools="serverToolsLoading[server.name] || false"
           :is-toggling="serverToggleLoading[server.name] || false"
           :is-saving-config="isSavingConfig"
+          :compact="viewMode === 'compact-list'"
           @delete="handleDeleteServerWithConfirm"
           @toggle="handleToggleServer"
           @edit="openEditServerModal"
