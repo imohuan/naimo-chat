@@ -119,6 +119,7 @@ export function useChatApi() {
       {
         method: "POST",
         body: JSON.stringify(body),
+        signal: params.abortSignal,
       }
     );
 
@@ -171,6 +172,7 @@ export function useChatApi() {
       {
         method: "POST",
         body: JSON.stringify(body),
+        signal: params.abortSignal,
       }
     );
 

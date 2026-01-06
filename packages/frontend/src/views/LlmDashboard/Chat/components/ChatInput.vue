@@ -16,7 +16,7 @@ import {
   usePromptInput,
 } from "@/components/ai-elements/prompt-input";
 import { MicRound } from "@vicons/material";
-import { Globe, ImageIcon } from "lucide-vue-next";
+import { Globe, ImageIcon, Square } from "lucide-vue-next";
 import ModeSelector from "./ModeSelector.vue";
 import ModelConfigPanel from "./ModelConfigPanel.vue";
 import type { ConversationMode } from "@/views/LlmDashboard/Chat/types";
@@ -33,10 +33,12 @@ const props = defineProps<{
   providers?: LlmProvider[];
   hasMessages: boolean;
   modelConfig?: ChatModelConfig;
+  canAbort?: boolean;
 }>();
 
 const emit = defineEmits<{
   submit: [message: PromptInputMessage];
+  abort: [];
   "update:mode": [mode: ConversationMode];
   "update:modelId": [modelId: string];
   "update:useWebSearch": [value: boolean];
@@ -143,6 +145,10 @@ function handleTagClick(data: {
   emit("tag-click", data);
 }
 
+function handleAbort() {
+  emit("abort");
+}
+
 // 暴露 ref 供父组件使用
 defineExpose({
   promptInputEditorRef,
@@ -195,8 +201,23 @@ defineExpose({
             <Globe class="w-4 h-4" />
           </PromptInputButton>
 
-          <PromptInputSubmit :disabled="status === 'streaming'" :status="status" />
-        </div>
+          <PromptInputSubmit
+            v-if="!canAbort"
+            :disabled="status === 'streaming'"
+            :status="status"
+          />
+
+          <!-- 取消按钮 -->
+          <button
+            v-if="canAbort"
+            @click="handleAbort"
+            class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all bg-red-500 text-white hover:bg-red-600 text-white h-8 px-3"
+          >
+            <Square class="w-4 h-4" />
+            <span>取消</span>
+          </button>
+
+                  </div>
       </PromptInputFooter>
     </PromptInput>
   </div>

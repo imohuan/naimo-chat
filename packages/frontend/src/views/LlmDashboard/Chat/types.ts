@@ -176,6 +176,7 @@ export interface CreateConversationParams {
   editorCode?: string;
   messages?: Array<{ role: "user" | "assistant"; content: string }>;
   config?: ChatModelExtensionConfig;
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -190,6 +191,7 @@ export interface SendMessageParams {
   editorCode?: string;
   messageKey?: string; // 重试时传递的 messageKey，用于在同一消息下创建新版本
   config?: ChatModelExtensionConfig;
+  abortSignal?: AbortSignal;
 }
 
 /**

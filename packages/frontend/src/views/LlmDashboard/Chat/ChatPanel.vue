@@ -64,6 +64,8 @@ const isCanvasReadonly = ref(false);
 const refreshImmersiveCode = ref(true);
 // 标记当前对话是否已为流式输出创建空版本
 const hasCreatedEmptyVersion = ref(false);
+// 中断控制器
+const abortController = ref<AbortController | null>(null);
 // 模型配置（统一管理，通过 v-model 传递给 ModelConfigPanel）
 const modelConfig = ref<ChatModelConfig>({
   modelId: modelId.value,
@@ -279,9 +281,12 @@ async function handleSubmit(message: PromptInputMessage) {
     !activeConversation.value ||
     (activeMessages.value?.length || 0) === 0;
 
-  if (shouldCreateNewConversation) {
-    try {
-      status.value = "streaming";
+  try {
+    // 创建新的中断控制器
+    abortController.value = new AbortController();
+    status.value = "streaming";
+
+    if (shouldCreateNewConversation) {
       await createConversation({
         initialInput: content,
         mode: selectedMode.value,
@@ -292,46 +297,43 @@ async function handleSubmit(message: PromptInputMessage) {
           selectedMode.value === "canvas"
             ? canvasPanelRef.value?.getCurrentCode()
             : undefined,
+        abortSignal: abortController.value.signal,
       });
-      // createConversation 已经处理了第一条消息，直接返回
-      return;
-    } catch (error) {
+      // createConversation 已经处理了第一条消息，继续执行 finally 块进行清理
+    } else {
+      // 如果已有活跃对话且有消息，发送消息
+      await sendMessage(activeConversationId.value!, {
+        content,
+        mode: selectedMode.value,
+        model: activeModelId,
+        files: userFiles,
+        config: extensionConfig,
+        editorCode:
+          selectedMode.value === "canvas"
+            ? canvasPanelRef.value?.getCurrentCode()
+            : undefined,
+        abortSignal: abortController.value.signal,
+      });
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      pushToast("请求已中断", "info");
+    } else {
       pushToast(
-        `创建对话失败: ${error instanceof Error ? error.message : "未知错误"}`,
+        shouldCreateNewConversation
+          ? `创建对话失败: ${error instanceof Error ? error.message : "未知错误"}`
+          : `发送消息失败: ${error instanceof Error ? error.message : "未知错误"}`,
         "error"
       );
-      status.value = "ready";
-      return;
     }
-  }
-
-  // 如果已有活跃对话且有消息，发送消息
-  try {
-    status.value = "streaming";
-    await sendMessage(activeConversationId.value, {
-      content,
-      mode: selectedMode.value,
-      model: activeModelId,
-      files: userFiles,
-      config: extensionConfig,
-      editorCode:
-        selectedMode.value === "canvas"
-          ? canvasPanelRef.value?.getCurrentCode()
-          : undefined,
-    });
-  } catch (error) {
-    pushToast(
-      `发送消息失败: ${error instanceof Error ? error.message : "未知错误"}`,
-      "error"
-    );
-    status.value = "ready";
   } finally {
+    // 不在这里清理 abortController，让 SSE 完成事件来处理
     status.value = "ready";
   }
 }
 
 // 处理重试
-function handleRetry(messageKey: string) {
+async function handleRetry(messageKey: string) {
   // 重试按钮显示在助手消息上，所以 messageKey 是助手消息的 key
   const messages = activeMessages.value || [];
   const assistantMessage = messages.find((msg) => msg.key === messageKey);
@@ -382,27 +384,41 @@ function handleRetry(messageKey: string) {
   // 从当前页面的 modelConfig 获取配置
   const { activeModelId, extensionConfig } = getModelConfigExtension();
 
-  // latestVersion.content
-  // 传递助手消息的 messageKey 用于重试（后端会在该助手消息下创建新版本）
-  sendMessage(activeConversationId.value, {
-    content: latestVersion.contentBlocks
-      .map((block) => (block.type === "text" ? block.content : ""))
-      .join("\n"),
-    mode: selectedMode.value,
-    model: activeModelId,
-    files: userFiles,
-    messageKey, // 传递助手消息的 messageKey 用于重试
-    config: extensionConfig,
-    editorCode:
-      selectedMode.value === "canvas"
-        ? canvasPanelRef.value?.getCurrentCode()
-        : undefined,
-  }).catch((error) => {
-    pushToast(
-      `重试失败: ${error instanceof Error ? error.message : "未知错误"}`,
-      "error"
-    );
-  });
+  try {
+    // 创建新的中断控制器
+    abortController.value = new AbortController();
+    status.value = "streaming";
+
+    // latestVersion.content
+    // 传递助手消息的 messageKey 用于重试（后端会在该助手消息下创建新版本）
+    await sendMessage(activeConversationId.value, {
+      content: latestVersion.contentBlocks
+        .map((block) => (block.type === "text" ? block.content : ""))
+        .join("\n"),
+      mode: selectedMode.value,
+      model: activeModelId,
+      files: userFiles,
+      messageKey, // 传递助手消息的 messageKey 用于重试
+      config: extensionConfig,
+      editorCode:
+        selectedMode.value === "canvas"
+          ? canvasPanelRef.value?.getCurrentCode()
+          : undefined,
+      abortSignal: abortController.value.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      pushToast("重试已中断", "info");
+    } else {
+      pushToast(
+        `重试失败: ${error instanceof Error ? error.message : "未知错误"}`,
+        "error"
+      );
+    }
+  } finally {
+    // 不在这里清理 abortController，让 SSE 完成事件来处理
+    status.value = "ready";
+  }
 }
 
 // 处理标签点击（代码引用、元素选择等）
@@ -512,6 +528,17 @@ function handleClear() {
   emit("clear");
 }
 
+// 处理中断请求
+function handleAbort() {
+  if (abortController.value) {
+    abortController.value.abort();
+    pushToast("正在中断请求...", "info");
+    // 立即清理 abortController，确保按钮状态正确更新
+    abortController.value = null;
+    status.value = "ready";
+  }
+}
+
 // 存储当前记录 ID（用于 diff 应用后保存）
 const currentRecordId = ref<string | null>(null);
 const currentOriginalCode = ref<string | null>(null);
@@ -519,6 +546,10 @@ const currentOriginalCode = ref<string | null>(null);
 // 监听事件总线事件
 onMounted(() => {
   eventBus.on("message:complete", () => {
+    // SSE 流完成时清理 abortController
+    if (abortController.value) {
+      abortController.value = null;
+    }
     status.value = "ready";
     // 消息完成后重置标记，为下一次流式输出做准备
     hasCreatedEmptyVersion.value = false;
@@ -732,6 +763,12 @@ onUnmounted(() => {
   eventBus.off("canvas:show_editor");
   eventBus.off("canvas:code_complete");
   eventBus.off("canvas:record_created");
+
+  // 清理中断控制器
+  // if (abortController.value) {
+  //   abortController.value.abort();
+  //   abortController.value = null;
+  // }
 });
 
 // 保存代码历史
@@ -878,7 +915,9 @@ watch(activeConversationId, (_newId, oldId) => {
                 :providers="providers"
                 :has-messages="hasMessages"
                 :model-config="modelConfig"
+                :can-abort="status === 'streaming' && !!abortController"
                 @submit="handleSubmit"
+                @abort="handleAbort"
                 @update:mode="selectedMode = $event"
                 @update:model-id="modelId = $event"
                 @update:use-web-search="useWebSearch = $event"
