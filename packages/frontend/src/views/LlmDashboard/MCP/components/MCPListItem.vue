@@ -93,22 +93,25 @@ function handleRefresh() {
 <template>
   <div
     class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow group"
-    :class="compact ? 'px-4 pb-2 pt-4' : 'p-4'"
+    :class="compact ? 'px-4 py-2' : 'p-4'"
   >
     <div class="flex items-start" :class="compact ? 'gap-3' : 'gap-4'">
       <!-- 左侧：服务器信息 -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center justify-between" :class="compact ? 'mb-2' : 'mb-3'">
-          <div class="flex items-center flex-1 min-w-0" :class="compact ? 'gap-2' : 'gap-3'">
-            <h3 class="font-bold text-slate-800 truncate" :class="compact ? 'text-sm' : 'text-base'">
+        <div class="flex items-center justify-between" :class="compact ? 'mb-0' : 'mb-3'">
+          <div
+            class="flex items-center flex-1 min-w-0"
+            :class="compact ? 'gap-2' : 'gap-3'"
+          >
+            <h3
+              class="font-bold text-slate-800 truncate"
+              :class="compact ? 'text-sm' : 'text-base'"
+            >
               {{ server.name }}
             </h3>
             <span
               class="text-xs font-mono font-bold rounded shrink-0"
-              :class="[
-                compact ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
-                serverTypeColor
-              ]"
+              :class="[compact ? 'px-1.5 py-0.5' : 'px-2 py-0.5', serverTypeColor]"
             >
               {{ serverTypeLabel }}
             </span>
@@ -116,7 +119,7 @@ function handleRefresh() {
               class="text-xs font-semibold rounded flex items-center gap-1 shrink-0"
               :class="[
                 compact ? 'px-1.5 py-0.5' : 'px-2 py-0.5',
-                isEnabled ? 'text-green-700' : 'text-slate-600'
+                isEnabled ? 'text-green-700' : 'text-slate-600',
               ]"
             >
               <span
