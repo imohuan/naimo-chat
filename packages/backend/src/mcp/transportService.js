@@ -10,7 +10,7 @@ const { Readable } = require("stream");
 
 class TransportService {
   constructor() {
-    this.sessions = new Map(); // sessionId -> { transport, server } 会话映射
+    this.sessions = new Map(); // sessionId -> { transport, server, initialized } 会话映射
     this.sseSessionMap = new Map(); //sse.sessionId -> sessionId
   }
 
@@ -42,8 +42,7 @@ class TransportService {
       `[SSE 连接] handleSSEConnection 已调用，URL: ${req.url}，组: ${req.params.group}`
     );
     console.log(
-      `[SSE 连接] 基础会话ID: ${baseSessionId}，服务器: ${
-        mcpServer?.name || "未知"
+      `[SSE 连接] 基础会话ID: ${baseSessionId}，服务器: ${mcpServer?.name || "未知"
       }`
     );
 
@@ -58,8 +57,7 @@ class TransportService {
       `[SSE 连接] 清理后的会话ID: ${cleanSessionId}，最终会话ID: ${sessionId}`
     );
     console.log(
-      `[SSE 连接] 当前已存在的会话: ${
-        Array.from(this.sessions.keys()).join(", ") || "无"
+      `[SSE 连接] 当前已存在的会话: ${Array.from(this.sessions.keys()).join(", ") || "无"
       }`
     );
 
@@ -102,14 +100,14 @@ class TransportService {
       server: mcpServer,
       group: req.params.group,
       transportType: "SSE", // 标识 transport 类型
+      initialized: true, // SSE 连接时默认已初始化
     };
     const sseSession = transport.sessionId;
     this.sessions.set(sessionId, sessionData);
     this.sseSessionMap.set(sseSession, sessionId);
 
     console.log(
-      `[SSE 连接] 已存储会话: ${sessionId}，传输类型=SSE，服务器=${
-        mcpServer?.name || "未知"
+      `[SSE 连接] 已存储会话: ${sessionId}，传输类型=SSE，服务器=${mcpServer?.name || "未知"
       }，组=${req.params.group}`
     );
     console.log(
@@ -141,8 +139,7 @@ class TransportService {
       this.sessions.delete(sessionId);
       this.sseSessionMap.delete(sseSession);
       console.log(
-        `[SSE 连接] 已删除会话 ${sessionId}，剩余会话: ${
-          Array.from(this.sessions.keys()).join(", ") || "无"
+        `[SSE 连接] 已删除会话 ${sessionId}，剩余会话: ${Array.from(this.sessions.keys()).join(", ") || "无"
         }`
       );
       // 传输层会自动处理清理
@@ -451,10 +448,8 @@ class TransportService {
     // 详细诊断会话状态
     if (session) {
       console.log(
-        `[StreamableHTTP] 会话详情: 传输层=${!!session.transport}，传输类型=${
-          session.transport?.constructor?.name
-        }，是否为StreamableHTTP=${
-          session.transport instanceof StreamableHTTPServerTransport
+        `[StreamableHTTP] 会话详情: 传输层=${!!session.transport}，传输类型=${session.transport?.constructor?.name
+        }，是否为StreamableHTTP=${session.transport instanceof StreamableHTTPServerTransport
         }，服务器=${!!session.server}，组=${session.group}`
       );
     }
@@ -462,6 +457,14 @@ class TransportService {
     let transport;
     let sessionId = providedSessionId;
     let serverToUse = mcpServer; // 默认使用传入的 server
+
+    // 如果是初始化请求，且已经存在会话，则删除旧会话以重新开始
+    // 这可以防止 "Server already initialized" 错误，当客户端重启但使用相同 sessionId 时
+    if (isInitialize && session) {
+      console.log(`[StreamableHTTP] 收到新的初始化请求，正在清理旧会话: ${providedSessionId}`);
+      this.sessions.delete(providedSessionId);
+      session = null;
+    }
 
     if (session && session.transport instanceof StreamableHTTPServerTransport) {
       // 重用现有会话
@@ -479,10 +482,54 @@ class TransportService {
         session.server = mcpServer;
       }
       console.log(
-        `[StreamableHTTP] 重用现有会话: ${sessionId}，服务器: ${
-          serverToUse?.name || "未知"
-        }`
+        `[StreamableHTTP] 重用现有会话: ${sessionId}，服务器: ${serverToUse?.name || serverToUse?.displayName || "未知"
+        }，已初始化: ${session.initialized || false}`
       );
+
+      // 如果会话已初始化且收到 initialize 请求，直接返回保存的初始化响应
+      // 这样可以避免 SDK 抛出 "Server already initialized" 错误
+      if (session.initialized && isInitialize && requestBody) {
+        console.log(
+          `[StreamableHTTP] 会话 ${sessionId} 已初始化，拦截重复的 initialize 请求并返回保存的初始化响应`
+        );
+        const response = reply.raw;
+        if (!response.headersSent) {
+          // 如果会话中保存了初始化响应，使用保存的响应（但更新 id 以匹配当前请求）
+          if (session.initResponse) {
+            const savedResponse = JSON.parse(JSON.stringify(session.initResponse));
+            savedResponse.id = requestBody.id || savedResponse.id;
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "application/json");
+            response.end(JSON.stringify(savedResponse));
+            console.log(
+              `[StreamableHTTP] 已返回保存的初始化响应，会话ID: ${sessionId}`
+            );
+          } else {
+            // 如果没有保存的响应，返回一个基本的响应（向后兼容）
+            console.warn(
+              `[StreamableHTTP] 会话 ${sessionId} 没有保存的初始化响应，返回基本响应`
+            );
+            const initResponse = {
+              jsonrpc: "2.0",
+              result: {
+                protocolVersion: requestBody.params?.protocolVersion || "2024-11-05",
+                capabilities: {
+                  tools: {},
+                },
+                serverInfo: {
+                  name: serverToUse?.name || "mcp-server",
+                  version: "1.0.0",
+                },
+              },
+              id: requestBody.id || null,
+            };
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "application/json");
+            response.end(JSON.stringify(initResponse));
+          }
+        }
+        return;
+      }
     }
 
     // 标记是否因为类型不匹配而删除了会话
@@ -496,8 +543,7 @@ class TransportService {
       // 删除错误的会话，然后继续创建新的 StreamableHTTP 会话
       // 注意：即使不是 initialize 请求，也允许重新创建，因为这是服务器端的错误
       console.warn(
-        `[StreamableHTTP] 会话 ${sessionId} 存在但传输层不是 StreamableHTTPServerTransport。传输类型: ${
-          session.transport?.constructor?.name || "未定义"
+        `[StreamableHTTP] 会话 ${sessionId} 存在但传输层不是 StreamableHTTPServerTransport。传输类型: ${session.transport?.constructor?.name || "未定义"
         }。正在删除并重新创建为 StreamableHTTP 会话。`
       );
       this.sessions.delete(sessionId);
@@ -552,6 +598,7 @@ class TransportService {
             const existingSession = this.sessions.get(sessionId);
             if (existingSession) {
               this.sessions.delete(sessionId);
+              existingSession.initialized = true; // 标记为已初始化
               this.sessions.set(initializedSessionId, existingSession);
               console.log(
                 `[StreamableHTTP] 已更新会话映射，从 ${sessionId} 到 ${initializedSessionId}`
@@ -559,6 +606,8 @@ class TransportService {
             }
           } else {
             console.log(`[StreamableHTTP] ✅ 会话ID与期望值匹配: ${sessionId}`);
+            // 注意：不要在这里设置 initialized = true
+            // initialized 应该在收到第一个成功且解析后的 MCP initialize 响应后设置
           }
         },
       });
@@ -586,12 +635,12 @@ class TransportService {
         server: mcpServer,
         group: req.params.group,
         transportType: "StreamableHTTP", // 标识 transport 类型
+        initialized: false, // 初始状态为未初始化，在 onsessioninitialized 回调中设置为 true
       };
       this.sessions.set(sessionId, sessionData);
       console.log(
-        `[StreamableHTTP] 已存储会话: ${sessionId}，传输类型=${
-          transport.constructor?.name
-        }，服务器=${mcpServer?.name || "未知"}`
+        `[StreamableHTTP] 已存储会话: ${sessionId}，传输类型=${transport.constructor?.name
+        }，服务器=${mcpServer?.name || mcpServer?.displayName || "未知"}`
       );
 
       serverToUse = mcpServer; // 使用新创建的 server
@@ -631,8 +680,16 @@ class TransportService {
 
     // StreamableHTTPServerTransport 要求响应流不能有编码设置
     // 创建一个 Proxy 包装的响应对象，确保编码检查通过
-    // 这样可以拦截对编码属性的访问，返回 null
-    // 这样可以拦截对编码属性的访问，返回 null
+    // 同时拦截 initialize 请求的响应以保存初始化信息
+    let responseChunks = [];
+    // 判断是否是第一次初始化请求（需要保存响应）
+    // 如果会话不存在或未初始化，且当前请求是 initialize，则需要保存响应
+    const isFirstInitialize = isInitialize && (!session || !session.initialized);
+
+    // 保存 sessionId 和 this 的引用，以便在 Proxy 中访问
+    const transportService = this;
+    const currentSessionId = sessionId;
+
     const wrappedResponse = new Proxy(response, {
       get(target, prop) {
         // 如果访问 _readableState，返回一个代理对象
@@ -658,6 +715,59 @@ class TransportService {
         if (prop === "readableEncoding") {
           return null;
         }
+
+        // 拦截 write 方法以捕获响应内容（用于保存初始化响应）
+        if (prop === "write" && isFirstInitialize) {
+          return function (chunk, encoding, callback) {
+            if (chunk) {
+              responseChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+            }
+            return target.write(chunk, encoding, callback);
+          };
+        }
+
+        // 拦截 end 方法以保存完整的初始化响应
+        if (prop === "end" && isFirstInitialize) {
+          return function (chunk, encoding, callback) {
+            if (chunk) {
+              responseChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+            }
+
+            // 尝试解析并保存初始化响应
+            if (responseChunks.length > 0) {
+              try {
+                const responseBody = Buffer.concat(responseChunks).toString("utf8");
+                const parsedResponse = JSON.parse(responseBody);
+
+                // 如果是 initialize 响应（有 result 字段且包含 protocolVersion 或 capabilities）
+                if (parsedResponse.result && (parsedResponse.result.protocolVersion || parsedResponse.result.capabilities)) {
+                  // 从 sessions Map 中获取会话（确保获取最新的会话对象）
+                  const currentSession = transportService.sessions.get(currentSessionId);
+                  if (currentSession) {
+                    currentSession.initResponse = parsedResponse;
+                    currentSession.initialized = true; // 在成功拿到响应后才标记为已初始化
+                    console.log(
+                      `[StreamableHTTP] 已成功初始化并保存响应到会话 ${currentSessionId}:`,
+                      JSON.stringify(parsedResponse, null, 2).substring(0, 500)
+                    );
+                  } else {
+                    console.warn(
+                      `[StreamableHTTP] 无法保存初始化响应：会话 ${currentSessionId} 不存在`
+                    );
+                  }
+                }
+              } catch (error) {
+                console.warn(
+                  `[StreamableHTTP] 解析初始化响应失败，无法保存:`,
+                  error.message
+                );
+              }
+            }
+
+            return target.end(chunk, encoding, callback);
+          };
+        }
+
         // 其他属性正常返回
         return target[prop];
       },

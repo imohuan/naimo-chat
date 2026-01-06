@@ -140,7 +140,7 @@ class McpService {
     // Use low-level Server API for dynamic tool registration with JSON Schema
     const server = new Server(
       {
-        name: "demo-router-hub",
+        name: "naimo_mcp_hub",
         version: "1.0.0",
       },
       {
@@ -149,6 +149,8 @@ class McpService {
         },
       }
     );
+    server.displayName = "naimo_mcp_hub";
+    server.name = "naimo_mcp_hub"; // 同时设置 name 属性以便日志读取
 
     // 收集所有工具
     let allTools = [];
