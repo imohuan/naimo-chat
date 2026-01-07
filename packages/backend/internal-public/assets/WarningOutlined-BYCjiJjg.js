@@ -1,0 +1,1 @@
+import{Xt as e,en as t,gn as n,qt as r}from"./index-urHyhAmF.js";var i={xmlns:`http://www.w3.org/2000/svg`,"xmlns:xlink":`http://www.w3.org/1999/xlink`,viewBox:`0 0 24 24`},a=t({name:`WarningOutlined`,render:function(t,a){return n(),e(`svg`,i,a[0]||=[r(`path`,{d:`M1 21h22L12 2L1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z`,fill:`currentColor`},null,-1)])}});export{a as t};
