@@ -167,7 +167,8 @@ async function handleSave() {
               placeholder="-- 请选择用于翻译的模型 --"
             />
             <p class="text-xs text-slate-500">
-              选择用于翻译工具描述与参数提示的路由模型，优先使用启用中的 Provider。
+              选择用于翻译工具描述与参数提示的路由模型，优先使用启用中的
+              Provider。
             </p>
           </div>
           <div class="space-y-2">
@@ -178,9 +179,15 @@ async function handleSave() {
               <div class="text-xs text-slate-500">
                 开启后，在打开工具或相关面板时自动请求翻译，关闭后需手动触发。
               </div>
-              <label class="inline-flex items-center gap-3 cursor-pointer select-none">
+              <label
+                class="inline-flex items-center gap-3 cursor-pointer select-none"
+              >
                 <div class="relative">
-                  <input v-model="autoTranslate" type="checkbox" class="sr-only peer" />
+                  <input
+                    v-model="autoTranslate"
+                    type="checkbox"
+                    class="sr-only peer"
+                  />
                   <div
                     class="w-12 h-6 rounded-full bg-slate-200 peer-checked:bg-primary/80 transition-colors"
                   ></div>
@@ -192,6 +199,7 @@ async function handleSave() {
             </div>
           </div>
           <div
+            v-if="false"
             class="relative p-4 rounded-xl border border-slate-300 bg-slate-50/70 flex flex-col gap-3"
           >
             <div
@@ -212,7 +220,9 @@ async function handleSave() {
               <div class="flex items-center gap-3 md:mt-1">
                 <label
                   class="inline-flex items-center gap-3 cursor-pointer select-none"
-                  :class="{ 'opacity-60 pointer-events-none': clipboardLoading }"
+                  :class="{
+                    'opacity-60 pointer-events-none': clipboardLoading,
+                  }"
                 >
                   <div class="relative">
                     <input
@@ -300,7 +310,10 @@ async function handleSave() {
                 : 'bg-red-50 border-red-200 text-red-700'
             "
           >
-            <CheckCircleOutlined v-if="healthStatus.ok" class="w-4 h-4 mt-0.5 shrink-0" />
+            <CheckCircleOutlined
+              v-if="healthStatus.ok"
+              class="w-4 h-4 mt-0.5 shrink-0"
+            />
             <ErrorOutlined v-else class="w-4 h-4 mt-0.5 shrink-0" />
             <div>
               <p class="font-bold text-xs uppercase mb-0.5">健康检查</p>
@@ -327,11 +340,20 @@ async function handleSave() {
             测试连接
           </button>
           <div class="flex gap-3">
-            <button class="btn-secondary" @click="show = false" :disabled="isSaving">
+            <button
+              class="btn-secondary"
+              @click="show = false"
+              :disabled="isSaving"
+            >
               取消
             </button>
-            <button class="btn-primary" @click="handleSave" :disabled="isSaving">
-              <SaveOutlined class="w-4 h-4" /> {{ isSaving ? "保存中..." : "保存设置" }}
+            <button
+              class="btn-primary"
+              @click="handleSave"
+              :disabled="isSaving"
+            >
+              <SaveOutlined class="w-4 h-4" />
+              {{ isSaving ? "保存中..." : "保存设置" }}
             </button>
           </div>
         </div>
