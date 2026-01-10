@@ -48,18 +48,18 @@ const {
 
 // 刷新对话列表
 async function refreshMessages() {
-  const currentSelectedId = selectedMessageId.value;
-
   await loadMessages(true);
 
-  // 刷新后保持选中状态
-  if (currentSelectedId) {
+  // 刷新后保持选中状态（使用当前的 ID，以防用户在刷新过程中切换了对话）
+  const idToRefresh = selectedMessageId.value;
+
+  if (idToRefresh) {
     // 检查该消息是否仍然存在
     const stillExists = filteredMessages.value.some(
-      (msg) => msg.requestId === currentSelectedId
+      (msg) => msg.requestId === idToRefresh
     );
     if (stillExists) {
-      await selectMessage(currentSelectedId);
+      await selectMessage(idToRefresh);
     } else {
       // 如果消息不存在了，选择第一个
       if (filteredMessages.value.length > 0) {
@@ -89,7 +89,9 @@ async function handleRefreshLogFile() {
   // 确保刷新后仍然选中同一个文件
   if (currentSelectedPath) {
     // 检查该文件是否仍然存在，如果不存在则选择第一个
-    const updatedFile = logFiles.value.find((f) => f.path === currentSelectedPath);
+    const updatedFile = logFiles.value.find(
+      (f) => f.path === currentSelectedPath
+    );
     if (updatedFile && updatedFile.path !== selectedLogFileObj.value?.path) {
       // 如果文件存在但 selectedLogFileObj 没有更新，手动选择
       await selectLogFile(updatedFile);
@@ -155,7 +157,9 @@ async function loadLogContent(filePath: string) {
     const { fetchLogs: apiFetchLogs } = useLlmApi();
 
     const logLines = await apiFetchLogs(filePath, 0, 10000);
-    selectedLogContent.value = Array.isArray(logLines) ? logLines.join("\n") : "";
+    selectedLogContent.value = Array.isArray(logLines)
+      ? logLines.join("\n")
+      : "";
   } catch (error) {
     console.error("Error loading log content:", error);
     selectedLogContent.value = "";
@@ -207,7 +211,9 @@ function convertMessageDetailToLogRequest(
   if (!body.tools && !request.tools && request.body) {
     try {
       const parsedBody =
-        typeof request.body === "string" ? JSON.parse(request.body) : request.body;
+        typeof request.body === "string"
+          ? JSON.parse(request.body)
+          : request.body;
       if (parsedBody.tools) {
         const bodyLog = logs.find((l) => l.type === "request body");
         if (bodyLog) {
@@ -336,7 +342,9 @@ function convertMessageDetailToLogRequest(
   // 构建 LogRequest
   const logRequest: LogRequest = {
     id: detail.requestId,
-    startTime: new Date(detail.request?.timestamp || detail.requestId).getTime(),
+    startTime: new Date(
+      detail.request?.timestamp || detail.requestId
+    ).getTime(),
     logs: logs,
     method: request.method || "POST",
     url: request.url || "/v1/messages",
@@ -470,9 +478,13 @@ onUnmounted(() => {
         </div>
 
         <!-- 右侧：对话详情 -->
-        <div class="flex-1 min-w-0 w-full h-full flex items-center justify-center">
+        <div
+          class="flex-1 min-w-0 w-full h-full flex items-center justify-center"
+        >
           <div
-            v-if="isLoadingMessages && !selectedMessageDetail"
+            v-if="
+              isLoadingDetail || (isLoadingMessages && !selectedMessageDetail)
+            "
             class="flex flex-col items-center gap-3"
           >
             <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
