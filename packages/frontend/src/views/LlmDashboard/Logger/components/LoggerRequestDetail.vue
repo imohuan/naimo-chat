@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch, onUnmounted, onMounted } from "vue";
+import {
+  computed,
+  ref,
+  useTemplateRef,
+  watch,
+  onUnmounted,
+  onMounted,
+} from "vue";
 import { useIntersectionObserver, useDebounceFn } from "@vueuse/core";
 import {
   VisibilityOutlined,
@@ -29,7 +36,11 @@ const logsSource = computed(() => {
   const responseFull = props.request?.responseFull;
 
   // 如果没有 responseFull，直接返回原始日志
-  if (!responseFull || !Array.isArray(responseFull) || responseFull.length === 0) {
+  if (
+    !responseFull ||
+    !Array.isArray(responseFull) ||
+    responseFull.length === 0
+  ) {
     return baseLogs;
   }
 
@@ -37,7 +48,8 @@ const logsSource = computed(() => {
   const allLogs = [...baseLogs];
 
   // 计算基础时间（使用最后一个日志的时间，或者使用请求开始时间）
-  const lastLog = baseLogs.length > 0 ? baseLogs[baseLogs.length - 1] : undefined;
+  const lastLog =
+    baseLogs.length > 0 ? baseLogs[baseLogs.length - 1] : undefined;
   const baseTime =
     lastLog && typeof lastLog.time === "number"
       ? lastLog.time
@@ -137,9 +149,15 @@ const timelineLoading = useCharLoading(
 );
 
 const messageContainerRef = useTemplateRef<HTMLElement>("messageContainerRef");
-const timelineContainerRef = useTemplateRef<HTMLElement>("timelineContainerRef");
-const messageLoadTriggerRef = useTemplateRef<HTMLElement>("messageLoadTriggerRef");
-const timelineLoadTriggerRef = useTemplateRef<HTMLElement>("timelineLoadTriggerRef");
+const timelineContainerRef = useTemplateRef<HTMLElement>(
+  "timelineContainerRef"
+);
+const messageLoadTriggerRef = useTemplateRef<HTMLElement>(
+  "messageLoadTriggerRef"
+);
+const timelineLoadTriggerRef = useTemplateRef<HTMLElement>(
+  "timelineLoadTriggerRef"
+);
 
 // 使用字符加载hooks - 所有显示项
 const messageLoading = useCharLoading(
@@ -225,38 +243,67 @@ const { stop: stopMessageObserver } = useIntersectionObserver(
 
 // 请求变化时重置加载状态
 watch(
-  () => props.request,
-  () => {
-    timelineLoading.reset();
-    messageLoading.reset();
+  () => props.request?.id,
+  (newId, oldId) => {
+    // 只有当 ID 变化时才进行完整重置
+    // 如果 ID 相同（刷新场景），我们保留加载进度、折叠状态和滚动位置
+    if (newId !== oldId) {
+      timelineLoading.reset();
+      messageLoading.reset();
 
-    // 自动折叠超过阈值的内容
-    collapsedItems.value.clear();
-    if (props.request && isChatRequest(props.request)) {
-      const items = allDisplayItems.value;
-      items.forEach((item) => {
-        if (shouldAutoCollapse(item)) {
-          const itemId = `${item.type}-${
-            item.data.time || item.data.role || Math.random()
-          }`;
-          collapsedItems.value.add(itemId);
-        }
-      });
-    }
+      // 自动折叠超过阈值的内容
+      collapsedItems.value.clear();
+      if (props.request && isChatRequest(props.request)) {
+        const items = allDisplayItems.value;
+        items.forEach((item) => {
+          if (shouldAutoCollapse(item)) {
+            const itemId = `${item.type}-${
+              item.data.time || item.data.role || Math.random()
+            }`;
+            collapsedItems.value.add(itemId);
+          }
+        });
+      }
 
-    // 自动折叠时间轴中超过阈值的内容
-    if (props.request) {
-      const logs = props.request.logs || [];
-      logs.forEach((log, index) => {
-        if (shouldAutoCollapseTimeline(log)) {
+      // 自动折叠时间轴中超过阈值的内容
+      if (props.request) {
+        const logs = props.request.logs || [];
+        logs.forEach((log, index) => {
+          if (shouldAutoCollapseTimeline(log)) {
+            const logId = getTimelineLogId(log, index);
+            collapsedItems.value.add(logId);
+          }
+        });
+      }
+
+      messageContainerRef.value?.scrollTo({ top: 0, behavior: "instant" });
+      timelineContainerRef.value?.scrollTo({ top: 0, behavior: "instant" });
+    } else if (newId) {
+      // 如果 ID 相同（刷新场景），我们可能需要针对新增加的内容进行处理
+      // 比如，检查新增加的内容是否需要自动折叠（保留旧的，添加新的）
+      if (props.request) {
+        // 更新时间轴折叠状态（仅添加新内容，不清除旧内容）
+        const logs = props.request.logs || [];
+        logs.forEach((log, index) => {
           const logId = getTimelineLogId(log, index);
-          collapsedItems.value.add(logId);
-        }
-      });
-    }
+          if (
+            shouldAutoCollapseTimeline(log) &&
+            !collapsedItems.value.has(logId)
+          ) {
+            collapsedItems.value.add(logId);
+          }
+        });
 
-    messageContainerRef.value?.scrollTo({ top: 0, behavior: "instant" });
-    timelineContainerRef.value?.scrollTo({ top: 0, behavior: "instant" });
+        // 对话详情折叠状态同理
+        const items = allDisplayItems.value;
+        items.forEach((item) => {
+          const itemId = getItemId(item);
+          if (shouldAutoCollapse(item) && !collapsedItems.value.has(itemId)) {
+            collapsedItems.value.add(itemId);
+          }
+        });
+      }
+    }
   }
 );
 
@@ -298,16 +345,13 @@ function formatTimeLong(ts: number): string {
 
 function formatTimeDetail(ts: number): string {
   const d = new Date(ts);
-  return `${d
-    .getHours()
-    .toString()
-    .padStart(2, "0")}:${d
+  return `${d.getHours().toString().padStart(2, "0")}:${d
     .getMinutes()
     .toString()
-    .padStart(2, "0")}:${d
-    .getSeconds()
+    .padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}.${d
+    .getMilliseconds()
     .toString()
-    .padStart(2, "0")}.${d.getMilliseconds().toString().padStart(3, "0")}`;
+    .padStart(3, "0")}`;
 }
 
 function computeTimeDelta(logs: any[], idx: number): number {
@@ -329,7 +373,8 @@ function formatJson(obj: any): string {
 
 function isChatRequest(req: LogRequest | null): boolean {
   return (
-    !!req && (req.url.includes("/messages") || req.url.includes("/chat/completions"))
+    !!req &&
+    (req.url.includes("/messages") || req.url.includes("/chat/completions"))
   );
 }
 
@@ -369,14 +414,18 @@ const allTools = computed(() => {
   if (!props.request) return [];
 
   // 首先从 request body 日志中查找
-  const bodyLog = props.request.logs.find((l) => l.type === "request body" && l.data);
+  const bodyLog = props.request.logs.find(
+    (l) => l.type === "request body" && l.data
+  );
 
   if (bodyLog && bodyLog.data.tools && Array.isArray(bodyLog.data.tools)) {
     return bodyLog.data.tools;
   }
 
   // 如果没有找到，尝试从其他日志中查找原始请求体
-  const finalReqLog = props.request.logs.find((l) => l.request && l.request.body);
+  const finalReqLog = props.request.logs.find(
+    (l) => l.request && l.request.body
+  );
   if (finalReqLog) {
     try {
       const parsedBody =
@@ -396,7 +445,9 @@ const allTools = computed(() => {
 
 // 提取 MCP 工具列表（仅以 mcp__ 开头的工具）
 const mcpTools = computed(() => {
-  return allTools.value.filter((tool: any) => tool.name && tool.name.startsWith("mcp__"));
+  return allTools.value.filter(
+    (tool: any) => tool.name && tool.name.startsWith("mcp__")
+  );
 });
 
 function getLevelColor(level: number): string {
@@ -501,7 +552,9 @@ function getDisplayContent(item: any): string {
     return content.trim();
   }
 
-  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+  const itemId = `${item.type}-${
+    item.data.time || item.data.role || Math.random()
+  }`;
   if (!isCollapsed(itemId)) {
     return content.trim();
   }
@@ -568,7 +621,9 @@ function getTimelineLogId(log: any, index: number): string {
 
 // 复制对象数据到剪贴板
 async function copyItemData(item: any) {
-  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()}`;
+  const itemId = `${item.type}-${
+    item.data.time || item.data.role || Math.random()
+  }`;
 
   try {
     const dataToCopy = {
@@ -630,9 +685,7 @@ function isTodoWrite(toolData: any): boolean {
 }
 
 // 转换 TodoWrite 的 todos 格式为 QueueTodo 格式
-function convertTodosToQueueFormat(
-  todos: any[]
-): Array<{
+function convertTodosToQueueFormat(todos: any[]): Array<{
   id: string;
   title: string;
   description?: string;
@@ -659,7 +712,9 @@ onMounted(() => {
   handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       // 关闭所有打开的图片预览
-      const openPreviews = document.querySelectorAll('[data-preview-open="true"]');
+      const openPreviews = document.querySelectorAll(
+        '[data-preview-open="true"]'
+      );
       openPreviews.forEach((preview) => {
         (preview as any).closePreview?.();
       });
@@ -676,7 +731,8 @@ onUnmounted(() => {
 
 // 加载全部内容并滚动到底部
 async function loadAllAndScrollToBottom() {
-  const currentLoading = activeTab.value === "preview" ? messageLoading : timelineLoading;
+  const currentLoading =
+    activeTab.value === "preview" ? messageLoading : timelineLoading;
   const currentContainer =
     activeTab.value === "preview"
       ? messageContainerRef.value
@@ -913,10 +969,14 @@ async function loadAllAndScrollToBottom() {
                 class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm flex flex-col w-full"
               >
                 <div class="flex justify-between items-start mb-1">
-                  <span class="text-xs font-bold text-indigo-600" v-if="log.msg">{{
-                    log.msg
-                  }}</span>
-                  <span class="text-xs font-bold text-slate-500" v-else>Log Entry</span>
+                  <span
+                    class="text-xs font-bold text-indigo-600"
+                    v-if="log.msg"
+                    >{{ log.msg }}</span
+                  >
+                  <span class="text-xs font-bold text-slate-500" v-else
+                    >Log Entry</span
+                  >
                   <span
                     class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded"
                     >Level {{ log.level }}</span
@@ -940,14 +1000,18 @@ async function loadAllAndScrollToBottom() {
                 >
                   <!-- Full Response Log -->
                   <div v-if="log.type === 'full_response' && log.data?.content">
-                    <span class="text-green-600 font-bold mb-1 flex items-center gap-2">
+                    <span
+                      class="text-green-600 font-bold mb-1 flex items-center gap-2"
+                    >
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Full Response:
                     </span>
                     <div
                       class="bg-white border border-green-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
                     >
-                      <div class="absolute top-0 left-0 w-1 h-full bg-green-600"></div>
+                      <div
+                        class="absolute top-0 left-0 w-1 h-full bg-green-600"
+                      ></div>
                       <pre
                         class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text overflow-x-auto"
                         >{{
@@ -971,14 +1035,18 @@ async function loadAllAndScrollToBottom() {
 
                   <!-- Stream Event Log (response.full 中的每一项) -->
                   <div v-else-if="log.type === 'stream_event'">
-                    <span class="text-cyan-600 font-bold mb-1 flex items-center gap-2">
+                    <span
+                      class="text-cyan-600 font-bold mb-1 flex items-center gap-2"
+                    >
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Stream Event: {{ log.data?.type || "unknown" }}
                     </span>
                     <div
                       class="bg-cyan-50 border border-cyan-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
                     >
-                      <div class="absolute top-0 left-0 w-1 h-full bg-cyan-600"></div>
+                      <div
+                        class="absolute top-0 left-0 w-1 h-full bg-cyan-600"
+                      ></div>
                       <pre
                         class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text pl-2 overflow-x-auto"
                         >{{
@@ -995,11 +1063,15 @@ async function loadAllAndScrollToBottom() {
 
                   <!-- Error Log -->
                   <div v-else-if="log.type === 'error'">
-                    <span class="text-red-600 font-bold mb-1 flex items-center gap-2">
+                    <span
+                      class="text-red-600 font-bold mb-1 flex items-center gap-2"
+                    >
                       <WarningOutlined class="w-4 h-4" />
                       > Error:
                     </span>
-                    <div class="bg-red-50 border border-red-200 p-3 rounded mt-2">
+                    <div
+                      class="bg-red-50 border border-red-200 p-3 rounded mt-2"
+                    >
                       <pre
                         class="text-red-600 select-text whitespace-pre-wrap wrap-break-word overflow-x-auto"
                         >{{
@@ -1081,7 +1153,9 @@ async function loadAllAndScrollToBottom() {
                       >
                     </div>
                     <div v-if="log.type === 'recieved data'" class="opacity-70">
-                      <span class="text-teal-600 font-bold">> Stream Chunk Received</span>
+                      <span class="text-teal-600 font-bold"
+                        >> Stream Chunk Received</span
+                      >
                     </div>
                     <div v-if="log.err">
                       <span class="text-red-600 font-bold block mb-1"
@@ -1115,7 +1189,10 @@ async function loadAllAndScrollToBottom() {
                       v-if="isCollapsed(getTimelineLogId(log, index))"
                       class="w-3.5 h-3.5"
                     />
-                    <KeyboardArrowDownOutlined v-else class="w-3.5 h-3.5 rotate-180" />
+                    <KeyboardArrowDownOutlined
+                      v-else
+                      class="w-3.5 h-3.5 rotate-180"
+                    />
                     <span v-if="isCollapsed(getTimelineLogId(log, index))">
                       展开 ({{ getTimelineCollapsedCharCount(log) }} 字符)
                     </span>
