@@ -4,6 +4,7 @@ import type { ChatStatus } from "ai";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import type { ChatModelConfig, ChatModelExtensionConfig } from "./types";
 import { useMcpStore } from "@/stores/mcp";
+import { useChatStateStore } from "@/stores/chatState";
 import { storeToRefs } from "pinia";
 import type { LlmProvider } from "@/interface";
 import { PanelRightOpen } from "lucide-vue-next";
@@ -29,6 +30,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   clear: [];
+  // 增加 stop 事件，如果父组件需要处理
+  stop: [];
 }>();
 
 // 使用新的 hooks
@@ -58,16 +61,47 @@ const selectedMode = ref<ConversationMode>("chat");
 const modelId = ref<string>("");
 const useWebSearch = ref(false);
 const useMicrophone = ref(false);
-const status = ref<ChatStatus>("ready");
+const chatStateStore = useChatStateStore();
+
+// 计算当前对话的状态
+const currentChatState = computed(() => {
+  if (!activeConversationId.value) {
+    return {
+      status: "ready" as ChatStatus,
+      activeRequests: {},
+      hasCreatedEmptyVersion: false,
+    };
+  }
+  return chatStateStore.getOrCreateState(activeConversationId.value);
+});
+
+// 使用计算属性代理 store 中的状态，保持现有逻辑不变
+const activeRequests = computed(() => currentChatState.value.activeRequests);
+
+const status = computed({
+  get: () => currentChatState.value.status,
+  set: (val) => {
+    if (activeConversationId.value) {
+      chatStateStore.updateState(activeConversationId.value, { status: val });
+    }
+  },
+});
+
+const hasCreatedEmptyVersion = computed({
+  get: () => currentChatState.value.hasCreatedEmptyVersion,
+  set: (val) => {
+    if (activeConversationId.value) {
+      chatStateStore.updateState(activeConversationId.value, {
+        hasCreatedEmptyVersion: val,
+      });
+    }
+  },
+});
+
 const showCanvas = ref(false);
 const isCanvasReadonly = ref(false);
 const refreshImmersiveCode = ref(true);
-// 标记当前对话是否已为流式输出创建空版本
-const hasCreatedEmptyVersion = ref(false);
-// 中断控制器
-const abortController = ref<AbortController | null>(null);
-// 当前请求ID
-const currentRequestId = ref<string | null>(null);
+
 // 模型配置（统一管理，通过 v-model 传递给 ModelConfigPanel）
 const modelConfig = ref<ChatModelConfig>({
   modelId: modelId.value,
@@ -137,7 +171,8 @@ watch(
     // 恢复代码历史（仅在 canvas 模式下）
     if (selectedMode.value === "canvas" && conversation.codeHistory) {
       const hasCodeHistory =
-        conversation.codeHistory.versions && conversation.codeHistory.versions.length > 0;
+        conversation.codeHistory.versions &&
+        conversation.codeHistory.versions.length > 0;
 
       if (hasCodeHistory) {
         showCanvas.value = true;
@@ -183,7 +218,8 @@ watch(
 
     // 只有当 codeVersion 存在（表示已加载）且有 codeHistory 数据时才显示
     if (codeVersion !== undefined && codeHistory) {
-      const hasCodeHistory = codeHistory.versions && codeHistory.versions.length > 0;
+      const hasCodeHistory =
+        codeHistory.versions && codeHistory.versions.length > 0;
       showCanvas.value = hasCodeHistory || false;
       // 设置侧边栏为折叠状态
       conversationStore.sidebarCollapsed = true;
@@ -218,10 +254,15 @@ function getModelConfigExtension(): {
     }
     const allToolsForServer = serverTools.value[serverName] || [];
     // 检查是否所有工具都被选中
-    if (allToolsForServer.length > 0 && toolNames.length === allToolsForServer.length) {
+    if (
+      allToolsForServer.length > 0 &&
+      toolNames.length === allToolsForServer.length
+    ) {
       // 检查是否真的所有工具都被选中
       const allToolNames = allToolsForServer.map((t) => t.name);
-      const isAllSelected = allToolNames.every((name) => toolNames.includes(name));
+      const isAllSelected = allToolNames.every((name) =>
+        toolNames.includes(name)
+      );
       tools[serverName] = isAllSelected ? "all" : toolNames;
     } else {
       tools[serverName] = toolNames;
@@ -284,8 +325,8 @@ async function handleSubmit(message: PromptInputMessage) {
     (activeMessages.value?.length || 0) === 0;
 
   try {
-    // 创建新的中断控制器
-    abortController.value = new AbortController();
+    // 创建新的中断控制器 (本地创建，避免 store 依赖 conversationId)
+    const controller = new AbortController();
     status.value = "streaming";
 
     if (shouldCreateNewConversation) {
@@ -299,11 +340,16 @@ async function handleSubmit(message: PromptInputMessage) {
           selectedMode.value === "canvas"
             ? canvasPanelRef.value?.getCurrentCode()
             : undefined,
-        abortSignal: abortController.value.signal,
+        abortSignal: controller.signal,
       });
-      // 存储 requestId 用于中断
-      currentRequestId.value = result.requestId;
-      // createConversation 已经处理了第一条消息，继续执行 finally 块进行清理
+      // 对话创建成功，将 controller 注册到 store
+      if (result.conversationId) {
+        chatStateStore.addRequest(
+          result.conversationId,
+          result.requestId,
+          controller
+        );
+      }
     } else {
       // 如果已有活跃对话且有消息，发送消息
       const result = await sendMessage(activeConversationId.value!, {
@@ -316,10 +362,16 @@ async function handleSubmit(message: PromptInputMessage) {
           selectedMode.value === "canvas"
             ? canvasPanelRef.value?.getCurrentCode()
             : undefined,
-        abortSignal: abortController.value.signal,
+        abortSignal: controller.signal,
       });
-      // 存储 requestId 用于中断
-      currentRequestId.value = result.requestId;
+      // 将 controller 注册到 store
+      if (activeConversationId.value) {
+        chatStateStore.addRequest(
+          activeConversationId.value,
+          result.requestId,
+          controller
+        );
+      }
     }
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
@@ -327,14 +379,19 @@ async function handleSubmit(message: PromptInputMessage) {
     } else {
       pushToast(
         shouldCreateNewConversation
-          ? `创建对话失败: ${error instanceof Error ? error.message : "未知错误"}`
-          : `发送消息失败: ${error instanceof Error ? error.message : "未知错误"}`,
+          ? `创建对话失败: ${
+              error instanceof Error ? error.message : "未知错误"
+            }`
+          : `发送消息失败: ${
+              error instanceof Error ? error.message : "未知错误"
+            }`,
         "error"
       );
     }
-  } finally {
-    // 不在这里清理 abortController，让 SSE 完成事件来处理
+    // 出错时 status 复位
     status.value = "ready";
+  } finally {
+    // 不在这里清理 controller，让 SSE 完成事件来处理
   }
 }
 
@@ -356,7 +413,7 @@ async function handleRetry(messageKey: string) {
   }
 
   // 查找前一条用户消息
-  let userMessage: typeof messages[0] | undefined;
+  let userMessage: (typeof messages)[0] | undefined;
   for (let i = messageIndex - 1; i >= 0 && i < messages.length; i--) {
     const candidate = messages[i];
     if (candidate && candidate.from === "user") {
@@ -392,7 +449,7 @@ async function handleRetry(messageKey: string) {
 
   try {
     // 创建新的中断控制器
-    abortController.value = new AbortController();
+    const controller = new AbortController();
     status.value = "streaming";
 
     // latestVersion.content
@@ -410,10 +467,14 @@ async function handleRetry(messageKey: string) {
         selectedMode.value === "canvas"
           ? canvasPanelRef.value?.getCurrentCode()
           : undefined,
-      abortSignal: abortController.value.signal,
+      abortSignal: controller.signal,
     });
-    // 存储 requestId 用于中断
-    currentRequestId.value = result.requestId;
+    // 注册 request
+    chatStateStore.addRequest(
+      activeConversationId.value,
+      result.requestId,
+      controller
+    );
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       pushToast("重试已中断", "info");
@@ -423,9 +484,9 @@ async function handleRetry(messageKey: string) {
         "error"
       );
     }
+    status.value = "ready";
   } finally {
     // 不在这里清理 abortController，让 SSE 完成事件来处理
-    status.value = "ready";
   }
 }
 
@@ -443,7 +504,11 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (codeRef && typeof codeRef === "object" && "setCodeAndSelectLines" in codeRef) {
+    if (
+      codeRef &&
+      typeof codeRef === "object" &&
+      "setCodeAndSelectLines" in codeRef
+    ) {
       (codeRef as any).setCodeAndSelectLines(code, startLine, endLine);
     }
   }
@@ -452,7 +517,9 @@ function handleTagClick(data: {
   if (
     data.data?.type === "browser_selector" ||
     data.data?.selector ||
-    (data.icon && typeof data.icon === "string" && data.icon.includes("browser"))
+    (data.icon &&
+      typeof data.icon === "string" &&
+      data.icon.includes("browser"))
   ) {
     const selector = data.data?.selector || data.data?.text || data.label;
     if (!selector) return;
@@ -461,7 +528,11 @@ function handleTagClick(data: {
       showCanvas.value = true;
     }
     const codeRef = canvasPanelRef.value?.immersiveCodeRef;
-    if (codeRef && typeof codeRef === "object" && "selectElementInPreview" in codeRef) {
+    if (
+      codeRef &&
+      typeof codeRef === "object" &&
+      "selectElementInPreview" in codeRef
+    ) {
       (codeRef as any).selectElementInPreview(selector);
     }
   }
@@ -538,24 +609,28 @@ function handleClear() {
 
 // 处理中断请求
 async function handleAbort() {
-  if (!currentRequestId.value || !activeConversationId.value) {
+  if (!activeConversationId.value) {
     return;
   }
 
-  try {
-    // 调用后端中断 API
-    await chatApi.abortRequest(
-      activeConversationId.value,
-      currentRequestId.value
-    );
-  } catch (error) {
-    console.error("中断请求失败:", error);
-  } finally {
-    // 清理状态
-    abortController.value = null;
-    currentRequestId.value = null;
-    status.value = "ready";
+  // 获取当前对话的所有 active requests
+  const requests = currentChatState.value.activeRequests;
+  if (!requests || Object.keys(requests).length === 0) return;
+
+  // 这里的策略是：中断所有正在进行的请求
+  // 你也可以根据需求改为只中断最后一个，或者让用户选择
+  for (const [requestId, controller] of Object.entries(requests)) {
+    try {
+      controller.abort();
+      // 调用后端中断 API
+      await chatApi.abortRequest(activeConversationId.value, requestId);
+    } catch (error) {
+      console.error(`中断请求 ${requestId} 失败:`, error);
+    } finally {
+      chatStateStore.removeRequest(activeConversationId.value, requestId);
+    }
   }
+  status.value = "ready";
 }
 
 // 存储当前记录 ID（用于 diff 应用后保存）
@@ -564,26 +639,74 @@ const currentOriginalCode = ref<string | null>(null);
 
 // 监听事件总线事件
 onMounted(() => {
-  eventBus.on("message:complete", () => {
-    // SSE 流完成时清理 abortController 和 requestId
-    if (abortController.value) {
-      abortController.value = null;
-    }
-    if (currentRequestId.value) {
-      currentRequestId.value = null;
-    }
-    status.value = "ready";
-    // 消息完成后重置标记，为下一次流式输出做准备
-    hasCreatedEmptyVersion.value = false;
-  });
+  eventBus.on(
+    "message:complete",
+    (data?: { conversationId?: string; requestId?: string }) => {
+      // SSE 流完成时清理 requestId
+      const id = data?.conversationId || activeConversationId.value;
+      const reqId = data?.requestId;
 
-  eventBus.on("message:streaming", () => {
-    status.value = "streaming";
-  });
+      // 如果没有 requestId (比如旧的事件格式)，可能需要清理该对话的所有请求或特定处理
+      // 这里假设 backend 会传回 requestId，如果没有，可以清理所有(虽然稍微暴力点)或者忽略
+      // 为了健壮性，如果 activeRequests 非空但没有 reqId，我们可能需要清理一下状态
+
+      if (id) {
+        if (reqId) {
+          chatStateStore.removeRequest(id, reqId);
+        } else {
+          // Fallback: 如果没有 requestId，检查 activeRequests，如果只有一个，清理它？
+          // 或者仅仅把 status 置为 ready
+          const state = chatStateStore.getOrCreateState(id);
+          // 如果是一次常规完成，理论上当前 request 应该结束
+          // 但由于我们不知道具体是哪个... 这里需要 backend 支持回传 requestId
+          // 如果 backend 没有回传 requestId，我们可能无法精确移除。
+          // 暂时不做强制移除，除非 status 被重置
+          if (Object.keys(state.activeRequests).length === 0) {
+            chatStateStore.updateState(id, {
+              status: "ready",
+              hasCreatedEmptyVersion: false,
+            });
+          }
+        }
+      }
+    }
+  );
+
+  eventBus.on(
+    "message:streaming",
+    (data?: { conversationId?: string; requestId?: string }) => {
+      const id = data?.conversationId || activeConversationId.value;
+      const reqId = data?.requestId; // Optional in type, but expected for strict handling
+
+      if (id) {
+        // Strict check: if requestId is provided, it must be in activeRequests
+        if (reqId) {
+          const state = chatStateStore.getOrCreateState(id);
+          if (state.activeRequests[reqId]) {
+            // Only confirm streaming if the request is known and active
+            chatStateStore.updateState(id, { status: "streaming" });
+          } else {
+            // Request ID provided but not found -> likely aborted or finished. Ignore.
+          }
+        } else {
+          // Fallback: No requestId provided. (Legacy behavior or intermediate state)
+          // We only set streaming if there ARE active requests.
+          // If we have no active requests, we shouldn't flip to streaming blindly.
+          const state = chatStateStore.getOrCreateState(id);
+          if (Object.keys(state.activeRequests).length > 0) {
+            chatStateStore.updateState(id, { status: "streaming" });
+          }
+        }
+      }
+    }
+  );
 
   // 监听对话加载完成事件，设置 selectedMode
   eventBus.on("conversation:loaded", (data) => {
-    if (data.conversation.mode && data.conversation.mode !== selectedMode.value) {
+    if (
+      data.conversation.mode &&
+      data.conversation.mode !== selectedMode.value
+    ) {
       selectedMode.value = data.conversation.mode;
     }
   });
@@ -596,13 +719,17 @@ onMounted(() => {
     const immersiveCode = canvasPanelRef.value.immersiveCodeRef;
 
     // 如果是第一次收到流式输出，先创建一个空版本
+    const state = chatStateStore.getOrCreateState(data.conversationId);
     if (
-      !hasCreatedEmptyVersion.value &&
+      !state.hasCreatedEmptyVersion &&
       immersiveCode &&
-      typeof immersiveCode.addMajorVersion === "function"
+      typeof immersiveCode.addMajorVersion === "function" &&
+      data.conversationId === activeConversationId.value
     ) {
       immersiveCode.addMajorVersion("", undefined);
-      hasCreatedEmptyVersion.value = true;
+      chatStateStore.updateState(data.conversationId, {
+        hasCreatedEmptyVersion: true,
+      });
     }
 
     // 开始流式写入（如果还没开始，直接调用 startStreaming 会设置内部状态）
@@ -625,7 +752,8 @@ onMounted(() => {
     currentOriginalCode.value = data.originalCode || null;
 
     // 获取原始代码，用于添加历史记录和diff操作
-    const originalCode = data.originalCode || immersiveCode.getCurrentCode?.() || "";
+    const originalCode =
+      data.originalCode || immersiveCode.getCurrentCode?.() || "";
 
     // 在diff操作前添加历史记录，创建一个新的major version，并添加一个使用recordId的记录
     // addMajorDiffVersion 内部会处理 diff 验证和 UI 更新
@@ -675,7 +803,11 @@ async function handleDiffApplied(recordId: string, appliedCode: string) {
   if (!activeConversationId.value || !recordId) return;
 
   try {
-    await chatApi.applyCanvasDiff(activeConversationId.value, recordId, appliedCode);
+    await chatApi.applyCanvasDiff(
+      activeConversationId.value,
+      recordId,
+      appliedCode
+    );
     // 不重新加载对话，避免强制刷新页面和canvas
     // 代码已经在本地更新，后端也已保存，无需重新加载
     // await loadConversation(activeConversationId.value);
@@ -809,7 +941,8 @@ function saveCodeHistory() {
           );
 
           if (streamingRecords.length > 0) {
-            const lastStreamingRecord = streamingRecords[streamingRecords.length - 1];
+            const lastStreamingRecord =
+              streamingRecords[streamingRecords.length - 1];
             if (lastStreamingRecord) {
               return {
                 id: version.id,
@@ -896,7 +1029,9 @@ watch(activeConversationId, (_newId, oldId) => {
         >
           <div
             class="relative flex h-full w-full overflow-hidden"
-            :class="hasMessages ? 'flex-col divide-y' : 'items-center justify-center'"
+            :class="
+              hasMessages ? 'flex-col divide-y' : 'items-center justify-center'
+            "
           >
             <!-- 消息列表 -->
             <ChatMessages
@@ -937,7 +1072,10 @@ watch(activeConversationId, (_newId, oldId) => {
                 :providers="providers"
                 :has-messages="hasMessages"
                 :model-config="modelConfig"
-                :can-abort="status === 'streaming' && !!currentRequestId"
+                :can-abort="
+                  status === 'streaming' &&
+                  Object.keys(activeRequests || {}).length > 0
+                "
                 @submit="handleSubmit"
                 @abort="handleAbort"
                 @update:mode="selectedMode = $event"
