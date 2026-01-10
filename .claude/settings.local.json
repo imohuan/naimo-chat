@@ -14,7 +14,8 @@
       "Bash(git checkout main)",
       "Bash(find packages/frontend/src -name \"*.vue\" -exec grep -l \"v-if\\\\|v-for\\\\|v-show\" {} ;)",
       "Bash(find packages/frontend/src -name \"*.vue\" -exec grep -l \"ref\\\\|reactive\\\\|computed\" {} ;)",
-      "Bash(find packages/frontend -name \"*.md\" -exec ls -la {} ;)"
+      "Bash(find packages/frontend -name \"*.md\" -exec ls -la {} ;)",
+      "Bash(find packages/frontend/src -name \"*.vue\" -exec grep -l \"import.*from.*react\" {} ;)"
     ]
   }
 }

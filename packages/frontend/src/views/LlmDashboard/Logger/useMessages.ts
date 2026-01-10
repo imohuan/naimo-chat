@@ -3,7 +3,10 @@ import type { MessageListItem, MessageDetail } from "./types";
 import { useLlmApi } from "@/hooks/useLlmApi";
 
 export function useMessages() {
-  const { fetchMessages: apiFetchMessages, fetchMessageDetail: apiFetchMessageDetail } = useLlmApi();
+  const {
+    fetchMessages: apiFetchMessages,
+    fetchMessageDetail: apiFetchMessageDetail,
+  } = useLlmApi();
   const messages = ref<MessageListItem[]>([]);
   const selectedMessageId = ref<string | null>(null);
   const selectedMessageDetail = ref<MessageDetail | null>(null);
@@ -63,10 +66,12 @@ export function useMessages() {
   }
 
   /** 获取对话详情 */
-  async function loadMessageDetail(requestId: string) {
+  async function loadMessageDetail(requestId: string, silent = false) {
     if (isLoadingDetail.value) return;
 
-    isLoadingDetail.value = true;
+    if (!silent) {
+      isLoadingDetail.value = true;
+    }
     try {
       const detail = await apiFetchMessageDetail(requestId);
       selectedMessageDetail.value = detail as MessageDetail;
@@ -74,18 +79,22 @@ export function useMessages() {
       console.error("Error loading message detail:", error);
       selectedMessageDetail.value = null;
     } finally {
-      isLoadingDetail.value = false;
+      if (!silent) {
+        isLoadingDetail.value = false;
+      }
     }
   }
 
   /** 选择对话 */
-  async function selectMessage(requestId: string) {
+  async function selectMessage(requestId: string, silent = false) {
     selectedMessageId.value = requestId;
-    await loadMessageDetail(requestId);
+    await loadMessageDetail(requestId, silent);
   }
 
   // 判断对话状态（简化版，基于消息列表项的基本信息）
-  function getMessageStatus(msg: MessageListItem): "completed" | "pending" | "error" {
+  function getMessageStatus(
+    msg: MessageListItem
+  ): "completed" | "pending" | "error" {
     // 根据是否有响应来判断基本状态
     // 有响应或流式响应，认为已完成（实际可能还需要检查详情）
     if (msg.hasResponse || msg.hasStreamResponse) {
@@ -151,4 +160,3 @@ export function useMessages() {
     selectMessage,
   };
 }
-

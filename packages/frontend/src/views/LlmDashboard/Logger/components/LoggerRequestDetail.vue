@@ -323,7 +323,16 @@ const previewEnabled = computed(() => {
 
 watch(
   () => props.request,
-  (req) => {
+  (req, oldReq) => {
+    // 如果 ID 相同（刷新场景），尽量保持当前 tab
+    if (req && oldReq && req.id === oldReq.id) {
+      // 只有当当前在预览且不再支持预览时才切换
+      if (activeTab.value === "preview" && !previewEnabled.value) {
+        activeTab.value = "timeline";
+      }
+      return;
+    }
+
     if (!req) {
       activeTab.value = "timeline";
       return;

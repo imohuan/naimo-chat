@@ -59,7 +59,7 @@ async function refreshMessages() {
       (msg) => msg.requestId === idToRefresh
     );
     if (stillExists) {
-      await selectMessage(idToRefresh);
+      await selectMessage(idToRefresh, true);
     } else {
       // 如果消息不存在了，选择第一个
       if (filteredMessages.value.length > 0) {
