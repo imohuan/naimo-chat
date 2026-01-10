@@ -1,1 +1,0 @@
-.loading-dots[data-v-69b944d6]:after{content:" ...";animation:1.2s steps(3,end) infinite dots-69b944d6}@keyframes dots-69b944d6{0%{content:" ."}33%{content:" .."}66%{content:" ..."}to{content:" ..."}}.fade-enter-active[data-v-b7bc5f64],.fade-leave-active[data-v-b7bc5f64]{transition:opacity .2s}.fade-enter-from[data-v-b7bc5f64],.fade-leave-to[data-v-b7bc5f64]{opacity:0}

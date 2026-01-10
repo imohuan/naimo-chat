@@ -1,1 +1,0 @@
-import{Xt as e,en as t,gn as n,qt as r}from"./index-urHyhAmF.js";var i={xmlns:`http://www.w3.org/2000/svg`,"xmlns:xlink":`http://www.w3.org/1999/xlink`,viewBox:`0 0 24 24`},a=t({name:`PlayArrowOutlined`,render:function(t,a){return n(),e(`svg`,i,a[0]||=[r(`path`,{d:`M10 8.64L15.27 12L10 15.36V8.64M8 5v14l11-7L8 5z`,fill:`currentColor`},null,-1)])}});export{a as t};

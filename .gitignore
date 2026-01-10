@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 log.txt
 
+internal-public
 # 嵌入的静态资源
 embedded-resources.js
 # Bun 打包生成的文件
