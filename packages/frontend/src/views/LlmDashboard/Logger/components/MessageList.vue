@@ -163,7 +163,10 @@ async function handleDelete() {
       // 清空选中状态
       selectedIds.value.clear();
       // 如果当前选中的消息被删除，清空选中状态
-      if (props.selectedMessageId && idsToDelete.includes(props.selectedMessageId)) {
+      if (
+        props.selectedMessageId &&
+        idsToDelete.includes(props.selectedMessageId)
+      ) {
         emit("update:selectedMessageId", null);
       }
       // 通知父组件刷新列表
@@ -454,7 +457,10 @@ function formatRelativeTime(timestamp: string | null): string {
     <!-- 消息列表 -->
     <div ref="scrollContainer" class="flex-1 overflow-y-auto relative">
       <!-- 只在首次加载（没有数据）时显示加载状态 -->
-      <div v-if="isLoading && messages.length === 0" class="p-8 text-center text-slate-400">
+      <div
+        v-if="isLoading && messages.length === 0"
+        class="p-8 text-center text-slate-400"
+      >
         <p class="text-sm">加载中...</p>
       </div>
       <div
@@ -471,11 +477,11 @@ function formatRelativeTime(timestamp: string | null): string {
         :class="[
           'p-4 border-b border-slate-100 cursor-pointer transition-all relative',
           selectedMessageId === msg.requestId
-            ? 'bg-indigo-50/50 border-l-4 border-l-indigo-600 shadow-sm'
+            ? 'bg-indigo-50 border-l-4 border-l-indigo-600 shadow-sm z-10'
             : 'border-l-4 border-l-transparent ',
           isMultiSelectMode && selectedIds.has(msg.requestId)
-            ? 'bg-indigo-100/50'
-            : 'hover:bg-slate-50/80',
+            ? 'bg-indigo-100'
+            : 'hover:bg-slate-100',
         ]"
       >
         <!-- 复选框（仅多选模式显示） -->
