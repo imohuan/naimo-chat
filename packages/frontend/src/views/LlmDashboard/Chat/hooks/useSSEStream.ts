@@ -1,5 +1,8 @@
 import { ref, computed, onUnmounted } from "vue";
-import type { SSEEvent, StreamCallbacks } from "@/views/LlmDashboard/Chat/types";
+import type {
+  SSEEvent,
+  StreamCallbacks,
+} from "@/views/LlmDashboard/Chat/types";
 import { useChatApi } from "../../../../hooks/useChatApi";
 
 /**
@@ -7,8 +10,8 @@ import { useChatApi } from "../../../../hooks/useChatApi";
  */
 export function useSSEStream() {
   const { endpoint } = useChatApi();
-  const eventSource = ref<EventSource | null>(null);
-  const isConnected = computed(() => eventSource.value !== null);
+  const activeStreams = ref<Map<string, EventSource>>(new Map());
+  const isConnected = computed(() => activeStreams.value.size > 0);
 
   /**
    * 连接到 SSE 流
@@ -18,12 +21,12 @@ export function useSSEStream() {
     requestId: string,
     callbacks: StreamCallbacks
   ) {
-    // 关闭之前的连接
-    disconnect();
+    // 如果已经存在该请求的连接，先断开
+    disconnect(requestId);
 
     const streamUrl = `${endpoint.value}/api/ai_chat/conversations/${conversationId}/stream/${requestId}`;
     const es = new EventSource(streamUrl);
-    eventSource.value = es;
+    activeStreams.value.set(requestId, es);
 
     let accumulatedContent = "";
     let isCompleted = false; // 标记是否已经正常完成
@@ -47,7 +50,8 @@ export function useSSEStream() {
               });
             } else {
               // 文字块开始
-              currentTextBlockId = data.content_block?.id || `text-${Date.now()}-${Math.random()}`;
+              currentTextBlockId =
+                data.content_block?.id || `text-${Date.now()}-${Math.random()}`;
               currentTextContent = "";
               callbacks.onContentBlockStart?.({
                 index: data.index ?? 0,
@@ -127,7 +131,7 @@ export function useSSEStream() {
             isCompleted = true;
             callbacks.onComplete?.();
             // 立即关闭连接，避免服务器关闭时触发错误事件
-            disconnect();
+            disconnect(requestId);
             break;
 
           case "session_end":
@@ -138,14 +142,13 @@ export function useSSEStream() {
             }
             // 标记为已完成，避免 onerror 触发错误回调
             isCompleted = true;
-            disconnect();
+            disconnect(requestId);
             break;
 
           case "error":
-            // 处理错误
             const errorMessage = data.error || "未知错误";
             callbacks.onError?.(errorMessage);
-            disconnect();
+            disconnect(requestId);
             break;
 
           // Canvas 事件处理
@@ -234,7 +237,9 @@ export function useSSEStream() {
         }
       } catch (error) {
         console.error("解析 SSE 事件失败:", error);
-        callbacks.onError?.(error instanceof Error ? error.message : "解析事件失败");
+        callbacks.onError?.(
+          error instanceof Error ? error.message : "解析事件失败"
+        );
       }
     };
 
@@ -256,16 +261,16 @@ export function useSSEStream() {
           message: errorMessage,
           readyState: state,
           url: streamUrl,
-          event: event
+          event: event,
         });
         callbacks.onError?.(errorMessage);
-        disconnect();
+        disconnect(requestId);
       } else if (state === EventSource.CONNECTING) {
         // 连接失败，正在重连
         console.warn("SSE 连接失败，正在重连...", {
           readyState: state,
           url: streamUrl,
-          event: event
+          event: event,
         });
         // EventSource 会自动重连，这里只记录警告，不触发错误回调
       } else {
@@ -274,7 +279,7 @@ export function useSSEStream() {
           message: "SSE 连接错误",
           readyState: state,
           url: streamUrl,
-          event: event
+          event: event,
         });
         // 只有在 OPEN 状态出错时才触发错误回调
         if (state === EventSource.OPEN) {
@@ -287,10 +292,17 @@ export function useSSEStream() {
   /**
    * 断开 SSE 连接
    */
-  function disconnect() {
-    if (eventSource.value) {
-      eventSource.value.close();
-      eventSource.value = null;
+  function disconnect(requestId?: string) {
+    if (requestId) {
+      const es = activeStreams.value.get(requestId);
+      if (es) {
+        es.close();
+        activeStreams.value.delete(requestId);
+      }
+    } else {
+      // 断开所有连接
+      activeStreams.value.forEach((es) => es.close());
+      activeStreams.value.clear();
     }
   }
 
@@ -305,4 +317,3 @@ export function useSSEStream() {
     disconnect,
   };
 }
-
