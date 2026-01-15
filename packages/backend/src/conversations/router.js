@@ -533,7 +533,7 @@ function registerAiChatRoutes(server) {
     try {
       const files = await fs.readdir(PROJECT_DIR);
       const aiChatFiles = files.filter(
-        (file) => file.startsWith("chat_") && file.endsWith(".json")
+        (file) => file.startsWith("chat_") && file.endsWith(".json") && !file.endsWith("canvas.json")
       );
 
       const conversations = await Promise.all(
