@@ -18,6 +18,8 @@ const {
   getSession,
   hasSession,
   setAbortController,
+  updateSessionContentBlocks,
+  setSessionConversationId,
   abortSession,
 } = require("./sessionService");
 const {
@@ -168,6 +170,9 @@ async function handleStreamResponse({
   processModeOptions,
   titlePromise,
 }) {
+  // 设置会话的对话ID（用于中断时更新消息）
+  setSessionConversationId(requestId, conversationId);
+
   try {
     // 更新标题（如果提供了 titlePromise，仅用于新对话）- 异步后台运行
     if (titlePromise) {
@@ -415,6 +420,14 @@ async function handleStreamResponse({
           }
           break;
       }
+
+      // 同步 contentBlocks 到 session（用于中断时保存已生成的内容）
+      // 需要包含当前正在处理的块
+      const blocksToSave = [...contentBlocks];
+      if (currentBlock) {
+        blocksToSave.push(currentBlock);
+      }
+      updateSessionContentBlocks(requestId, blocksToSave);
     };
 
     // 调用模式处理函数
@@ -451,6 +464,7 @@ async function handleStreamResponse({
       // 保存 contentBlocks 数组（与前端一致）
       version.contentBlocks = contentBlocks;
       version.isRequesting = false;
+      version.status = "completed"; // 保存完成状态
       return true;
     });
 
@@ -464,7 +478,27 @@ async function handleStreamResponse({
     // 关闭会话
     setTimeout(() => closeSession(requestId), 1000);
   } catch (error) {
+    // 检查是否是 abort 导致的错误
+    const isAbortError = error.name === 'AbortError' ||
+      error.message?.includes('aborted') ||
+      error.message?.includes('abort');
+
+    if (isAbortError) {
+      // abort 错误由 abort API 处理，这里不需要额外处理
+      console.log("请求被中断:", requestId);
+      return;
+    }
+
     console.error("处理流式响应失败:", error);
+
+    // 更新消息状态为错误
+    await updateMessageByRequestId(conversationId, requestId, (version, _message) => {
+      version.isRequesting = false;
+      version.status = "error";
+      version.errorMessage = error.message;
+      return true;
+    });
+
     sendEvent(requestId, {
       type: "error",
       error: error.message,
@@ -1085,7 +1119,7 @@ function registerAiChatRoutes(server) {
    */
   app.post("/api/ai_chat/conversations/:id/stream/:requestId/abort", async (req, reply) => {
     try {
-      const { requestId } = req.params;
+      const { id, requestId } = req.params;
 
       // 检查会话是否存在
       if (!hasSession(requestId)) {
@@ -1093,10 +1127,25 @@ function registerAiChatRoutes(server) {
         return;
       }
 
+      // 获取会话信息（包含已生成的内容块）
+      const session = getSession(requestId);
+      const contentBlocks = session?.contentBlocks || [];
+
       // 尝试中断请求
       const aborted = abortSession(requestId);
 
       if (aborted) {
+        // 更新消息状态为已取消，并保存已生成的内容
+        await updateMessageByRequestId(id, requestId, (version, _message) => {
+          version.isRequesting = false;
+          version.status = "aborted";
+          // 保存已生成的内容块
+          if (contentBlocks.length > 0) {
+            version.contentBlocks = contentBlocks;
+          }
+          return true;
+        });
+
         // 发送中断事件到客户端
         sendEvent(requestId, {
           type: "request_aborted",

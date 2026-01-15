@@ -10,6 +10,7 @@ import type {
   ConversationMode,
   CodeHistory,
   ContentBlock,
+  MessageVersionStatus,
 } from "@/views/LlmDashboard/Chat/types";
 import { nanoid } from "nanoid";
 
@@ -34,6 +35,13 @@ function apiMessageToMessageType(apiMessage: ApiMessage, _index: number): Messag
         : v.content
           ? [{ type: "text" as const, id: `${v.id}-text`, content: v.content }]
           : [],
+      // 转换状态：优先使用 status，其次根据 isRequesting 推断
+      status: v.status
+        ? v.status
+        : v.isRequesting
+          ? "streaming"
+          : "completed",
+      errorMessage: v.errorMessage,
     })),
   };
 }
@@ -391,6 +399,7 @@ export const useConversationStore = defineStore("conversation", () => {
         {
           id: requestId,
           contentBlocks: [],
+          status: "streaming", // 初始状态为流式生成中
         },
       ],
     };
@@ -417,9 +426,38 @@ export const useConversationStore = defineStore("conversation", () => {
       assistantMessage.versions.push({
         id: requestId,
         contentBlocks: [],
+        status: "streaming", // 初始状态为流式生成中
       });
       conversation.updatedAt = Date.now();
     }
+  }
+
+  /**
+   * 更新消息版本状态
+   */
+  function updateMessageVersionStatus(
+    conversationId: string,
+    requestId: string,
+    status: MessageVersionStatus,
+    errorMessage?: string
+  ) {
+    const conversation = conversations.value.find((c) => c.id === conversationId);
+    if (!conversation) return;
+
+    const message = conversation.messages.find((msg) =>
+      msg.versions.some((v) => v.id === requestId)
+    );
+    if (!message) return;
+
+    const version = message.versions.find((v) => v.id === requestId);
+    if (version) {
+      version.status = status;
+      if (errorMessage) {
+        version.errorMessage = errorMessage;
+      }
+    }
+
+    conversation.updatedAt = Date.now();
   }
 
   /**
@@ -572,6 +610,7 @@ export const useConversationStore = defineStore("conversation", () => {
     addUserMessage,
     addAssistantPlaceholder,
     addAssistantVersionPlaceholder,
+    updateMessageVersionStatus,
     updateConversationTitle,
     updateConversationMode,
     updateConversationCodeHistory,

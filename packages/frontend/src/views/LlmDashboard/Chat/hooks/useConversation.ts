@@ -342,6 +342,8 @@ export function useConversation() {
       },
 
       onComplete: () => {
+        // 更新消息状态为已完成
+        store.updateMessageVersionStatus(conversationId, requestId, "completed");
         // 发送完成事件
         eventBus.emit("message:complete", {
           conversationId,
@@ -349,13 +351,19 @@ export function useConversation() {
         });
       },
 
-      onError: (errorMessage: string) => {
-        // 添加错误文字块
-        store.upsertContentBlock(conversationId, requestId, {
-          type: "text",
-          id: `error-${Date.now()}`,
-          content: `错误: ${errorMessage}`,
+      onAborted: () => {
+        // 请求被中断，更新消息状态
+        store.updateMessageVersionStatus(conversationId, requestId, "aborted");
+        // 发送中断事件
+        eventBus.emit("message:aborted", {
+          conversationId,
+          requestId,
         });
+      },
+
+      onError: (errorMessage: string) => {
+        // 更新消息状态为错误（不再添加错误文字块，避免重复显示）
+        store.updateMessageVersionStatus(conversationId, requestId, "error", errorMessage);
         store.setError(errorMessage);
       },
 

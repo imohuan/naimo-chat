@@ -15,6 +15,8 @@ const SESSION_TTL_MS = 30_000;
  * @property {Array<Object>} events - 已发送的事件列表（用于重连回放）
  * @property {boolean} closed - 会话是否已关闭
  * @property {AbortController} [abortController] - 可选的中断控制器
+ * @property {Array<Object>} [contentBlocks] - 当前已生成的内容块（用于中断时保存）
+ * @property {string} [conversationId] - 对话ID（用于中断时更新消息）
  */
 
 /**
@@ -129,6 +131,32 @@ function setAbortController(streamingId, abortController) {
 }
 
 /**
+ * 更新会话的内容块（用于中断时保存已生成的内容）
+ *
+ * @param {string} streamingId - 会话唯一标识
+ * @param {Array<Object>} contentBlocks - 内容块数组
+ */
+function updateSessionContentBlocks(streamingId, contentBlocks) {
+  const session = sessions.get(streamingId);
+  if (!session) return;
+
+  session.contentBlocks = contentBlocks;
+}
+
+/**
+ * 设置会话的对话ID
+ *
+ * @param {string} streamingId - 会话唯一标识
+ * @param {string} conversationId - 对话ID
+ */
+function setSessionConversationId(streamingId, conversationId) {
+  const session = sessions.get(streamingId);
+  if (!session) return;
+
+  session.conversationId = conversationId;
+}
+
+/**
  * 中断会话的请求
  *
  * @param {string} streamingId - 会话唯一标识
@@ -149,6 +177,8 @@ module.exports = {
   getSession,
   hasSession,
   setAbortController,
+  updateSessionContentBlocks,
+  setSessionConversationId,
   abortSession,
   SESSION_TTL_MS,
 };

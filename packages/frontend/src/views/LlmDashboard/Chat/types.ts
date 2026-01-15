@@ -21,6 +21,8 @@ export interface ApiMessageVersion {
   content?: string; // 兼容旧格式，新格式使用 contentBlocks
   contentBlocks?: ContentBlock[]; // 新格式：按块保存的内容
   isRequesting?: boolean;
+  status?: MessageVersionStatus; // 消息状态
+  errorMessage?: string; // 错误信息
   createdAt?: number;
 }
 
@@ -78,12 +80,23 @@ export type ContentBlock =
   | { type: "tool"; id: string; toolCall: ToolUIPart };
 
 /**
+ * 消息版本状态
+ */
+export type MessageVersionStatus =
+  | "streaming"  // 正在流式生成
+  | "completed"  // 已完成
+  | "aborted"    // 已取消
+  | "error";     // 发生错误
+
+/**
  * 消息版本（前端 UI 使用）
  */
 export interface MessageVersion {
   id: string;
   contentBlocks: ContentBlock[]; // 按顺序的内容块数组
   files?: FileUIPart[];
+  status?: MessageVersionStatus; // 消息状态
+  errorMessage?: string; // 错误信息（当 status 为 error 时）
 }
 
 /**
@@ -264,6 +277,7 @@ export interface StreamCallbacks {
   onRequestId?: (requestId: string) => void;
   onComplete?: () => void;
   onError?: (error: string) => void;
+  onAborted?: () => void; // 请求被中断
   // 内容块回调
   onContentBlockStart?: (data: {
     index: number;

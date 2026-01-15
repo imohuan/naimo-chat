@@ -2,7 +2,7 @@
 import type { HTMLAttributes, VNode } from "vue";
 import type { MessageBranchContextType } from "./context";
 import { cn } from "@/lib/utils";
-import { provide, readonly, ref } from "vue";
+import { provide, readonly, ref, watch } from "vue";
 import { MessageBranchKey, MessageBranchWidthKey } from "./context";
 import { useElementSize } from "@vueuse/core";
 
@@ -24,6 +24,16 @@ const emits = defineEmits<{
 const currentBranch = ref<number>(props.defaultBranch);
 const branches = ref<VNode[]>([]);
 const totalBranches = ref<number>(0);
+
+// 监听 defaultBranch 变化，自动切换到新版本
+watch(
+  () => props.defaultBranch,
+  (newBranch) => {
+    if (newBranch !== undefined && newBranch !== currentBranch.value) {
+      currentBranch.value = newBranch;
+    }
+  }
+);
 
 function handleBranchChange(index: number) {
   currentBranch.value = index;

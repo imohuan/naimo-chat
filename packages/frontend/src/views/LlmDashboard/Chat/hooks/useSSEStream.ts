@@ -145,6 +145,13 @@ export function useSSEStream() {
             disconnect(requestId);
             break;
 
+          case "request_aborted":
+            // 请求被中断
+            isCompleted = true;
+            callbacks.onAborted?.();
+            disconnect(requestId);
+            break;
+
           case "error":
             const errorMessage = data.error || "未知错误";
             callbacks.onError?.(errorMessage);

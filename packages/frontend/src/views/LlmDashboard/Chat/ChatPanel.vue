@@ -622,7 +622,7 @@ async function handleAbort() {
   for (const [requestId, controller] of Object.entries(requests)) {
     try {
       controller.abort();
-      // 调用后端中断 API
+      // 调用后端中断 API（后端会通过 SSE 事件通知前端更新状态）
       await chatApi.abortRequest(activeConversationId.value, requestId);
     } catch (error) {
       console.error(`中断请求 ${requestId} 失败:`, error);
