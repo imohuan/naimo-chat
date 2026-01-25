@@ -289,7 +289,7 @@ const createLoggerConfig = (config, homeDir) => {
  * @param {Object} options - 选项
  * @param {number} options.limit - 返回的最大数量（默认：100）
  * @param {number} options.offset - 偏移量（默认：0）
- * @returns {Array<{requestId: string, timestamp: string, model: string, hasRequest: boolean, hasResponse: boolean, hasStreamResponse: boolean}>} 消息列表
+ * @returns {Array<{requestId: string, timestamp: string, hasRequest: boolean, hasResponse: boolean, hasStreamResponse: boolean}>} 消息列表
  * @throws {Error} 当读取目录失败时抛出错误
  */
 const getMessageList = (options = {}) => {
@@ -299,12 +299,12 @@ const getMessageList = (options = {}) => {
     const messageMap = new Map();
 
     if (!existsSync(messageDir)) {
-      return [];
+      return { messages: [], total: 0 };
     }
 
     const files = readdirSync(messageDir);
 
-    // 遍历所有文件，提取 requestId
+    // 只收集文件信息，不读取文件内容
     for (const file of files) {
       let requestId = null;
       let fileType = null;
@@ -333,34 +333,21 @@ const getMessageList = (options = {}) => {
             hasResponse: false,
             hasStreamResponse: false,
             timestamp: null,
-            model: null,
-            lastModified: null,
           });
         }
 
         const message = messageMap.get(requestId);
-        const filePath = join(messageDir, file);
-        const stats = statSync(filePath);
 
         if (fileType === "request") {
           message.hasRequest = true;
-          // 尝试读取请求文件获取时间戳和模型信息
-          try {
-            const requestData = JSON.parse(readFileSync(filePath, "utf8"));
-            message.timestamp = requestData.timestamp || stats.mtime.toISOString();
-            message.model = requestData.body?.model || null;
-          } catch {
-            message.timestamp = stats.mtime.toISOString();
-          }
+          // 使用文件修改时间作为时间戳
+          const filePath = join(messageDir, file);
+          const stats = statSync(filePath);
+          message.timestamp = stats.mtime.toISOString();
         } else if (fileType === "response") {
           message.hasResponse = true;
         } else if (fileType === "streamResponse") {
           message.hasStreamResponse = true;
-        }
-
-        // 更新最后修改时间（取最新的）
-        if (!message.lastModified || stats.mtime > new Date(message.lastModified)) {
-          message.lastModified = stats.mtime.toISOString();
         }
       }
     }
@@ -369,8 +356,8 @@ const getMessageList = (options = {}) => {
     const messageList = Array.from(messageMap.values())
       .filter((msg) => msg.hasRequest) // 只返回有请求文件的对话
       .sort((a, b) => {
-        const timeA = new Date(a.timestamp || a.lastModified).getTime();
-        const timeB = new Date(b.timestamp || b.lastModified).getTime();
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
         return timeB - timeA;
       });
 

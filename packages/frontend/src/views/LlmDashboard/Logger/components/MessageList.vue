@@ -339,46 +339,27 @@ function formatRelativeTime(timestamp: string | null): string {
       <div class="mb-3 flex items-center gap-2 overflow-hidden">
         <div class="flex-1 w-full overflow-hidden">
           <!-- 操作栏：选择操作和删除 -->
-          <div
-            v-if="isMultiSelectMode"
-            class="h-[38px] pl-3 flex items-center justify-between border border-slate-200 rounded-md bg-white"
-          >
+          <div v-if="isMultiSelectMode"
+            class="h-[38px] pl-3 flex items-center justify-between border border-slate-200 rounded-md bg-white">
             <div class="flex items-center gap-2 flex-wrap py-1">
               <label class="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  :checked="isAllSelected"
-                  @change="toggleSelectAll"
-                  class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                />
+                <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll"
+                  class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500" />
                 <span class="text-xs text-slate-600 font-medium">全选</span>
               </label>
 
-              <button
-                @click="invertSelection"
-                type="button"
+              <button @click="invertSelection" type="button"
                 class="px-2 py-1 text-xs font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                title="反选"
-              >
+                title="反选">
                 反选
               </button>
             </div>
-            <Popconfirm
-              v-if="hasSelected"
-              title="删除消息"
-              :description="`确定要删除选中的 ${selectedIds.size} 条消息吗？此操作不可撤销。`"
-              type="danger"
-              confirm-text="删除"
-              @confirm="handleDelete"
-            >
+            <Popconfirm v-if="hasSelected" title="删除消息" :description="`确定要删除选中的 ${selectedIds.size} 条消息吗？此操作不可撤销。`"
+              type="danger" confirm-text="删除" @confirm="handleDelete">
               <template #reference="{ toggle }">
-                <button
-                  @click.stop="toggle"
-                  type="button"
-                  :disabled="isDeleting"
+                <button @click.stop="toggle" type="button" :disabled="isDeleting"
                   class="px-3 py-1 hover:border-red-200 hover:text-red-600 rounded-md transition-all text-xs font-medium flex items-center gap-1.5 h-8 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="删除选中消息"
-                >
+                  title="删除选中消息">
                   <Trash2 class="w-3.5 h-3.5" />
                   <span>({{ selectedIds.size }})</span>
                 </button>
@@ -388,7 +369,7 @@ function formatRelativeTime(timestamp: string | null): string {
 
           <TimeRangePicker v-else v-model="timeRange" />
         </div>
-        <button
+        <!-- <button
           @click="toggleMultiSelectMode"
           type="button"
           :class="[
@@ -402,53 +383,41 @@ function formatRelativeTime(timestamp: string | null): string {
           <CheckSquare v-if="isMultiSelectMode" class="w-3.5 h-3.5" />
           <Square v-else class="w-3.5 h-3.5" />
           <span>{{ isMultiSelectMode ? "退出" : "多选" }}</span>
-        </button>
+        </button> -->
       </div>
 
       <!-- 标签过滤器 -->
       <div class="flex gap-1 flex-wrap">
-        <button
-          @click="emit('update:filterTag', 'all')"
-          :class="[
-            'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
-            filterTag === 'all'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100',
-          ]"
-        >
+        <button @click="emit('update:filterTag', 'all')" :class="[
+          'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
+          filterTag === 'all'
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-white text-slate-600 hover:bg-slate-100',
+        ]">
           全部 ({{ filteredMessages.length }})
         </button>
-        <button
-          @click="emit('update:filterTag', 'completed')"
-          :class="[
-            'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
-            filterTag === 'completed'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100',
-          ]"
-        >
+        <button @click="emit('update:filterTag', 'completed')" :class="[
+          'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
+          filterTag === 'completed'
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-white text-slate-600 hover:bg-slate-100',
+        ]">
           已完成
         </button>
-        <button
-          @click="emit('update:filterTag', 'pending')"
-          :class="[
-            'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
-            filterTag === 'pending'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100',
-          ]"
-        >
+        <button @click="emit('update:filterTag', 'pending')" :class="[
+          'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
+          filterTag === 'pending'
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-white text-slate-600 hover:bg-slate-100',
+        ]">
           未完成
         </button>
-        <button
-          @click="emit('update:filterTag', 'error')"
-          :class="[
-            'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
-            filterTag === 'error'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100',
-          ]"
-        >
+        <button @click="emit('update:filterTag', 'error')" :class="[
+          'px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200',
+          filterTag === 'error'
+            ? 'bg-indigo-600 text-white shadow-sm'
+            : 'bg-white text-slate-600 hover:bg-slate-100',
+        ]">
           错误
         </button>
       </div>
@@ -457,24 +426,14 @@ function formatRelativeTime(timestamp: string | null): string {
     <!-- 消息列表 -->
     <div ref="scrollContainer" class="flex-1 overflow-y-auto relative">
       <!-- 只在首次加载（没有数据）时显示加载状态 -->
-      <div
-        v-if="isLoading && messages.length === 0"
-        class="p-8 text-center text-slate-400"
-      >
+      <div v-if="isLoading && messages.length === 0" class="p-8 text-center text-slate-400">
         <p class="text-sm">加载中...</p>
       </div>
-      <div
-        v-else-if="filteredMessages.length === 0"
-        class="p-8 text-center text-slate-400"
-      >
+      <div v-else-if="filteredMessages.length === 0" class="p-8 text-center text-slate-400">
         <p class="text-sm">没有找到匹配的对话</p>
       </div>
-      <div
-        v-else
-        v-for="(msg, index) in filteredMessages"
-        :key="msg.requestId"
-        @click="handleItemClick(msg.requestId, index, $event)"
-        :class="[
+      <div v-else v-for="(msg, index) in filteredMessages" :key="msg.requestId"
+        @click="handleItemClick(msg.requestId, index, $event)" :class="[
           'p-4 border-b border-slate-100 cursor-pointer transition-all relative',
           selectedMessageId === msg.requestId
             ? 'bg-indigo-50 border-l-4 border-l-indigo-600 shadow-sm z-10'
@@ -482,61 +441,36 @@ function formatRelativeTime(timestamp: string | null): string {
           isMultiSelectMode && selectedIds.has(msg.requestId)
             ? 'bg-indigo-100'
             : 'hover:bg-slate-100',
-        ]"
-      >
+        ]">
         <!-- 复选框（仅多选模式显示） -->
-        <div
-          v-if="isMultiSelectMode"
-          class="absolute left-4 top-4 z-10"
-          @click.stop="toggleSelect(msg.requestId, $event)"
-        >
-          <input
-            type="checkbox"
-            :checked="selectedIds.has(msg.requestId)"
-            @change="toggleSelect(msg.requestId, $event)"
-            @click.stop
-            class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
-          />
+        <div v-if="isMultiSelectMode" class="absolute left-4 top-4 z-10"
+          @click.stop="toggleSelect(msg.requestId, $event)">
+          <input type="checkbox" :checked="selectedIds.has(msg.requestId)" @change="toggleSelect(msg.requestId, $event)"
+            @click.stop class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer" />
         </div>
 
         <!-- 主要内容区域 -->
         <div :class="isMultiSelectMode ? 'pr-16 pl-8' : 'pr-16'">
           <!-- 模型名称（主标题） -->
-          <div
-            v-if="msg.model"
-            class="font-mono text-sm font-bold text-slate-800 mb-2 line-clamp-2 break-words"
-            :title="msg.model"
-          >
+          <div v-if="msg.model" class="font-mono text-sm font-bold text-slate-800 mb-2 line-clamp-2 break-words"
+            :title="msg.model">
             {{ msg.model }}
           </div>
 
           <!-- Request ID（可选显示） -->
-          <div
-            v-if="msg.requestId"
-            class="text-xs font-mono text-slate-500 mb-2 truncate"
-            :title="msg.requestId"
-          >
+          <div v-if="msg.requestId" class="text-xs font-mono text-slate-500 mb-2 truncate" :title="msg.requestId">
             {{ msg.requestId }}
           </div>
 
           <!-- Tags 区域 -->
           <div class="flex items-center gap-1.5 flex-wrap">
             <!-- 请求/响应/流式标签 -->
-            <span
-              v-if="msg.hasRequest"
-              class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gradient-to-r from-green-50 to-green-50/80 text-green-700 border border-green-200/60 shadow-sm whitespace-nowrap"
-              >请求</span
-            >
-            <span
-              v-if="msg.hasResponse"
-              class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gradient-to-r from-blue-50 to-blue-50/80 text-blue-700 border border-blue-200/60 shadow-sm whitespace-nowrap"
-              >响应</span
-            >
-            <span
-              v-if="msg.hasStreamResponse"
-              class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gradient-to-r from-purple-50 to-purple-50/80 text-purple-700 border border-purple-200/60 shadow-sm whitespace-nowrap"
-              >流式</span
-            >
+            <span v-if="msg.hasRequest"
+              class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gradient-to-r from-green-50 to-green-50/80 text-green-700 border border-green-200/60 shadow-sm whitespace-nowrap">请求</span>
+            <span v-if="msg.hasResponse"
+              class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gradient-to-r from-blue-50 to-blue-50/80 text-blue-700 border border-blue-200/60 shadow-sm whitespace-nowrap">响应</span>
+            <span v-if="msg.hasStreamResponse"
+              class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-gradient-to-r from-purple-50 to-purple-50/80 text-purple-700 border border-purple-200/60 shadow-sm whitespace-nowrap">流式</span>
           </div>
         </div>
 
@@ -549,10 +483,7 @@ function formatRelativeTime(timestamp: string | null): string {
       </div>
 
       <!-- 底部加载更多指示器 -->
-      <div
-        v-if="isLoadingMore"
-        class="p-4 text-center border-t border-slate-200 bg-slate-50"
-      >
+      <div v-if="isLoadingMore" class="p-4 text-center border-t border-slate-200 bg-slate-50">
         <div class="flex items-center justify-center gap-2 text-slate-500">
           <Loader2 class="w-4 h-4 animate-spin" />
           <span class="text-xs font-medium">加载更多...</span>
@@ -560,10 +491,8 @@ function formatRelativeTime(timestamp: string | null): string {
       </div>
 
       <!-- 没有更多数据提示 -->
-      <div
-        v-else-if="!hasMore && filteredMessages.length > 0"
-        class="p-4 text-center border-t border-slate-200 bg-slate-50"
-      >
+      <div v-else-if="!hasMore && filteredMessages.length > 0"
+        class="p-4 text-center border-t border-slate-200 bg-slate-50">
         <span class="text-xs text-slate-400">没有更多数据了</span>
       </div>
     </div>

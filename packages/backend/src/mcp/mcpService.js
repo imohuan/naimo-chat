@@ -15,6 +15,7 @@ const {
   McpError,
 } = require("@modelcontextprotocol/sdk/types.js");
 const configService = require("./configService");
+const mcpLogger = require("./mcpLogger");
 
 class McpService {
   constructor() {
@@ -241,23 +242,50 @@ class McpService {
       }
 
       // 转发调用
+      const startTime = Date.now();
+      let result = null;
+      let error = null;
+
       try {
         console.log(
           `[McpService] 正在将工具 ${toolName} 转发到 ${serverName}，参数:`,
           JSON.stringify(args, null, 2)
         );
-        const result = await client.callTool({
+        result = await client.callTool({
           name: toolName,
           arguments: args,
         });
+
+        // 记录成功的工具调用
+        mcpLogger.logToolCall({
+          toolName,
+          serverName,
+          arguments: args,
+          result,
+          duration: Date.now() - startTime,
+          sessionId: null // 可以从上下文中获取 sessionId
+        });
+
         return result;
-      } catch (error) {
-        console.error(`[McpService] 工具执行失败:`, error);
+      } catch (err) {
+        error = err;
+        console.error(`[McpService] 工具执行失败:`, err);
+
+        // 记录失败的工具调用
+        mcpLogger.logToolCall({
+          toolName,
+          serverName,
+          arguments: args,
+          error: err,
+          duration: Date.now() - startTime,
+          sessionId: null
+        });
+
         // 如果是 McpError，直接抛出
-        if (error.code !== undefined && error.message) {
-          throw error;
+        if (err.code !== undefined && err.message) {
+          throw err;
         }
-        throw new McpError(ErrorCode.InternalError, error.message);
+        throw new McpError(ErrorCode.InternalError, err.message);
       }
     });
 

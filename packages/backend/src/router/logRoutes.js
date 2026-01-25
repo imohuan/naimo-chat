@@ -6,6 +6,7 @@ const {
   getMessageDetail,
   deleteMessages,
 } = require("../utils/logs");
+const mcpLogger = require("../mcp/mcpLogger");
 
 function registerLogRoutes(server) {
   const app = server.app;
@@ -151,6 +152,106 @@ function registerLogRoutes(server) {
     } catch (error) {
       console.error("删除消息失败:", error);
       reply.status(500).send({ error: "删除消息失败" });
+    }
+  });
+
+  // ========== MCP 工具调用日志接口 ==========
+
+  // 获取 MCP 工具调用列表
+  app.get("/api/mcp/tool-calls", async (req, reply) => {
+    try {
+      const limit = parseInt(req.query?.limit) || 50;
+      const offset = parseInt(req.query?.offset) || 0;
+      const toolName = req.query?.toolName;
+      const serverName = req.query?.serverName;
+      const success = req.query?.success !== undefined
+        ? req.query.success === "true"
+        : undefined;
+      const startTime = req.query?.startTime
+        ? parseInt(req.query.startTime)
+        : undefined;
+      const endTime = req.query?.endTime
+        ? parseInt(req.query.endTime)
+        : undefined;
+
+      const result = mcpLogger.queryToolCalls({
+        limit,
+        offset,
+        toolName,
+        serverName,
+        success,
+        startTime,
+        endTime
+      });
+
+      return result;
+    } catch (error) {
+      console.error("获取 MCP 工具调用列表失败:", error);
+      reply.status(500).send({ error: "获取 MCP 工具调用列表失败" });
+    }
+  });
+
+  // 获取 MCP 工具调用详情
+  app.get("/api/mcp/tool-calls/:logId", async (req, reply) => {
+    try {
+      const { logId } = req.params;
+      const detail = mcpLogger.getToolCallDetail(logId);
+
+      if (!detail) {
+        reply.status(404).send({ error: "工具调用日志不存在" });
+        return;
+      }
+
+      return detail;
+    } catch (error) {
+      console.error("获取 MCP 工具调用详情失败:", error);
+      reply.status(500).send({ error: "获取 MCP 工具调用详情失败" });
+    }
+  });
+
+  // 删除 MCP 工具调用日志
+  app.delete("/api/mcp/tool-calls", async (req, reply) => {
+    try {
+      const { logIds } = req.body;
+
+      if (!logIds) {
+        reply.status(400).send({ error: "缺少 logIds 参数" });
+        return;
+      }
+
+      const ids = Array.isArray(logIds) ? logIds : [logIds];
+      if (ids.length === 0) {
+        reply.status(400).send({ error: "logIds 不能为空" });
+        return;
+      }
+
+      const result = mcpLogger.deleteToolCalls(ids);
+      return result;
+    } catch (error) {
+      console.error("删除 MCP 工具调用日志失败:", error);
+      reply.status(500).send({ error: "删除 MCP 工具调用日志失败" });
+    }
+  });
+
+  // 清空所有 MCP 工具调用日志
+  app.delete("/api/mcp/tool-calls/all", async (req, reply) => {
+    try {
+      const result = mcpLogger.clearAllToolCalls();
+      return result;
+    } catch (error) {
+      console.error("清空 MCP 工具调用日志失败:", error);
+      reply.status(500).send({ error: "清空 MCP 工具调用日志失败" });
+    }
+  });
+
+  // 获取 MCP 工具调用统计信息
+  app.get("/api/mcp/tool-calls/stats", async (req, reply) => {
+    try {
+      const stats = mcpLogger.getStatistics();
+      return stats;
+    } catch (error) {
+      console.error("获取 MCP 工具调用统计信息失败:", error);
+      reply.status(500).send({ error: "获取 MCP 工具调用统计信息失败" });
     }
   });
 }

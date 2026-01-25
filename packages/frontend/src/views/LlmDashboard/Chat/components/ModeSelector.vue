@@ -21,7 +21,19 @@ const emit = defineEmits<{
   "update:mode": [mode: ConversationMode];
 }>();
 
-const conversationModes = [
+const conversationModes = [{
+  value: "chat" as const,
+  label: "对话",
+  description: "直接对话模式。适用于简单问题和快速响应",
+},
+{
+  value: "canvas" as const,
+  label: "画布",
+  description: "可视化工作区模式。用于创建和编辑视觉内容",
+}
+] as const
+
+const conversationModes1 = [
   {
     value: "agent" as const,
     label: "智能",
@@ -74,20 +86,12 @@ function handleModeChange(mode: ConversationMode) {
         对话模式
       </DropdownMenuLabel>
       <DropdownMenuSeparator class="my-1" />
-      <DropdownMenuRadioGroup
-        :model-value="mode"
-        class="flex flex-col gap-1"
-        @update:model-value="handleModeChange"
-      >
-        <DropdownMenuRadioItem
-          v-for="modeOption in conversationModes"
-          :key="modeOption.value"
-          :value="modeOption.value"
+      <DropdownMenuRadioGroup :model-value="mode" class="flex flex-col gap-1" @update:model-value="handleModeChange">
+        <DropdownMenuRadioItem v-for="modeOption in conversationModes" :key="modeOption.value" :value="modeOption.value"
           :class="[
             'flex! flex-col! items-start! gap-1! py-3! px-3! pl-3! rounded-sm! [&>span.absolute]:hidden',
             mode === modeOption.value ? 'bg-accent' : '',
-          ]"
-        >
+          ]">
           <div class="flex flex-col gap-1 w-full">
             <span class="font-medium text-sm">{{ modeOption.label }}</span>
             <span class="text-xs text-muted-foreground leading-relaxed">

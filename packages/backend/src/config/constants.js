@@ -21,6 +21,8 @@ const CONFIG_BACKUP_DIR = join(HOME_DIR, "backup-config");
 
 /* MCP 服务器目录：存储 MCP 服务器文件的目录 */
 const MCP_SERVER_DIR = join(HOME_DIR, "mcp-server");
+/** MCP 日志目录 */
+const MCP_LOG_DIR = join(HOME_DIR, "mcp-logs");
 /* 项目保存目录 */
 const PROJECT_DIR = join(HOME_DIR, "projects");
 /* 聊天消息目录：存储聊天消息的目录 */
@@ -71,4 +73,6 @@ module.exports = {
   LOG_FILE,
   MCP_SERVERS_CONFIG_FILE,
   FILE_HASH_INDEX_FILE,
+  MCP_LOG_DIR,
+  MCP_TOOL_CALL_LOG_DIR: join(MCP_LOG_DIR, "tool-calls")
 };
