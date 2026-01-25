@@ -137,69 +137,105 @@ function getDirectoryName(key: string): string {
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="space-y-4">
+    <!-- 标题栏 -->
     <div class="flex items-center justify-between">
-      <label class="label-base">缓存管理</label>
-      <button class="text-xs text-primary hover:text-primary/80 flex items-center gap-1 disabled:opacity-50"
+      <label class="label-base flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-slate-600">
+          <path
+            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
+        </svg>
+        缓存管理
+      </label>
+      <button
+        class="text-xs text-primary hover:text-primary/80 flex items-center gap-1.5 px-2 py-1 rounded hover:bg-primary/5 transition-colors disabled:opacity-50"
         :disabled="loading" @click="fetchCacheInfo">
-        <RefreshOutlined class="w-4 h-4" />
+        <RefreshOutlined class="w-4 h-4" :class="{ 'animate-spin': loading }" />
         刷新
       </button>
     </div>
 
-    <div v-if="loading && !cacheInfo" class="p-4 text-center text-slate-500 text-sm">
-      加载中...
+    <div v-if="loading && !cacheInfo" class="p-8 text-center text-slate-500 text-sm">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
+      <div>加载中...</div>
     </div>
 
-    <div v-else-if="cacheInfo" class="space-y-3">
-      <!-- 总计信息 -->
-      <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
-        <div class="text-sm">
-          <span class="text-slate-600">总占用空间：</span>
-          <span class="font-semibold text-slate-800">{{
-            cacheInfo.total.sizeFormatted
-          }}</span>
-        </div>
-        <div class="text-xs text-slate-500">
-          {{ cacheInfo.total.fileCount }} 个文件，{{
-            cacheInfo.total.folderCount
-          }}
-          个文件夹
+    <div v-else-if="cacheInfo" class="space-y-4">
+      <!-- 总计信息卡片 -->
+      <div class="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-600 mb-1">总占用空间</div>
+            <div class="text-2xl font-bold text-slate-800">
+              {{ cacheInfo.total.sizeFormatted }}
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-600 mb-1">文件统计</div>
+            <div class="text-sm font-medium text-slate-700">
+              {{ cacheInfo.total.fileCount }} 个文件，{{
+                cacheInfo.total.folderCount
+              }}
+              个文件夹
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- 目录列表 -->
-      <div class="border border-slate-200 rounded-lg overflow-hidden">
+      <div class="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <!-- 表头 -->
         <div
-          class="bg-slate-50 px-3 py-2 flex items-center gap-3 border-b border-slate-200 text-xs font-medium text-slate-600">
+          class="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 flex items-center gap-3 border-b border-slate-200">
           <input type="checkbox" :checked="allSelected" @change="toggleAll"
-            class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-          <div class="flex-1">目录</div>
-          <div class="w-24 text-right">大小</div>
-          <div class="w-20 text-right">文件数</div>
+            class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20 cursor-pointer transition-all" />
+          <div class="flex-1 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+            目录
+          </div>
+          <div class="w-28 text-right text-xs font-semibold text-slate-700 uppercase tracking-wide">
+            大小
+          </div>
+          <div class="w-24 text-right text-xs font-semibold text-slate-700 uppercase tracking-wide">
+            文件数
+          </div>
         </div>
 
         <!-- 目录项 -->
         <div v-for="dir in cacheInfo.directories" :key="dir.key"
-          class="px-3 py-2.5 flex items-center gap-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors">
-          <input type="checkbox" :checked="selectedDirectories.has(dir.key)" @change="toggleSelection(dir.key)"
-            class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
+          class="px-4 py-3 flex items-center gap-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70 transition-all cursor-pointer group"
+          :class="{ 'bg-blue-50/30': selectedDirectories.has(dir.key) }" @click="toggleSelection(dir.key)">
+          <input type="checkbox" :checked="selectedDirectories.has(dir.key)" @change.stop="toggleSelection(dir.key)"
+            class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20 cursor-pointer transition-all" />
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2">
-              <FolderOutlined class="w-4 h-4 text-slate-400 shrink-0" />
-              <span class="text-sm font-medium text-slate-700">{{
-                dir.name
-              }}</span>
+            <div class="flex items-center gap-2 mb-1">
+              <FolderOutlined class="w-4 h-4 shrink-0 transition-colors" :class="selectedDirectories.has(dir.key)
+                ? 'text-primary'
+                : 'text-slate-400 group-hover:text-slate-500'
+                " />
+              <span class="text-sm font-medium transition-colors" :class="selectedDirectories.has(dir.key)
+                ? 'text-primary'
+                : 'text-slate-700'
+                ">
+                {{ dir.name }}
+              </span>
             </div>
-            <div class="text-xs text-slate-500 mt-0.5 truncate">
+            <div class="text-xs text-slate-500 truncate pl-6">
               {{ dir.description }}
             </div>
           </div>
-          <div class="w-24 text-right text-sm font-mono text-slate-600">
+          <div class="w-28 text-right text-sm font-mono font-medium transition-colors" :class="selectedDirectories.has(dir.key)
+            ? 'text-primary'
+            : 'text-slate-600'
+            ">
             {{ dir.sizeFormatted }}
           </div>
-          <div class="w-20 text-right text-sm text-slate-600">
+          <div class="w-24 text-right text-sm transition-colors" :class="selectedDirectories.has(dir.key)
+            ? 'text-primary'
+            : 'text-slate-600'
+            ">
             {{ dir.fileCount }}
           </div>
         </div>
@@ -207,9 +243,11 @@ function getDirectoryName(key: string): string {
 
       <!-- 操作按钮 -->
       <div class="flex justify-end">
-        <button class="btn-danger text-sm" :disabled="!hasSelection || loading" @click="openConfirmDialog">
+        <button class="btn-danger text-sm shadow-sm hover:shadow-md" :disabled="!hasSelection || loading"
+          @click="openConfirmDialog">
           <DeleteOutlined class="w-4 h-4" />
           清空选中目录
+          <span v-if="hasSelection" class="ml-1">({{ selectedDirectories.size }})</span>
         </button>
       </div>
     </div>
@@ -219,15 +257,23 @@ function getDirectoryName(key: string): string {
       <div v-if="showConfirmDialog"
         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4" style="z-index: 60;"
         @click.self="closeConfirmDialog">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200">
-          <div class="px-6 py-4 border-b border-slate-100">
-            <h3 class="font-bold text-slate-800 text-lg">确认清空缓存</h3>
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in">
+          <div class="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-red-50 to-orange-50">
+            <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-red-500">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              确认清空缓存
+            </h3>
           </div>
           <div class="px-6 py-4 space-y-3">
             <p class="text-sm text-slate-600">
-              您确定要清空以下目录吗？此操作不可恢复。
+              您确定要清空以下目录吗？<span class="font-semibold text-red-600">此操作不可恢复</span>。
             </p>
-            <div class="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
+            <div class="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
               <div v-for="key in clearingDirectories" :key="key" class="text-sm text-red-700 flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                 {{ getDirectoryName(key) }}
@@ -258,7 +304,7 @@ function getDirectoryName(key: string): string {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -294,5 +340,15 @@ function getDirectoryName(key: string): string {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 </style>
