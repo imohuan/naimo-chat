@@ -2,12 +2,15 @@
 import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 import { Trash2, Loader2 } from "lucide-vue-next";
 import type { McpToolCall } from "../useMcpToolCalls";
+import type { TimeRange } from "../types";
 import Popconfirm from "@/components/llm/Popconfirm.vue";
+import TimeRangePicker from "./TimeRangePicker.vue";
 
 const props = defineProps<{
   toolCalls: McpToolCall[];
   selectedToolCallId: string | null;
   searchQuery: string;
+  timeRange?: TimeRange;
   isLoading?: boolean;
   isLoadingMore?: boolean;
   hasMore?: boolean;
@@ -17,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:selectedToolCallId": [id: string | null];
   "update:searchQuery": [query: string];
+  "update:timeRange": [range: TimeRange];
   refresh: [];
   "load-more": [];
   delete: [ids: string[]];
@@ -223,6 +227,9 @@ onUnmounted(() => {
           @input="emit('update:searchQuery', ($event.target as HTMLInputElement).value)" placeholder="搜索工具名称、服务器..."
           class="w-full px-3 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       </div>
+
+      <!-- 时间范围选择器 -->
+      <TimeRangePicker :model-value="timeRange" @update:model-value="emit('update:timeRange', $event)" />
 
       <!-- 操作栏 -->
       <div v-if="isMultiSelectMode"

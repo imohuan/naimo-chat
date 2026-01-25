@@ -1,5 +1,6 @@
 import { ref, computed } from "vue";
 import { useLlmApi } from "@/hooks/useLlmApi";
+import type { TimeRange } from "./types";
 
 export interface McpToolCall {
   id: string;
@@ -33,6 +34,7 @@ export function useMcpToolCalls() {
   const selectedToolCallId = ref<string | null>(null);
   const selectedToolCallDetail = ref<McpToolCall | null>(null);
   const searchQuery = ref("");
+  const timeRange = ref<TimeRange>({ start: null, end: null });
   const filterSuccess = ref<boolean | undefined>(undefined);
   const filterToolName = ref<string | undefined>(undefined);
   const filterServerName = ref<string | undefined>(undefined);
@@ -82,6 +84,8 @@ export function useMcpToolCalls() {
         toolName: filterToolName.value,
         serverName: filterServerName.value,
         success: filterSuccess.value,
+        startTime: timeRange.value.start?.getTime(),
+        endTime: timeRange.value.end?.getTime(),
       });
 
       if (reset) {
@@ -152,6 +156,7 @@ export function useMcpToolCalls() {
     selectedToolCallId,
     selectedToolCallDetail,
     searchQuery,
+    timeRange,
     filterSuccess,
     filterToolName,
     filterServerName,

@@ -72,9 +72,9 @@ class McpLogger {
    * @param {boolean} options.success - 按成功/失败过滤
    * @param {number} options.startTime - 开始时间戳
    * @param {number} options.endTime - 结束时间戳
-   * @returns {Object} 查询结果
+   * @returns {Promise<Object>} 查询结果
    */
-  queryToolCalls(options = {}) {
+  async queryToolCalls(options = {}) {
     try {
       const {
         limit = 50,
@@ -92,25 +92,29 @@ class McpLogger {
         .sort()
         .reverse(); // 最新的在前
 
-      let logs = [];
-      for (const file of files) {
+      // 使用 Promise.all 并发读取文件
+      const readPromises = files.map(async (file) => {
         try {
           const filePath = path.join(MCP_TOOL_CALL_LOG_DIR, file);
-          const content = fs.readFileSync(filePath, "utf8");
+          const content = await fs.promises.readFile(filePath, "utf8");
           const log = JSON.parse(content);
 
           // 应用过滤条件
-          if (toolName && log.toolName !== toolName) continue;
-          if (serverName && log.serverName !== serverName) continue;
-          if (success !== undefined && log.success !== success) continue;
-          if (startTime && log.timestamp < startTime) continue;
-          if (endTime && log.timestamp > endTime) continue;
+          if (toolName && log.toolName !== toolName) return null;
+          if (serverName && log.serverName !== serverName) return null;
+          if (success !== undefined && log.success !== success) return null;
+          if (startTime && log.timestamp < startTime) return null;
+          if (endTime && log.timestamp > endTime) return null;
 
-          logs.push(log);
+          return log;
         } catch (error) {
           console.error(`[McpLogger] 读取日志文件失败 ${file}:`, error);
+          return null;
         }
-      }
+      });
+
+      const results = await Promise.all(readPromises);
+      const logs = results.filter(log => log !== null);
 
       const total = logs.length;
       const paginatedLogs = logs.slice(offset, offset + limit);
@@ -225,9 +229,9 @@ class McpLogger {
 
   /**
    * 获取统计信息
-   * @returns {Object} 统计信息
+   * @returns {Promise<Object>} 统计信息
    */
-  getStatistics() {
+  async getStatistics() {
     try {
       const files = fs.readdirSync(MCP_TOOL_CALL_LOG_DIR)
         .filter(f => f.endsWith(".json"));
@@ -240,42 +244,49 @@ class McpLogger {
         serverStats: {}
       };
 
-      for (const file of files) {
+      // 使用 Promise.all 并发读取文件
+      const readPromises = files.map(async (file) => {
         try {
           const filePath = path.join(MCP_TOOL_CALL_LOG_DIR, file);
-          const content = fs.readFileSync(filePath, "utf8");
-          const log = JSON.parse(content);
-
-          stats.totalCalls++;
-          if (log.success) {
-            stats.successCalls++;
-          } else {
-            stats.failedCalls++;
-          }
-
-          // 工具统计
-          if (!stats.toolStats[log.toolName]) {
-            stats.toolStats[log.toolName] = { total: 0, success: 0, failed: 0 };
-          }
-          stats.toolStats[log.toolName].total++;
-          if (log.success) {
-            stats.toolStats[log.toolName].success++;
-          } else {
-            stats.toolStats[log.toolName].failed++;
-          }
-
-          // 服务器统计
-          if (!stats.serverStats[log.serverName]) {
-            stats.serverStats[log.serverName] = { total: 0, success: 0, failed: 0 };
-          }
-          stats.serverStats[log.serverName].total++;
-          if (log.success) {
-            stats.serverStats[log.serverName].success++;
-          } else {
-            stats.serverStats[log.serverName].failed++;
-          }
+          const content = await fs.promises.readFile(filePath, "utf8");
+          return JSON.parse(content);
         } catch (error) {
           console.error(`[McpLogger] 读取统计信息失败 ${file}:`, error);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(readPromises);
+      const logs = results.filter(log => log !== null);
+
+      for (const log of logs) {
+        stats.totalCalls++;
+        if (log.success) {
+          stats.successCalls++;
+        } else {
+          stats.failedCalls++;
+        }
+
+        // 工具统计
+        if (!stats.toolStats[log.toolName]) {
+          stats.toolStats[log.toolName] = { total: 0, success: 0, failed: 0 };
+        }
+        stats.toolStats[log.toolName].total++;
+        if (log.success) {
+          stats.toolStats[log.toolName].success++;
+        } else {
+          stats.toolStats[log.toolName].failed++;
+        }
+
+        // 服务器统计
+        if (!stats.serverStats[log.serverName]) {
+          stats.serverStats[log.serverName] = { total: 0, success: 0, failed: 0 };
+        }
+        stats.serverStats[log.serverName].total++;
+        if (log.success) {
+          stats.serverStats[log.serverName].success++;
+        } else {
+          stats.serverStats[log.serverName].failed++;
         }
       }
 

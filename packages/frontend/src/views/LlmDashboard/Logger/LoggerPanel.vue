@@ -55,6 +55,7 @@ const {
   selectedToolCallId,
   selectedToolCallDetail,
   searchQuery: mcpSearchQuery,
+  timeRange: mcpTimeRange,
   isLoading: isLoadingMcpToolCalls,
   isLoadingMore: isLoadingMoreMcpToolCalls,
   isLoadingDetail: isLoadingMcpDetail,
@@ -504,22 +505,23 @@ onUnmounted(() => {
         <!-- 左侧：工具调用列表 -->
         <div class="w-80 shrink-0">
           <McpToolCallList :tool-calls="toolCalls" :selected-tool-call-id="selectedToolCallId"
-            :search-query="mcpSearchQuery" :is-loading="isLoadingMcpToolCalls"
+            :search-query="mcpSearchQuery" :time-range="mcpTimeRange" :is-loading="isLoadingMcpToolCalls"
             :is-loading-more="isLoadingMoreMcpToolCalls" :is-refreshing="isRefreshingMcpToolCalls"
-            :has-more="hasMoreMcpToolCalls" @update:selected-tool-call-id="(id) => (selectedToolCallId = id)"
-            @update:search-query="(query) => (mcpSearchQuery = query)" @refresh="refreshToolCalls"
+            :has-more="hasMoreMcpToolCalls" @update:selected-tool-call-id="(id) => id && selectToolCall(id)"
+            @update:search-query="(query) => (mcpSearchQuery = query)"
+            @update:time-range="(range) => { mcpTimeRange = range; refreshToolCalls(); }" @refresh="refreshToolCalls"
             @load-more="loadToolCalls(false)" @delete="deleteToolCall" />
         </div>
 
         <!-- 右侧：工具调用详情 -->
-        <div class="flex-1 min-w-0 w-full h-full flex items-center justify-center">
+        <div class="flex-1 min-w-0 h-full flex items-center justify-center bg-white">
           <div v-if="
             isLoadingMcpDetail || (isLoadingMcpToolCalls && !selectedToolCallDetail)
           " class="flex flex-col items-center gap-3">
             <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
             <p class="text-slate-400 text-sm">加载中...</p>
           </div>
-          <McpToolCallDetail v-else :tool-call="selectedToolCallDetail" />
+          <McpToolCallDetail v-else class="w-full h-full" :tool-call="selectedToolCallDetail" />
         </div>
       </template>
     </div>
