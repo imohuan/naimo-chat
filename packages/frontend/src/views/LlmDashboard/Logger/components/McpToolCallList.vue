@@ -261,6 +261,7 @@ onUnmounted(() => {
 
     <!-- 工具调用列表 -->
     <div ref="scrollContainer" class="flex-1 overflow-y-auto relative">
+      <!-- 只在首次加载（没有数据）时显示加载状态 -->
       <div v-if="isLoading && toolCalls.length === 0" class="p-8 text-center text-slate-400">
         <p class="text-sm">加载中...</p>
       </div>

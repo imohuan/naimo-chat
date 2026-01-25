@@ -257,9 +257,8 @@ watch(
         const items = allDisplayItems.value;
         items.forEach((item) => {
           if (shouldAutoCollapse(item)) {
-            const itemId = `${item.type}-${
-              item.data.time || item.data.role || Math.random()
-            }`;
+            const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()
+              }`;
             collapsedItems.value.add(itemId);
           }
         });
@@ -358,9 +357,9 @@ function formatTimeDetail(ts: number): string {
     .getMinutes()
     .toString()
     .padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}.${d
-    .getMilliseconds()
-    .toString()
-    .padStart(3, "0")}`;
+      .getMilliseconds()
+      .toString()
+      .padStart(3, "0")}`;
 }
 
 function computeTimeDelta(logs: any[], idx: number): number {
@@ -512,21 +511,18 @@ function getItemContent(item: any): string {
           if (part.type === "text") {
             return part.text || "";
           } else if (part.type === "tool_use") {
-            return `[Tool: ${part.name || "Unknown"}] ${
-              part.input ? JSON.stringify(part.input) : ""
-            }`;
+            return `[Tool: ${part.name || "Unknown"}] ${part.input ? JSON.stringify(part.input) : ""
+              }`;
           } else if (part.type === "tool_result") {
-            return `[Tool Result] ${
-              part.content
+            return `[Tool Result] ${part.content
                 ? Array.isArray(part.content)
                   ? part.content.join("\n")
                   : part.content
                 : ""
-            }`;
+              }`;
           } else if (part.type === "image") {
-            return `[Image: ${part.alt || "Generated image"}] ${
-              part.detail ? `(${part.detail})` : ""
-            }`;
+            return `[Image: ${part.alt || "Generated image"}] ${part.detail ? `(${part.detail})` : ""
+              }`;
           }
           return `[${part.type}] ${JSON.stringify(part)}`;
         })
@@ -561,9 +557,8 @@ function getDisplayContent(item: any): string {
     return content.trim();
   }
 
-  const itemId = `${item.type}-${
-    item.data.time || item.data.role || Math.random()
-  }`;
+  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()
+    }`;
   if (!isCollapsed(itemId)) {
     return content.trim();
   }
@@ -630,9 +625,8 @@ function getTimelineLogId(log: any, index: number): string {
 
 // 复制对象数据到剪贴板
 async function copyItemData(item: any) {
-  const itemId = `${item.type}-${
-    item.data.time || item.data.role || Math.random()
-  }`;
+  const itemId = `${item.type}-${item.data.time || item.data.role || Math.random()
+    }`;
 
   try {
     const dataToCopy = {
@@ -772,97 +766,67 @@ async function loadAllAndScrollToBottom() {
       <div class="flex justify-between items-start">
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-3 mb-2">
-            <span
-              class="px-3 py-1 rounded-md text-sm font-bold"
-              :class="
-                request.method === 'GET'
-                  ? 'bg-blue-100 text-blue-700'
-                  : request.method === 'POST'
+            <span class="px-3 py-1 rounded-md text-sm font-bold" :class="request.method === 'GET'
+                ? 'bg-blue-100 text-blue-700'
+                : request.method === 'POST'
                   ? 'bg-green-100 text-green-700'
                   : 'bg-slate-100 text-slate-700'
-              "
-              >{{ request.method }}</span
-            >
-            <span
-              class="max-w-[200px] truncate text-base text-blue-700 underline break-all font-mono"
-              >{{ request.url }}</span
-            >
-            <span
-              v-if="request.status"
-              class="px-2 py-1 rounded text-xs font-bold"
-              :class="
-                request.status === 200
-                  ? 'bg-green-100 text-green-700 border border-green-300'
-                  : 'bg-red-100 text-red-700 border border-red-300'
-              "
-            >
+              ">{{ request.method }}</span>
+            <span class="max-w-[200px] truncate text-base text-blue-700 underline break-all font-mono">{{ request.url
+              }}</span>
+            <span v-if="request.status" class="px-2 py-1 rounded text-xs font-bold" :class="request.status === 200
+                ? 'bg-green-100 text-green-700 border border-green-300'
+                : 'bg-red-100 text-red-700 border border-red-300'
+              ">
               {{ request.status }}
             </span>
 
             <!-- Model Info -->
             <div v-if="request.model" class="flex justify-center">
               <span
-                class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1 rounded text-xs font-mono shadow-sm"
-              >
+                class="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-1 rounded text-xs font-mono shadow-sm">
                 <span class="font-bold">{{ request.model }}</span>
               </span>
             </div>
           </div>
           <div class="flex gap-6 text-xs text-slate-500 font-mono">
             <span>Start: {{ formatTimeLong(request.startTime) }}</span>
-            <span v-if="request.duration"
-              >Duration: {{ request.duration.toFixed(2) }}ms</span
-            >
+            <span v-if="request.duration">Duration: {{ request.duration.toFixed(2) }}ms</span>
             <span>{{ request.id }}</span>
           </div>
         </div>
         <div class="flex gap-2 items-center">
-          <button
-            @click="activeTab = 'preview'"
-            :disabled="!previewEnabled"
-            :class="[
-              'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
-              !previewEnabled
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                : activeTab === 'preview'
+          <button @click="activeTab = 'preview'" :disabled="!previewEnabled" :class="[
+            'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
+            !previewEnabled
+              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              : activeTab === 'preview'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-white text-slate-600 hover:bg-slate-50',
-            ]"
-          >
+          ]">
             <VisibilityOutlined class="w-4 h-4" /> 预览
           </button>
           <!-- Tools 标签 -->
-          <button
-            v-if="allTools.length > 0"
-            @click="showMCPPreview = true"
+          <button v-if="allTools.length > 0" @click="showMCPPreview = true"
             class="bg-purple-50 border border-purple-200 text-purple-700 px-3 py-1.5 rounded-md text-xs font-mono shadow-sm hover:bg-purple-100 hover:border-purple-300 transition-colors cursor-pointer"
-            :title="`点击查看 ${allTools.length} 个工具详情 (${mcpTools.length} 个 MCP 工具)`"
-          >
+            :title="`点击查看 ${allTools.length} 个工具详情 (${mcpTools.length} 个 MCP 工具)`">
             Tools: <span class="font-bold">{{ allTools.length }}</span>
-            <span v-if="mcpTools.length > 0" class="ml-1 opacity-70"
-              >({{ mcpTools.length }} MCP)</span
-            >
+            <span v-if="mcpTools.length > 0" class="ml-1 opacity-70">({{ mcpTools.length }} MCP)</span>
           </button>
-          <button
-            @click="activeTab = 'timeline'"
-            :class="[
-              'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
-              activeTab === 'timeline'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:bg-slate-50',
-            ]"
-          >
+          <button @click="activeTab = 'timeline'" :class="[
+            'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
+            activeTab === 'timeline'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-50',
+          ]">
             <ListOutlined class="w-4 h-4" /> 时间轴
           </button>
-          <button
-            @click="activeTab = 'raw'"
-            :class="[
-              'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
-              activeTab === 'raw'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'bg-white text-slate-600 hover:bg-slate-50',
-            ]"
-          >
+          <button @click="activeTab = 'raw'" :class="[
+            'px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 border border-slate-200',
+            activeTab === 'raw'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-50',
+          ]">
             <CodeOutlined class="w-4 h-4" /> 原始数据
           </button>
         </div>
@@ -872,23 +836,14 @@ async function loadAllAndScrollToBottom() {
     <!-- Tab 内容 -->
     <div class="flex-1 overflow-hidden relative">
       <!-- 加载全部并滚动到底部按钮 -->
-      <button
-        v-if="activeTab === 'preview' || activeTab === 'timeline'"
-        @click="loadAllAndScrollToBottom"
+      <button v-if="activeTab === 'preview' || activeTab === 'timeline'" @click="loadAllAndScrollToBottom"
         class="fixed right-12 bottom-8 z-50 w-8 h-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-        title="加载全部内容并滚动到底部"
-      >
+        title="加载全部内容并滚动到底部">
         <KeyboardArrowDownOutlined class="w-6 h-6" />
       </button>
       <!-- 预览 Tab -->
-      <div
-        v-if="activeTab === 'preview'"
-        class="w-full h-full flex flex-col overflow-hidden"
-      >
-        <div
-          v-if="!isChatRequest(request)"
-          class="flex-1 flex items-center justify-center text-slate-400"
-        >
+      <div v-if="activeTab === 'preview'" class="w-full h-full flex flex-col overflow-hidden">
+        <div v-if="!isChatRequest(request)" class="flex-1 flex items-center justify-center text-slate-400">
           <div class="text-center">
             <p class="text-lg">此请求不是聊天补全请求，无法预览对话。</p>
             <p class="text-sm mt-2">请切换到"时间轴"或"原始数据"查看详情。</p>
@@ -897,40 +852,23 @@ async function loadAllAndScrollToBottom() {
 
         <div v-else class="flex-1 flex flex-col overflow-hidden">
           <!-- Messages (lazy loaded) - 文字区域，整体滚动 -->
-          <div
-            ref="messageContainerRef"
-            class="flex-1 overflow-y-auto overflow-x-hidden px-6 pr-2"
-          >
+          <div ref="messageContainerRef" class="flex-1 overflow-y-auto overflow-x-hidden px-6 pr-2">
             <div class="py-6">
               <template v-for="(item, index) in visibleItems" :key="index">
-                <PreviewMessageItem
-                  :item="item"
-                  :should-show-collapse="shouldShowCollapse(item)"
-                  :is-collapsed="isCollapsed(getItemId(item))"
-                  :collapsed-char-count="getCollapsedCharCount(item)"
-                  :is-copy-success="isCopySuccess(getItemId(item))"
-                  :word-wrap="getWordWrap(getItemId(item))"
-                  :format-json="formatJson"
-                  :get-display-content="getDisplayContent"
-                  :is-todo-write="isTodoWrite"
+                <PreviewMessageItem :item="item" :should-show-collapse="shouldShowCollapse(item)"
+                  :is-collapsed="isCollapsed(getItemId(item))" :collapsed-char-count="getCollapsedCharCount(item)"
+                  :is-copy-success="isCopySuccess(getItemId(item))" :word-wrap="getWordWrap(getItemId(item))"
+                  :format-json="formatJson" :get-display-content="getDisplayContent" :is-todo-write="isTodoWrite"
                   :convert-todos-to-queue-format="convertTodosToQueueFormat"
-                  @toggle-collapse="toggleCollapse(getItemId(item))"
-                  @copy-item="copyItemData(item)"
-                  @toggle-word-wrap="toggleWordWrap(getItemId(item))"
-                />
+                  @toggle-collapse="toggleCollapse(getItemId(item))" @copy-item="copyItemData(item)"
+                  @toggle-word-wrap="toggleWordWrap(getItemId(item))" />
               </template>
             </div>
 
             <!-- Load More Trigger for Messages -->
-            <div
-              ref="messageLoadTriggerRef"
-              v-if="messageLoading.hasMore.value"
-              class="w-full h-1 flex items-center justify-center py-2"
-            >
-              <div
-                v-if="messageLoading.isLoading.value"
-                class="text-xs text-slate-400 animate-pulse"
-              >
+            <div ref="messageLoadTriggerRef" v-if="messageLoading.hasMore.value"
+              class="w-full h-1 flex items-center justify-center py-2">
+              <div v-if="messageLoading.isLoading.value" class="text-xs text-slate-400 animate-pulse">
                 Loading more...
               </div>
             </div>
@@ -939,17 +877,10 @@ async function loadAllAndScrollToBottom() {
       </div>
 
       <!-- 时间轴 Tab -->
-      <div
-        v-if="activeTab === 'timeline'"
-        ref="timelineContainerRef"
-        class="h-full overflow-y-auto overflow-x-hidden p-6 py-0 my-6 mr-2"
-      >
+      <div v-if="activeTab === 'timeline'" ref="timelineContainerRef"
+        class="h-full overflow-y-auto overflow-x-hidden p-6 py-0 my-6 mr-2">
         <div class="max-w-5xl mx-auto">
-          <div
-            v-for="(log, index) in visibleLogs"
-            :key="index"
-            class="flex gap-4 group mb-4 last:mb-0"
-          >
+          <div v-for="(log, index) in visibleLogs" :key="index" class="flex gap-4 group mb-4 last:mb-0">
             <!-- Time Column -->
             <div class="flex flex-col items-end w-24 shrink-0 pt-1">
               <span class="text-xs text-slate-500 font-mono">{{
@@ -962,246 +893,166 @@ async function loadAllAndScrollToBottom() {
 
             <!-- Dot & Line -->
             <div class="relative flex flex-col items-center">
-              <div
-                class="w-3 h-3 rounded-full border-2 border-white shadow-sm z-10"
-                :class="getLevelColor(log.level || 30)"
-              ></div>
-              <div
-                v-if="index !== (logsSource.length || 0) - 1"
-                class="w-0.5 bg-slate-200 h-full absolute top-3"
-              ></div>
+              <div class="w-3 h-3 rounded-full border-2 border-white shadow-sm z-10"
+                :class="getLevelColor(log.level || 30)">
+              </div>
+              <div v-if="index !== (logsSource.length || 0) - 1" class="w-0.5 bg-slate-200 h-full absolute top-3"></div>
             </div>
 
             <!-- Content -->
             <div class="pb-6 flex-1 min-w-0 max-w-full">
               <div
-                class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm flex flex-col w-full"
-              >
+                class="bg-white rounded-lg px-4 pt-4 pb-2 border border-slate-200 group-hover:border-slate-300 transition-all shadow-sm flex flex-col w-full">
                 <div class="flex justify-between items-start mb-1">
-                  <span
-                    class="text-xs font-bold text-indigo-600"
-                    v-if="log.msg"
-                    >{{ log.msg }}</span
-                  >
-                  <span class="text-xs font-bold text-slate-500" v-else
-                    >Log Entry</span
-                  >
-                  <span
-                    class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded"
-                    >Level {{ log.level }}</span
-                  >
+                  <span class="text-xs font-bold text-indigo-600" v-if="log.msg">{{ log.msg }}</span>
+                  <span class="text-xs font-bold text-slate-500" v-else>Log Entry</span>
+                  <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Level {{ log.level }}</span>
                 </div>
 
                 <!-- Structured Data Preview -->
-                <div
-                  v-if="
-                    log.type === 'stream_event' ||
-                    log.type === 'full_response' ||
-                    log.type === 'error' ||
-                    log.data ||
-                    log.request ||
-                    log.response ||
-                    log.req ||
-                    log.res ||
-                    log.err
-                  "
-                  class="mt-2 text-xs font-mono bg-slate-50 p-3 rounded border border-slate-100 overflow-x-auto overflow-y-visible text-slate-600 flex flex-col relative wrap-break-word"
-                >
+                <div v-if="
+                  log.type === 'stream_event' ||
+                  log.type === 'full_response' ||
+                  log.type === 'error' ||
+                  log.data ||
+                  log.request ||
+                  log.response ||
+                  log.req ||
+                  log.res ||
+                  log.err
+                "
+                  class="mt-2 text-xs font-mono bg-slate-50 p-3 rounded border border-slate-100 overflow-x-auto overflow-y-visible text-slate-600 flex flex-col relative wrap-break-word">
                   <!-- Full Response Log -->
                   <div v-if="log.type === 'full_response' && log.data?.content">
-                    <span
-                      class="text-green-600 font-bold mb-1 flex items-center gap-2"
-                    >
+                    <span class="text-green-600 font-bold mb-1 flex items-center gap-2">
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Full Response:
                     </span>
-                    <div
-                      class="bg-white border border-green-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
-                    >
-                      <div
-                        class="absolute top-0 left-0 w-1 h-full bg-green-600"
-                      ></div>
-                      <pre
-                        class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                    <div class="bg-white border border-green-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm">
+                      <div class="absolute top-0 left-0 w-1 h-full bg-green-600"></div>
+                      <pre class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? (log.data.content?.trim() || "").substring(
-                                0,
-                                showAutoCollapseNum
-                              ) + "..."
-                            : log.data.content?.trim() || ""
-                        }}</pre
-                      >
+                          ? (log.data.content?.trim() || "").substring(
+                            0,
+                            showAutoCollapseNum
+                          ) + "..."
+                          : log.data.content?.trim() || ""
+                      }}</pre>
                       <div class="text-xs text-slate-500 mt-2 text-right">
                         Length: {{ log.data.content.length }} chars
-                        <span v-if="log.data.model" class="ml-2"
-                          >Model: {{ log.data.model }}</span
-                        >
+                        <span v-if="log.data.model" class="ml-2">Model: {{ log.data.model }}</span>
                       </div>
                     </div>
                   </div>
 
                   <!-- Stream Event Log (response.full 中的每一项) -->
                   <div v-else-if="log.type === 'stream_event'">
-                    <span
-                      class="text-cyan-600 font-bold mb-1 flex items-center gap-2"
-                    >
+                    <span class="text-cyan-600 font-bold mb-1 flex items-center gap-2">
                       <AutoAwesomeOutlined class="w-4 h-4" />
                       > Stream Event: {{ log.data?.type || "unknown" }}
                     </span>
-                    <div
-                      class="bg-cyan-50 border border-cyan-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm"
-                    >
-                      <div
-                        class="absolute top-0 left-0 w-1 h-full bg-cyan-600"
-                      ></div>
-                      <pre
-                        class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text pl-2 overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                    <div class="bg-cyan-50 border border-cyan-200 p-3 rounded mt-2 relative overflow-hidden shadow-sm">
+                      <div class="absolute top-0 left-0 w-1 h-full bg-cyan-600"></div>
+                      <pre class="text-slate-800 whitespace-pre-wrap wrap-break-word select-text pl-2 overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.data)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.data).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.data)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.data).trim()
+                      }}</pre>
                     </div>
                   </div>
 
                   <!-- Error Log -->
                   <div v-else-if="log.type === 'error'">
-                    <span
-                      class="text-red-600 font-bold mb-1 flex items-center gap-2"
-                    >
+                    <span class="text-red-600 font-bold mb-1 flex items-center gap-2">
                       <WarningOutlined class="w-4 h-4" />
                       > Error:
                     </span>
-                    <div
-                      class="bg-red-50 border border-red-200 p-3 rounded mt-2"
-                    >
-                      <pre
-                        class="text-red-600 select-text whitespace-pre-wrap wrap-break-word overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                    <div class="bg-red-50 border border-red-200 p-3 rounded mt-2">
+                      <pre class="text-red-600 select-text whitespace-pre-wrap wrap-break-word overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.err)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.err).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.err)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.err).trim()
+                      }}</pre>
                     </div>
                   </div>
 
                   <!-- Other logs -->
                   <template v-else>
                     <div v-if="log.data && log.type !== 'recieved data'">
-                      <span class="text-blue-600 font-bold block mb-1"
-                        >> Payload Data:</span
-                      >
-                      <pre
-                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                      <span class="text-blue-600 font-bold block mb-1">> Payload Data:</span>
+                      <pre class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.data)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.data).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.data)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.data).trim()
+                      }}</pre>
                     </div>
                     <div v-if="log.req">
-                      <span class="text-purple-600 font-bold block mb-1"
-                        >> Request Info:</span
-                      >
-                      <pre
-                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                      <span class="text-purple-600 font-bold block mb-1">> Request Info:</span>
+                      <pre class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.req)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.req).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.req)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.req).trim()
+                      }}</pre>
                     </div>
                     <div v-if="log.request">
-                      <span class="text-purple-600 font-bold block mb-1"
-                        >> Outbound Request:</span
-                      >
-                      <pre
-                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                      <span class="text-purple-600 font-bold block mb-1">> Outbound Request:</span>
+                      <pre class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.request)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.request).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.request)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.request).trim()
+                      }}</pre>
                     </div>
                     <div v-if="log.response && !log.data">
-                      <span class="text-green-600 font-bold block mb-1"
-                        >> Response Info:</span
-                      >
-                      <pre
-                        class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                      <span class="text-green-600 font-bold block mb-1">> Response Info:</span>
+                      <pre class="text-slate-700 whitespace-pre-wrap wrap-break-word overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.response)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.response).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.response)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.response).trim()
+                      }}</pre>
                     </div>
                     <div v-if="log.type === 'recieved data'" class="opacity-70">
-                      <span class="text-teal-600 font-bold"
-                        >> Stream Chunk Received</span
-                      >
+                      <span class="text-teal-600 font-bold">> Stream Chunk Received</span>
                     </div>
                     <div v-if="log.err">
-                      <span class="text-red-600 font-bold block mb-1"
-                        >> Error Trace:</span
-                      >
-                      <pre
-                        class="text-red-600 whitespace-pre-wrap wrap-break-word overflow-x-auto"
-                        >{{
-                          shouldShowTimelineCollapse(log) &&
+                      <span class="text-red-600 font-bold block mb-1">> Error Trace:</span>
+                      <pre class="text-red-600 whitespace-pre-wrap wrap-break-word overflow-x-auto">{{
+                        shouldShowTimelineCollapse(log) &&
                           isCollapsed(getTimelineLogId(log, index))
-                            ? formatJson(log.err)
-                                .trim()
-                                .substring(0, showAutoCollapseNum) + "..."
-                            : formatJson(log.err).trim()
-                        }}</pre
-                      >
+                          ? formatJson(log.err)
+                            .trim()
+                            .substring(0, showAutoCollapseNum) + "..."
+                          : formatJson(log.err).trim()
+                      }}</pre>
                     </div>
                   </template>
                 </div>
 
                 <!-- 时间轴折叠展开按钮 -->
-                <div
-                  v-if="shouldShowTimelineCollapse(log)"
-                  class="sticky bottom-0 flex items-center justify-end gap-1 pt-2 pb-1 mt-2 border-t border-slate-200 bg-white"
-                >
-                  <button
-                    @click="toggleCollapse(getTimelineLogId(log, index))"
-                    class="text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors duration-200 hover:bg-slate-100 text-slate-600"
-                  >
-                    <KeyboardArrowDownOutlined
-                      v-if="isCollapsed(getTimelineLogId(log, index))"
-                      class="w-3.5 h-3.5"
-                    />
-                    <KeyboardArrowDownOutlined
-                      v-else
-                      class="w-3.5 h-3.5 rotate-180"
-                    />
+                <div v-if="shouldShowTimelineCollapse(log)"
+                  class="sticky bottom-0 flex items-center justify-end gap-1 pt-2 pb-1 mt-2 border-t border-slate-200 bg-white">
+                  <button @click="toggleCollapse(getTimelineLogId(log, index))"
+                    class="text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors duration-200 hover:bg-slate-100 text-slate-600">
+                    <KeyboardArrowDownOutlined v-if="isCollapsed(getTimelineLogId(log, index))" class="w-3.5 h-3.5" />
+                    <KeyboardArrowDownOutlined v-else class="w-3.5 h-3.5 rotate-180" />
                     <span v-if="isCollapsed(getTimelineLogId(log, index))">
                       展开 ({{ getTimelineCollapsedCharCount(log) }} 字符)
                     </span>
@@ -1213,15 +1064,9 @@ async function loadAllAndScrollToBottom() {
           </div>
 
           <!-- Load More Trigger for Timeline -->
-          <div
-            ref="timelineLoadTriggerRef"
-            v-if="timelineLoading.hasMore.value"
-            class="w-full h-1 flex items-center justify-center py-2"
-          >
-            <div
-              v-if="timelineLoading.isLoading.value"
-              class="text-xs text-slate-400 animate-pulse"
-            >
+          <div ref="timelineLoadTriggerRef" v-if="timelineLoading.hasMore.value"
+            class="w-full h-1 flex items-center justify-center py-2">
+            <div v-if="timelineLoading.isLoading.value" class="text-xs text-slate-400 animate-pulse">
               Loading more...
             </div>
           </div>
@@ -1231,27 +1076,18 @@ async function loadAllAndScrollToBottom() {
       <!-- 原始数据 Tab -->
       <div v-if="activeTab === 'raw'" class="w-full h-full p-6">
         <div class="max-w-8xl h-full mx-auto">
-          <CodeEditor
-            class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm h-full"
-            :model-value="rawJson"
-            language="json"
-            :readonly="true"
-            :options="{
+          <CodeEditor class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm h-full" :model-value="rawJson"
+            language="json" :readonly="true" :options="{
               wordWrap: 'on',
               minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-            }"
-          />
+            }" />
         </div>
       </div>
     </div>
   </div>
 
   <!-- 占位符 -->
-  <div
-    v-else
-    class="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400"
-  >
+  <div v-else class="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-400">
     <p class="text-xl font-semibold mb-2">选择一个请求查看详情</p>
     <p class="text-sm max-w-md text-center">
       左侧列表展示了所有捕获的请求。点击任意条目可以查看时间轴、对话还原及原始日志数据。
@@ -1259,9 +1095,5 @@ async function loadAllAndScrollToBottom() {
   </div>
 
   <!-- MCP 预览组件 -->
-  <MCPPreview
-    :show="showMCPPreview"
-    :request="request"
-    @update:show="showMCPPreview = $event"
-  />
+  <MCPPreview :show="showMCPPreview" :request="request" @update:show="showMCPPreview = $event" />
 </template>

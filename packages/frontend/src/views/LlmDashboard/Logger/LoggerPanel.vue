@@ -470,7 +470,6 @@ onUnmounted(() => {
           <CodeEditor v-else class="h-full" :model-value="selectedLogContent" language="json" :readonly="true" :options="{
             wordWrap: 'on',
             minimap: { enabled: false },
-            scrollBeyondLastLine: false,
           }" />
         </div>
       </template>

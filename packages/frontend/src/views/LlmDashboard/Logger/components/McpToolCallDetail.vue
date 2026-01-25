@@ -160,7 +160,6 @@ const fullLogJson = computed(() => {
               <CodeEditor :model-value="argumentsJson" language="json" :readonly="true" :options="{
                 wordWrap: 'on',
                 minimap: { enabled: false },
-                scrollBeyondLastLine: false,
                 lineNumbers: 'on',
               }" />
             </div>
@@ -177,7 +176,6 @@ const fullLogJson = computed(() => {
                 <CodeEditor :model-value="resultJson" language="json" :readonly="true" :options="{
                   wordWrap: 'on',
                   minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
                   lineNumbers: 'on',
                 }" />
               </div>
@@ -192,7 +190,6 @@ const fullLogJson = computed(() => {
                 <CodeEditor :model-value="toolCall.error.stack" language="plaintext" :readonly="true" :options="{
                   wordWrap: 'on',
                   minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
                   lineNumbers: 'on',
                 }" />
               </div>
@@ -213,7 +210,6 @@ const fullLogJson = computed(() => {
         <CodeEditor :model-value="fullLogJson" language="json" :readonly="true" :options="{
           wordWrap: 'on',
           minimap: { enabled: false },
-          scrollBeyondLastLine: false,
           lineNumbers: 'on',
         }" />
       </div>
