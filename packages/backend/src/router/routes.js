@@ -10,6 +10,7 @@ const { registerProjectRoutes } = require("./projectRoutes");
 const { registerUploadRoutes } = require("./uploadRoutes");
 const { registerChatModuleRoutes } = require("../chat/router");
 const { registerAiChatRoutes } = require("../conversations/router");
+const { registerStatusRoutes } = require("./statusRouter");
 const { STATIC_DIR } = require("../config/constants");
 
 function registerApiRoutes(server) {
@@ -32,6 +33,7 @@ function registerApiRoutes(server) {
   registerUploadRoutes(server);
   registerChatModuleRoutes(server);
   registerAiChatRoutes(server);
+  registerStatusRoutes(server);
 
   // 注册静态文件服务
   try {
