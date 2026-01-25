@@ -1,14 +1,14 @@
 <script setup lang="ts">
 const props = defineProps<{
-  activeMode: "logs" | "messages";
+  activeMode: "logs" | "messages" | "mcp-tools";
   currentTab: "chat" | "providers" | "logger" | "statusline" | "mcp";
 }>();
 
 const emit = defineEmits<{
-  "update:activeMode": [mode: "logs" | "messages"];
+  "update:activeMode": [mode: "logs" | "messages" | "mcp-tools"];
 }>();
 
-function setActiveMode(mode: "logs" | "messages") {
+function setActiveMode(mode: "logs" | "messages" | "mcp-tools") {
   emit("update:activeMode", mode);
 }
 </script>
@@ -16,27 +16,29 @@ function setActiveMode(mode: "logs" | "messages") {
 <template>
   <Teleport defer to="#header-right-target" :disabled="currentTab !== 'logger'">
     <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg scale-90">
-      <button
-        @click="setActiveMode('logs')"
+      <button @click="setActiveMode('logs')"
         class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-        :class="
-          activeMode === 'logs'
+        :class="activeMode === 'logs'
             ? 'bg-white text-primary shadow-sm border border-primary/20'
             : 'text-slate-500 hover:text-slate-700'
-        "
-      >
+          ">
         普通日志
       </button>
-      <button
-        @click="setActiveMode('messages')"
+      <button @click="setActiveMode('messages')"
         class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-        :class="
-          activeMode === 'messages'
+        :class="activeMode === 'messages'
             ? 'bg-white text-primary shadow-sm border border-primary/20'
             : 'text-slate-500 hover:text-slate-700'
-        "
-      >
+          ">
         对话查询
+      </button>
+      <button @click="setActiveMode('mcp-tools')"
+        class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
+        :class="activeMode === 'mcp-tools'
+            ? 'bg-white text-primary shadow-sm border border-primary/20'
+            : 'text-slate-500 hover:text-slate-700'
+          ">
+        MCP 工具
       </button>
     </nav>
   </Teleport>

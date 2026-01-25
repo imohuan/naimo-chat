@@ -25,10 +25,14 @@ class McpLogger {
    * @param {string} logData.sessionId - 会话ID
    */
   logToolCall(logData) {
+    console.log(`[McpLogger] logToolCall 被调用，工具名称: ${logData.toolName}`);
     try {
       const timestamp = Date.now();
       const logId = `${timestamp}_${logData.toolName}_${Math.random().toString(36).substring(7)}`;
       const logFile = path.join(MCP_TOOL_CALL_LOG_DIR, `${logId}.json`);
+
+      console.log(`[McpLogger] 准备写入日志文件: ${logFile}`);
+      console.log(`[McpLogger] 日志目录: ${MCP_TOOL_CALL_LOG_DIR}`);
 
       const logEntry = {
         id: logId,
@@ -48,10 +52,13 @@ class McpLogger {
         success: !logData.error
       };
 
+      console.log(`[McpLogger] 日志条目:`, JSON.stringify(logEntry, null, 2).substring(0, 500));
+
       fs.writeFileSync(logFile, JSON.stringify(logEntry, null, 2), "utf8");
-      console.log(`[McpLogger] 工具调用日志已保存: ${logFile}`);
+      console.log(`[McpLogger] ✅ 工具调用日志已保存: ${logFile}`);
     } catch (error) {
-      console.error("[McpLogger] 保存工具调用日志失败:", error);
+      console.error("[McpLogger] ❌ 保存工具调用日志失败:", error);
+      console.error("[McpLogger] 错误堆栈:", error.stack);
     }
   }
 

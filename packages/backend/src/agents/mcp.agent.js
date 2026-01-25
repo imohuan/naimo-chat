@@ -1,5 +1,6 @@
 const { IAgent, ITool } = require('./type');
 const mcpService = require('../mcp/mcpService');
+const mcpLogger = require('../mcp/mcpLogger');
 
 /**
  * MCP Agent
@@ -281,10 +282,23 @@ class McpAgent extends IAgent {
         JSON.stringify(args, null, 2)
       );
 
+      // 记录开始时间
+      const startTime = Date.now();
+
       // 调用上游服务器的工具（使用原始工具名称）
       const result = await client.callTool({
         name: originalToolName,
         arguments: args,
+      });
+
+      // 记录成功的工具调用
+      mcpLogger.logToolCall({
+        toolName: originalToolName,
+        serverName,
+        arguments: args,
+        result,
+        duration: Date.now() - startTime,
+        sessionId: null
       });
 
       // 处理结果
@@ -316,6 +330,17 @@ class McpAgent extends IAgent {
       return JSON.stringify(result, null, 2);
     } catch (error) {
       console.error(`[McpAgent] 工具调用失败: ${toolName}`, error);
+
+      // 记录失败的工具调用
+      mcpLogger.logToolCall({
+        toolName: originalToolName || toolName,
+        serverName: serverName || 'unknown',
+        arguments: args,
+        error: error,
+        duration: Date.now() - (startTime || Date.now()),
+        sessionId: null
+      });
+
       return `错误: ${error.message || error.toString()}`;
     }
   }

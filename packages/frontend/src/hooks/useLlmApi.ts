@@ -500,6 +500,84 @@ export function useLlmApi() {
   }
 
   /**
+   * 获取 MCP 工具调用列表
+   * @param options 查询选项
+   * @returns 工具调用列表
+   */
+  async function fetchMcpToolCalls(options: {
+    limit?: number;
+    offset?: number;
+    toolName?: string;
+    serverName?: string;
+    success?: boolean;
+    startTime?: number;
+    endTime?: number;
+  }): Promise<{
+    logs: any[];
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.append("limit", String(options.limit));
+    if (options.offset !== undefined) params.append("offset", String(options.offset));
+    if (options.toolName) params.append("toolName", options.toolName);
+    if (options.serverName) params.append("serverName", options.serverName);
+    if (options.success !== undefined) params.append("success", String(options.success));
+    if (options.startTime !== undefined) params.append("startTime", String(options.startTime));
+    if (options.endTime !== undefined) params.append("endTime", String(options.endTime));
+
+    return await apiCall(`/api/mcp/tool-calls?${params.toString()}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * 获取 MCP 工具调用详情
+   * @param logId 日志 ID
+   * @returns 工具调用详情
+   */
+  async function fetchMcpToolCallDetail(logId: string): Promise<any> {
+    return await apiCall(`/api/mcp/tool-calls/${encodeURIComponent(logId)}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * 删除 MCP 工具调用日志
+   * @param logIds 日志 ID 数组
+   * @returns 删除结果
+   */
+  async function deleteMcpToolCalls(
+    logIds: string[]
+  ): Promise<{
+    success: boolean;
+    deletedCount: number;
+    errors?: any[];
+  }> {
+    return await apiCall(`/api/mcp/tool-calls`, {
+      method: "DELETE",
+      body: JSON.stringify({ logIds }),
+    });
+  }
+
+  /**
+   * 获取 MCP 工具调用统计信息
+   * @returns 统计信息
+   */
+  async function fetchMcpToolCallStats(): Promise<{
+    totalCalls: number;
+    successCalls: number;
+    failedCalls: number;
+    toolStats: Record<string, { total: number; success: number; failed: number }>;
+    serverStats: Record<string, { total: number; success: number; failed: number }>;
+  }> {
+    return await apiCall(`/api/mcp/tool-calls/stats`, {
+      method: "GET",
+    });
+  }
+
+  /**
    * 获取 transformers 列表
    * @returns transformers 列表
    */
@@ -792,6 +870,10 @@ export function useLlmApi() {
     deleteMessages,
     fetchMcpServerTools,
     refreshMcpServerTools,
+    fetchMcpToolCalls,
+    fetchMcpToolCallDetail,
+    deleteMcpToolCalls,
+    fetchMcpToolCallStats,
     fetchTransformers,
   };
 }

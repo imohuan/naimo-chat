@@ -256,6 +256,7 @@ class McpService {
           arguments: args,
         });
 
+        console.log(`[McpService] 工具调用成功，准备记录日志...`);
         // 记录成功的工具调用
         mcpLogger.logToolCall({
           toolName,
@@ -265,12 +266,14 @@ class McpService {
           duration: Date.now() - startTime,
           sessionId: null // 可以从上下文中获取 sessionId
         });
+        console.log(`[McpService] 日志记录完成`);
 
         return result;
       } catch (err) {
         error = err;
         console.error(`[McpService] 工具执行失败:`, err);
 
+        console.log(`[McpService] 工具调用失败，准备记录错误日志...`);
         // 记录失败的工具调用
         mcpLogger.logToolCall({
           toolName,
@@ -280,6 +283,7 @@ class McpService {
           duration: Date.now() - startTime,
           sessionId: null
         });
+        console.log(`[McpService] 错误日志记录完成`);
 
         // 如果是 McpError，直接抛出
         if (err.code !== undefined && err.message) {

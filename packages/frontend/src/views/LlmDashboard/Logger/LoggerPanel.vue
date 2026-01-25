@@ -4,15 +4,18 @@ import { Loader2 } from "lucide-vue-next";
 import LoggerHeaderControls from "./components/LoggerHeaderControls.vue";
 import MessageList from "./components/MessageList.vue";
 import LoggerRequestDetail from "./components/LoggerRequestDetail.vue";
+import McpToolCallList from "./components/McpToolCallList.vue";
+import McpToolCallDetail from "./components/McpToolCallDetail.vue";
 import CodeEditor from "@/components/code/CodeEditor.vue";
 import { useLogger } from "./useLogger";
 import { useMessages } from "./useMessages";
+import { useMcpToolCalls } from "./useMcpToolCalls";
 import type { LogRequest, MessageDetail } from "./types";
 
 // LoggerPanel 现在作为路由组件，不再需要 currentTab prop
 
-// Tab 切换：普通日志 / 对话
-const activeMode = ref<"logs" | "messages">("messages");
+// Tab 切换：普通日志 / 对话 / MCP 工具调用
+const activeMode = ref<"logs" | "messages" | "mcp-tools">("messages");
 
 // 普通日志相关
 const {
@@ -45,6 +48,23 @@ const {
   loadMessages,
   selectMessage,
 } = useMessages();
+
+// MCP 工具调用相关
+const {
+  toolCalls,
+  selectedToolCallId,
+  selectedToolCallDetail,
+  searchQuery: mcpSearchQuery,
+  isLoading: isLoadingMcpToolCalls,
+  isLoadingMore: isLoadingMoreMcpToolCalls,
+  isLoadingDetail: isLoadingMcpDetail,
+  isRefreshing: isRefreshingMcpToolCalls,
+  hasMore: hasMoreMcpToolCalls,
+  loadToolCalls,
+  selectToolCall,
+  refreshToolCalls,
+  deleteToolCall,
+} = useMcpToolCalls();
 
 // 刷新对话列表
 async function refreshMessages() {
@@ -133,6 +153,17 @@ async function loadMessagesAndSelectFirst() {
     const firstMessage = filteredMessages.value[0];
     if (firstMessage?.requestId) {
       await selectMessage(firstMessage.requestId);
+    }
+  }
+}
+
+// 加载 MCP 工具调用并自动选择第一个
+async function loadMcpToolCallsAndSelectFirst() {
+  await loadToolCalls(true);
+  if (toolCalls.value.length > 0 && !selectedToolCallId.value) {
+    const firstCall = toolCalls.value[0];
+    if (firstCall?.id) {
+      await selectToolCall(firstCall.id);
     }
   }
 }
@@ -383,6 +414,8 @@ watch(activeMode, async (mode) => {
     if (selectedLogFileObj.value) {
       await loadLogContent(selectedLogFileObj.value.path);
     }
+  } else if (mode === "mcp-tools") {
+    await loadMcpToolCallsAndSelectFirst();
   }
 });
 
@@ -402,6 +435,8 @@ onMounted(async () => {
     if (selectedLogFileObj.value) {
       await loadLogContent(selectedLogFileObj.value.path);
     }
+  } else if (activeMode.value === "mcp-tools") {
+    await loadMcpToolCallsAndSelectFirst();
   }
   document.addEventListener("click", handleClickOutside);
 });
@@ -414,45 +449,28 @@ onUnmounted(() => {
 <template>
   <div class="h-full flex flex-col bg-slate-50 overflow-hidden">
     <!-- 日志头部控制组件（文件选择器 + Tab 切换，通过 Teleport 传送到顶部导航栏） -->
-    <LoggerHeaderControls
-      :active-mode="activeMode"
-      :log-files="logFiles"
-      :selected-log-file-obj="selectedLogFileObj"
-      :is-refreshing="isRefreshing"
-      :is-refreshing-messages="isRefreshingMessages"
-      @update:active-mode="(mode) => (activeMode = mode)"
-      @select-file="selectLogFile"
-      @refresh="handleRefreshLogFile"
-      @refresh-messages="refreshMessages"
-      @clear-log="handleClearLogFile"
-    />
+    <LoggerHeaderControls :active-mode="activeMode" :log-files="logFiles" :selected-log-file-obj="selectedLogFileObj"
+      :is-refreshing="isRefreshing" :is-refreshing-messages="isRefreshingMessages"
+      :is-refreshing-mcp-tools="isRefreshingMcpToolCalls" @update:active-mode="(mode) => (activeMode = mode)"
+      @select-file="selectLogFile" @refresh="handleRefreshLogFile" @refresh-messages="refreshMessages"
+      @refresh-mcp-tools="refreshToolCalls" @clear-log="handleClearLogFile" />
 
     <!-- 主内容区域 -->
     <div class="flex-1 flex overflow-hidden">
       <!-- 普通日志模式 -->
       <template v-if="activeMode === 'logs'">
         <div class="flex-1 min-w-0 w-full h-full">
-          <div
-            v-if="isLoadingLogFiles || isLoadingLogContent"
-            class="flex items-center justify-center h-full"
-          >
+          <div v-if="isLoadingLogFiles || isLoadingLogContent" class="flex items-center justify-center h-full">
             <div class="flex flex-col items-center gap-3">
               <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
               <p class="text-slate-400 text-sm">加载中...</p>
             </div>
           </div>
-          <CodeEditor
-            v-else
-            class="h-full"
-            :model-value="selectedLogContent"
-            language="json"
-            :readonly="true"
-            :options="{
-              wordWrap: 'on',
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-            }"
-          />
+          <CodeEditor v-else class="h-full" :model-value="selectedLogContent" language="json" :readonly="true" :options="{
+            wordWrap: 'on',
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+          }" />
         </div>
       </template>
 
@@ -460,37 +478,48 @@ onUnmounted(() => {
       <template v-else-if="activeMode === 'messages'">
         <!-- 左侧：对话列表 -->
         <div class="w-80 shrink-0">
-          <MessageList
-            :messages="messages"
-            :selected-message-id="selectedMessageId"
-            :search-query="messageSearchQuery"
-            :filter-tag="filterTag"
-            :is-loading="isLoadingMessages"
-            :is-loading-more="isLoadingMoreMessages"
-            :is-refreshing="isRefreshingMessages"
-            :has-more="hasMore"
+          <MessageList :messages="messages" :selected-message-id="selectedMessageId" :search-query="messageSearchQuery"
+            :filter-tag="filterTag" :is-loading="isLoadingMessages" :is-loading-more="isLoadingMoreMessages"
+            :is-refreshing="isRefreshingMessages" :has-more="hasMore"
             @update:selected-message-id="(id) => (selectedMessageId = id)"
             @update:filter-tag="(tag) => (filterTag = tag)"
-            @update:search-query="(query) => (messageSearchQuery = query)"
-            @refresh="refreshMessages"
-            @load-more="loadMoreMessages"
-          />
+            @update:search-query="(query) => (messageSearchQuery = query)" @refresh="refreshMessages"
+            @load-more="loadMoreMessages" />
         </div>
 
         <!-- 右侧：对话详情 -->
-        <div
-          class="flex-1 min-w-0 w-full h-full flex items-center justify-center"
-        >
-          <div
-            v-if="
-              isLoadingDetail || (isLoadingMessages && !selectedMessageDetail)
-            "
-            class="flex flex-col items-center gap-3"
-          >
+        <div class="flex-1 min-w-0 w-full h-full flex items-center justify-center">
+          <div v-if="
+            isLoadingDetail || (isLoadingMessages && !selectedMessageDetail)
+          " class="flex flex-col items-center gap-3">
             <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
             <p class="text-slate-400 text-sm">加载中...</p>
           </div>
           <LoggerRequestDetail v-else :request="convertedLogRequest" />
+        </div>
+      </template>
+
+      <!-- MCP 工具调用模式 -->
+      <template v-else-if="activeMode === 'mcp-tools'">
+        <!-- 左侧：工具调用列表 -->
+        <div class="w-80 shrink-0">
+          <McpToolCallList :tool-calls="toolCalls" :selected-tool-call-id="selectedToolCallId"
+            :search-query="mcpSearchQuery" :is-loading="isLoadingMcpToolCalls"
+            :is-loading-more="isLoadingMoreMcpToolCalls" :is-refreshing="isRefreshingMcpToolCalls"
+            :has-more="hasMoreMcpToolCalls" @update:selected-tool-call-id="(id) => (selectedToolCallId = id)"
+            @update:search-query="(query) => (mcpSearchQuery = query)" @refresh="refreshToolCalls"
+            @load-more="loadToolCalls(false)" @delete="deleteToolCall" />
+        </div>
+
+        <!-- 右侧：工具调用详情 -->
+        <div class="flex-1 min-w-0 w-full h-full flex items-center justify-center">
+          <div v-if="
+            isLoadingMcpDetail || (isLoadingMcpToolCalls && !selectedToolCallDetail)
+          " class="flex flex-col items-center gap-3">
+            <Loader2 class="w-6 h-6 text-slate-400 animate-spin" />
+            <p class="text-slate-400 text-sm">加载中...</p>
+          </div>
+          <McpToolCallDetail v-else :tool-call="selectedToolCallDetail" />
         </div>
       </template>
     </div>
