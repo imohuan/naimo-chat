@@ -93,6 +93,33 @@ async function refreshMessages() {
   }
 }
 
+// 刷新 MCP 工具调用列表（不刷新右侧详情）
+async function refreshMcpToolCallsWithSelection() {
+  await refreshToolCalls();
+
+  // 刷新后只需要检查当前选中项是否还存在，不重新加载详情
+  const idToRefresh = selectedToolCallId.value;
+
+  if (idToRefresh) {
+    // 检查该工具调用是否仍然存在
+    const stillExists = toolCalls.value.some((call) => call.id === idToRefresh);
+    if (!stillExists) {
+      // 如果工具调用不存在了，选择第一个
+      if (toolCalls.value.length > 0) {
+        const firstCall = toolCalls.value[0];
+        if (firstCall?.id) {
+          await selectToolCall(firstCall.id);
+        }
+      } else {
+        // 如果列表为空，清空选中状态
+        selectedToolCallId.value = null;
+        selectedToolCallDetail.value = null;
+      }
+    }
+    // 如果还存在，保持当前详情显示，不重新加载
+  }
+}
+
 // 加载更多消息
 async function loadMoreMessages() {
   if (hasMore.value && !isLoadingMessages.value) {
@@ -454,7 +481,7 @@ onUnmounted(() => {
       :is-refreshing="isRefreshing" :is-refreshing-messages="isRefreshingMessages"
       :is-refreshing-mcp-tools="isRefreshingMcpToolCalls" @update:active-mode="(mode) => (activeMode = mode)"
       @select-file="selectLogFile" @refresh="handleRefreshLogFile" @refresh-messages="refreshMessages"
-      @refresh-mcp-tools="refreshToolCalls" @clear-log="handleClearLogFile" />
+      @refresh-mcp-tools="refreshMcpToolCallsWithSelection" @clear-log="handleClearLogFile" />
 
     <!-- 主内容区域 -->
     <div class="flex-1 flex overflow-hidden">

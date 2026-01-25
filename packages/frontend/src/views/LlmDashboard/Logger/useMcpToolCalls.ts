@@ -68,9 +68,12 @@ export function useMcpToolCalls() {
 
   // 加载工具调用列表
   async function loadToolCalls(reset = false) {
+    // 如果正在加载，直接返回
+    if (isLoading.value || isLoadingMore.value) return;
+
+    // 区分首次加载和加载更多
     if (reset) {
       offset.value = 0;
-      toolCalls.value = [];
       hasMore.value = true;
       isLoading.value = true;
     } else {
@@ -89,9 +92,15 @@ export function useMcpToolCalls() {
       });
 
       if (reset) {
+        // 重置时替换整个列表
         toolCalls.value = result.logs;
       } else {
-        toolCalls.value.push(...result.logs);
+        // 加载更多时，累加到现有列表（避免重复）
+        const existingIds = new Set(toolCalls.value.map((call) => call.id));
+        const newCalls = result.logs.filter(
+          (call) => !existingIds.has(call.id)
+        );
+        toolCalls.value = [...toolCalls.value, ...newCalls];
       }
 
       offset.value += result.logs.length;
