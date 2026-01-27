@@ -87,6 +87,17 @@ async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
 function registerChatRoutes(server) {
   const app = server.app;
 
+  // 允许访问（自定义中间件 为了避免 llm 服务的默认行为，只要是 post 或 /api 开头的请求，都添加 model 字段）
+  // 后续我还对model进行了删除否则可能会导致错误
+  // app.addHook("preHandler", async (request, _reply) => {
+  //   // 注意：对于 /mcp/:group/messages 路由，不要访问 request.body
+  //   // 因为该路由需要从原始请求流中读取请求体（用于 SSE handlePostMessage）
+  //   if (request.url.startsWith("/chat/") && request.method === "POST") {
+  //     // 只在非 messages 端点设置 model
+  //     if (request.body) request.body.model = "xxx";
+  //   }
+  // });
+
   // SSE 连接：前端用 streamingId 订阅流式事件
   app.get('/api/stream/:streamingId', async (req, reply) => {
     const { streamingId } = req.params;

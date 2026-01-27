@@ -8,7 +8,7 @@ const { registerMcpRoutes } = require("./mcpRoutes");
 const { registerClaudeRoutes } = require("./claudeRoutes");
 const { registerProjectRoutes } = require("./projectRoutes");
 const { registerUploadRoutes } = require("./uploadRoutes");
-// const { registerChatModuleRoutes } = require("../chat/router");
+const { registerChatRoutes } = require("../chat/router");
 const { registerAiChatRoutes } = require("../conversations/router");
 const { registerStatusRoutes } = require("./statusRouter");
 const { STATIC_DIR } = require("../config/constants");
@@ -31,7 +31,7 @@ function registerApiRoutes(server) {
   registerClaudeRoutes(server);
   registerProjectRoutes(server);
   registerUploadRoutes(server);
-  // registerChatModuleRoutes(server);
+  registerChatRoutes(server);
   registerAiChatRoutes(server);
   registerStatusRoutes(server);
 

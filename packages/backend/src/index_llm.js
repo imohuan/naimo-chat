@@ -264,6 +264,46 @@ async function startService() {
 
     const appLogger = server.app?.log || console;
 
+
+    // ============================================
+    // 错误处理
+    // ============================================
+
+    // 添加全局错误处理器以防止服务崩溃
+    // 注意：这些处理器应该在 appLogger 初始化之前就设置好，以便在早期错误时也能输出
+    // 但为了确保 appLogger 可用，我们在它初始化后再添加，同时也输出到 console.error
+    const errorHandler = (type, err) => {
+      // 同时输出到 console.error 和 appLogger（如果可用）
+      console.error(`❌ ${type}:`, err);
+      if (err && err.stack) {
+        console.error(err.stack);
+      }
+      if (appLogger && appLogger.error) {
+        appLogger.error(`${type}:`, err);
+      }
+    };
+
+    process.on("uncaughtException", (err) => {
+      errorHandler("未捕获的异常", err);
+      // 不要立即退出，让服务尝试恢复或优雅关闭
+    });
+
+    process.on("unhandledRejection", (reason, promise) => {
+      errorHandler("未处理的 Promise 拒绝", { promise, reason });
+    });
+
+    // ============================================
+    // 请求中断
+    // ============================================
+    server.addHook("onRequest", (req, reply, done) => {
+      // 将客户端的中断信号存入异步上下文
+      requestSignalStore.run(req.raw.signal, done);
+    });
+
+
+    // ============================================
+    // 设置Provider属性（同步本地数据与Provider变量）
+    // ============================================
     /**
      * 给每一个 provider 设置 api_keys 和 limit 自定义字段
      * @param {Object} server - 服务器实例
@@ -313,12 +353,6 @@ async function startService() {
       }
     }
 
-    // 注入配置
-    server.addHook("onRequest", (req, reply, done) => {
-      // 将客户端的中断信号存入异步上下文
-      requestSignalStore.run(req.raw.signal, done);
-    });
-
     server.addHook("preHandler", async (req, _reply) => {
       // 判断请求 是 /providers 接口，则设置 api_keys 和 limit 自定义字段
       if (req.url === "/providers" && req.method === "GET") {
@@ -329,33 +363,11 @@ async function startService() {
       // 不返回值，让请求继续处理
     });
 
-    // 添加全局错误处理器以防止服务崩溃
-    // 注意：这些处理器应该在 appLogger 初始化之前就设置好，以便在早期错误时也能输出
-    // 但为了确保 appLogger 可用，我们在它初始化后再添加，同时也输出到 console.error
-    const errorHandler = (type, err) => {
-      // 同时输出到 console.error 和 appLogger（如果可用）
-      console.error(`❌ ${type}:`, err);
-      if (err && err.stack) {
-        console.error(err.stack);
-      }
-      if (appLogger && appLogger.error) {
-        appLogger.error(`${type}:`, err);
-      }
-    };
-
-    process.on("uncaughtException", (err) => {
-      errorHandler("未捕获的异常", err);
-      // 不要立即退出，让服务尝试恢复或优雅关闭
-    });
-
-    process.on("unhandledRejection", (reason, promise) => {
-      errorHandler("未处理的 Promise 拒绝", { promise, reason });
-    });
 
     // 添加异步 preHandler hook 用于认证
     server.addHook("preHandler", createAuthMiddleware(config));
 
-    // 添加路由处理 hook
+    // 添加路由处理 hook （配置对应路由使用的模型）
     server.addHook(
       "preHandler",
       createRouteMiddleware(config, sessionUsageCache, appLogger)
