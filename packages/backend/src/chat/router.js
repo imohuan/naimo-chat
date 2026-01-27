@@ -9,10 +9,10 @@ const {
   findProjectPathBySessionId,
   folderNameToPath,
 } = require('./utils/index.js');
-const { ensureMcpConfigFile } = require('./utils/mcpUtils.js');
+const { ensureMcpConfigFile, buildMcpConfig } = require('./utils/mcpUtils.js');
 const { SessionManager } = require('./utils/sessionUtils.js');
 const { registerPermissionsFromMessage } = require('./utils/permissionUtils.js');
-const { CLAUDE_PROJECTS_DIR, EVENTS_DIR } = require("../config/constants.js")
+const { CLAUDE_PROJECTS_DIR, EVENTS_DIR, MCP_SERVER_DIR } = require("../config/constants.js")
 
 // 服务
 const permissionService = new PermissionService();
@@ -498,17 +498,9 @@ function registerChatRoutes(server) {
   // MCP config helper
   app.get('/api/chat/mcp/config', async (req, reply) => {
     const config = await getClaudeConfig();
-    return {
-      mcpServers: {
-        'demo-permissions': {
-          command: process.execPath,
-          args: [path.join(__dirname, 'mcp-server.js')],
-          env: {
-            APPROVAL_ENDPOINT_BASE: `http://${config.HOST}:${config.PORT}`,
-          },
-        },
-      },
-    };
+    const baseUrl = `http://${config.HOST}:${config.PORT}`;
+    const mcpServerPath = path.join(MCP_SERVER_DIR, 'mcp-server.js');
+    return buildMcpConfig({ baseUrl, mcpServerPath });
   });
 
   // 获取模拟事件列表

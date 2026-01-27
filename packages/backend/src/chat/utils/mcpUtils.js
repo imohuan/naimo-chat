@@ -25,7 +25,8 @@ function buildMcpConfig({ baseUrl, mcpServerPath, streamingId }) {
   return {
     mcpServers: {
       permissions: {
-        command: process.execPath,
+        // command: process.execPath,
+        command: "node",
         args: [mcpServerPath],
         env,
       },
