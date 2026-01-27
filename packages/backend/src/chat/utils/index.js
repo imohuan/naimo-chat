@@ -176,6 +176,33 @@ async function getSessionFileAttr(sessionPath, attr) {
   });
 }
 
+/**
+ * 获取项目路径，优先使用 folderNameToPath，失败时使用 getSessionFileAttr 兜底
+ * @param {string} folderName - 项目文件夹名称
+ * @param {string} sessionId - 会话 ID
+ * @returns {Promise<string|null>} - 返回项目路径，如果获取失败返回 null
+ * @example
+ * const projectPath = await getProjectPath('E--Code-Git-project', 'session-id-123');
+ */
+async function getProjectPath(folderName, sessionId) {
+  // 首先尝试使用 folderNameToPath
+  let projectPath = await folderNameToPath(folderName);
+
+  // 如果失败，使用 getSessionFileAttr 从 JSONL 文件中读取 cwd
+  if (!projectPath && sessionId) {
+    const sessionPath = path.join(CLAUDE_PROJECTS_DIR, folderName, `${sessionId}.jsonl`);
+    try {
+      projectPath = await getSessionFileAttr(sessionPath, 'cwd');
+      if (projectPath) {
+        console.log(`[getProjectPath] 通过 getSessionFileAttr 获取到项目路径: ${projectPath}`);
+      }
+    } catch (err) {
+      console.error(`[getProjectPath] 读取 session 文件失败:`, err);
+    }
+  }
+
+  return projectPath;
+}
 
 module.exports = {
   generateId,
@@ -183,4 +210,5 @@ module.exports = {
   findProjectPathBySessionId,
   folderNameToPath,
   getSessionFileAttr,
+  getProjectPath,
 };

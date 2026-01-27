@@ -378,14 +378,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #f59e0b;
+      color: #5c5c5c;
       font-size: 14px;
       cursor: help;
       flex-shrink: 0;
     }
 
     .cwd-info-icon:hover {
-      color: #d97706;
+      color: #2a2a2a;
     }
 
     .cwd-dropdown {
@@ -1510,7 +1510,10 @@
           required: true
         }
       },
-      emits: ['toggle-collapse', 'approve-permission', 'deny-permission', 'open-subagent']
+      emits: ['toggle-collapse', 'approve-permission', 'deny-permission', 'open-subagent'],
+      setup() {
+        return { trimSW: (text) => text.replace(/^"|"$/g, '') }
+      }
     };
 
     // 滚动按钮组件
@@ -3115,15 +3118,25 @@
                   project.sessions.forEach(session => {
                     chatHistory.value.push({
                       id: `${project.id}/${session.id}`,
-                      title: session.title || `${project.name} - ${session.id}`,
+                      title: session.title || `${session.id}`,
                       isRemote: true, // 标记为远程数据
                       projectId: project.id,
                       sessionId: session.id,
-                      messages: [] // 远程数据不预加载消息
+                      messages: [], // 远程数据不预加载消息
+                      createdAt: session.createdAt,
+                      modifiedAt: session.modifiedAt
                     });
                   });
                 }
               });
+
+              // 根据 modifiedAt 排序
+              chatHistory.value.sort((a, b) => {
+                const timeA = new Date(a.modifiedAt || a.createdAt).getTime();
+                const timeB = new Date(b.modifiedAt || b.createdAt).getTime();
+                return timeB - timeA; // 降序排列，最新的在前面
+              });
+
               return
             }
 
@@ -3148,7 +3161,7 @@
               state.session = sessionId;
               // 设置项目路径到 currentCwd
               state.currentCwd = data.projectPath || '';
-              state.projectPathMissing = !data.projectPath; // 标记路径是否缺失
+              state.projectPathMissing = !data.projectPathExists; // 标记路径是否缺失
               // 显示输入框，标记为已存在的会话（用于显示提示图标）
               state.showInputArea = true;
               state.inputDisabled = true; // 标记为已存在的会话（用于显示提示图标）
@@ -3157,6 +3170,7 @@
                 inputDisabled: state.inputDisabled,
                 session: state.session,
                 projectPath: data.projectPath,
+                projectPathExists: data.projectPathExists,
                 currentCwd: state.currentCwd,
                 projectPathMissing: state.projectPathMissing
               });
@@ -3316,7 +3330,7 @@
         </div>
         <div class="flex-1 flex flex-col gap-2 items-end">
           <div class="prose prose-slate max-w-full px-4 py-3 rounded-2xl shadow-sm bg-blue-600 text-white prose-invert"
-            v-html="group.html"></div>
+            v-html="trimSW(group.html)"></div>
           <span class="text-[10px] text-slate-400 px-1">{{ group.time }}</span>
         </div>
       </div>

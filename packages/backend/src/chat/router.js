@@ -7,8 +7,7 @@ const {
   generateId,
   getClaudeConfig,
   findProjectPathBySessionId,
-  folderNameToPath,
-  getSessionFileAttr,
+  getProjectPath,
 } = require('./utils/index.js');
 const { ensureMcpConfigFile, buildMcpConfig } = require('./utils/mcpUtils.js');
 const { SessionManager } = require('./utils/sessionUtils.js');
@@ -215,8 +214,10 @@ function registerChatRoutes(server) {
       if (session) {
         const folder = await findProjectPathBySessionId(session);
         if (folder) {
-          cwd = await folderNameToPath(folder.name);
-          console.log(`[聊天:启动] 找到会话 ${session} 的项目路径: ${cwd}`);
+          cwd = await getProjectPath(folder.name, session);
+          if (cwd) {
+            console.log(`[聊天:启动] 找到会话 ${session} 的项目路径: ${cwd}`);
+          }
         } else {
           console.warn(`[聊天:启动] 无法找到会话 ${session} 的项目路径，使用默认工作目录`);
         }
@@ -611,13 +612,27 @@ function registerChatRoutes(server) {
   app.get('/api/chat/projects/:projectId/sessions/:sessionId', async (req, reply) => {
     try {
       const { projectId, sessionId } = req.params;
-      const projectPath = await folderNameToPath(projectId);
+      const projectPath = await getProjectPath(projectId, sessionId);
+
+      // 检查目标目录是否存在
+      let projectPathExists = false;
+      if (projectPath) {
+        try {
+          const stats = await stat(projectPath);
+          projectPathExists = stats.isDirectory();
+        } catch (err) {
+          console.warn(`[会话:对话] 项目路径不存在: ${projectPath}`);
+          projectPathExists = false;
+        }
+      }
+
       const sessionPath = path.join(CLAUDE_PROJECTS_DIR, projectId, `${sessionId}.jsonl`);
       const converter = new ConversationConverter();
       const conversation = converter.convertFromFile(sessionPath);
       return {
         projectId,
         projectPath,
+        projectPathExists,
         sessionId,
         conversation
       };
