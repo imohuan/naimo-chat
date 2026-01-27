@@ -1,0 +1,3057 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaaS Claude Chat UI</title>
+  <!-- 资源加载 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+      border: 2px solid #f1f5f9;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* 消息列表专用滚动条样式 */
+    #chat-container::-webkit-scrollbar,
+    .subagent-messages-container::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #chat-container::-webkit-scrollbar-track,
+    .subagent-messages-container::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 10px;
+    }
+
+    #chat-container::-webkit-scrollbar-thumb,
+    .subagent-messages-container::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+      border: 2px solid #f1f5f9;
+    }
+
+    #chat-container::-webkit-scrollbar-thumb:hover,
+    .subagent-messages-container::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    .message-enter-active,
+    .message-leave-active {
+      transition: all 0.3s ease;
+    }
+
+    .message-enter-from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    .tool-card {
+      border-left: 3px solid #3b82f6;
+    }
+
+    .diff-added {
+      background-color: #f0fdf4;
+      border-left: 3px solid #22c55e;
+    }
+
+    .diff-removed {
+      background-color: #fef2f2;
+      border-left: 3px solid #ef4444;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .tool-collapse-btn {
+      transition: transform 0.2s ease;
+    }
+
+    .tool-collapsed .tool-collapse-btn {
+      transform: rotate(-90deg);
+    }
+
+    /* Gemini-style Input Container */
+    .input-container-gemini {
+      display: flex;
+      flex-direction: column;
+      background: #f8f9fa;
+      border: 1px solid #e8eaed;
+      border-radius: 12px;
+      padding: 12px 14px 10px 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: all 0.2s;
+    }
+
+    .input-container-gemini:focus-within {
+      background: #ffffff;
+      border-color: #d2d5da;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .preview-area-input {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .preview-area-input:empty {
+      display: none;
+    }
+
+    .preview-wrapper-input {
+      position: relative;
+      display: inline-block;
+    }
+
+    .preview-item-input {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid #e2e8f0;
+      display: block;
+      background: #f8fafc;
+      cursor: pointer;
+    }
+
+    .preview-close-input {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      z-index: 2;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .preview-wrapper-input:hover .preview-close-input {
+      opacity: 1;
+    }
+
+    .button-row-input {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 8px;
+    }
+
+    .add-btn-input {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: transparent;
+      color: #5f6368;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: 0.2s;
+      flex-shrink: 0;
+      border: none;
+    }
+
+    .add-btn-input:hover {
+      background: #e8eaed;
+    }
+
+    .right-buttons-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .model-selector-input {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 14px;
+      background: transparent;
+      color: #202124;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.2s;
+      user-select: none;
+    }
+
+    .model-selector-input:hover {
+      background: #e8eaed;
+    }
+
+    .model-dropdown-input {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      padding: 6px 0;
+      min-width: 280px;
+      display: none;
+      z-index: 1000;
+    }
+
+    .model-dropdown-input.active {
+      display: block;
+    }
+
+    .model-dropdown-header {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #5f6368;
+      font-weight: 500;
+      border-bottom: 1px solid #e8eaed;
+    }
+
+    .model-option-input {
+      padding: 10px 14px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: 0.2s;
+    }
+
+    .model-option-input:hover {
+      background: #f8f9fa;
+    }
+
+    .model-option-content {
+      flex: 1;
+    }
+
+    .model-option-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #202124;
+      margin-bottom: 2px;
+    }
+
+    .model-option-desc {
+      font-size: 11px;
+      color: #5f6368;
+      line-height: 1.3;
+    }
+
+    .model-option-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1967d2;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+    }
+
+    .model-option-input.selected .model-option-check {
+      opacity: 1;
+    }
+
+    .assistant-group {
+      display: flex;
+      gap: 1rem;
+      max-width: 56rem;
+      margin: 0 auto;
+      padding: 1rem;
+      background: #f8fafc;
+      border-radius: 0.75rem;
+    }
+
+    .assistant-group-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .assistant-text {
+      color: #1e293b;
+      line-height: 1.6;
+    }
+
+    .assistant-text p {
+      margin: 0.5rem 0;
+    }
+
+    .assistant-text code {
+      background: #e2e8f0;
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      font-size: 0.875em;
+    }
+
+    .assistant-text pre {
+      background: #f1f5f9;
+      color: #1e293b;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      border: 1px solid #e2e8f0;
+    }
+
+    .assistant-text pre code {
+      background: transparent;
+      padding: 0;
+      color: #1e293b;
+    }
+
+    /* 移除 space-y 造成的间隔 */
+    .space-y-3>*+* {
+      margin-top: 0 !important;
+    }
+
+    .space-y-3>.w-full+.w-full {
+      margin-top: 0.75rem !important;
+    }
+
+    /* 自定义下拉框样式 */
+    .custom-dropdown {
+      position: relative;
+      width: 180px;
+    }
+
+    .dropdown-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      transition: all 0.2s;
+      overflow: hidden;
+      height: 38px;
+    }
+
+    .dropdown-header:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+
+    .dropdown-header.disabled {
+      background: #f1f5f9;
+      opacity: 0.6;
+    }
+
+    .dropdown-trigger {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 0.75rem;
+      cursor: pointer;
+      user-select: none;
+      min-width: 0;
+    }
+
+    .dropdown-trigger.disabled {
+      cursor: not-allowed;
+    }
+
+    .dropdown-trigger-text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.875rem;
+      color: #334155;
+      font-weight: 500;
+    }
+
+    .dropdown-run-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      background: #3b82f6;
+      color: white;
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .dropdown-run-btn:hover:not(.disabled) {
+      background: #2563eb;
+    }
+
+    .dropdown-run-btn.disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 0.25rem);
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 50;
+      animation: dropdown-fade-in 0.15s ease-out;
+    }
+
+    @keyframes dropdown-fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .dropdown-item-wrapper {
+      display: flex;
+      align-items: center;
+      transition: background 0.15s;
+      position: relative;
+    }
+
+    .dropdown-item-wrapper:hover {
+      background: #f1f5f9;
+    }
+
+    .dropdown-item-wrapper.selected {
+      background: #eff6ff;
+    }
+
+    .dropdown-item-wrapper.selected .dropdown-item {
+      color: #2563eb;
+      font-weight: 500;
+    }
+
+    .dropdown-item {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: #334155;
+      min-width: 0;
+    }
+
+    .dropdown-delete-btn {
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      color: #94a3b8;
+      background: transparent;
+      border: none;
+      transition: color 0.15s;
+      flex-shrink: 0;
+      opacity: 0;
+      font-size: 0.75rem;
+    }
+
+    .dropdown-item-wrapper:hover .dropdown-delete-btn {
+      opacity: 1;
+    }
+
+    .dropdown-delete-btn:hover {
+      color: #ef4444;
+    }
+
+    .dropdown-chevron {
+      transition: transform 0.2s;
+      font-size: 0.75rem;
+      margin-left: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .dropdown-chevron.open {
+      transform: rotate(180deg);
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fade-in 0.2s ease-out;
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      animation: slide-up 0.2s ease-out;
+    }
+
+    @keyframes slide-up {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .save-events-btn {
+      position: sticky;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .save-icon-btn {
+      padding: 2px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .save-icon-btn:hover {
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    /* Image Viewer - Full Screen */
+    .image-viewer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 99999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .image-viewer.active {
+      display: flex;
+    }
+
+    .viewer-image-wrapper {
+      max-width: 90%;
+      max-height: 90%;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .viewer-image-wrapper:active {
+      cursor: grabbing;
+    }
+
+    .viewer-image {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .viewer-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: transparent;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 100000;
+    }
+
+    .viewer-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .viewer-controls {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      padding: 8px 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .viewer-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: transparent;
+      color: #202124;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+    }
+
+    .viewer-btn:hover {
+      background: #e8eaed;
+    }
+
+    .viewer-zoom-level {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 60px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #202124;
+    }
+
+    /* 自动刷新动画 */
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .animate-spin {
+      animation: rotate 1s linear infinite;
+    }
+
+    /* 自动刷新控制面板样式 */
+    .auto-refresh-panel {
+      transition: all 0.2s ease;
+    }
+
+    .auto-refresh-panel select {
+      transition: color 0.2s ease;
+    }
+
+    .auto-refresh-panel select:focus {
+      outline: none;
+    }
+
+    /* 滚动按钮组件样式 */
+    .scroll-buttons {
+      position: fixed;
+      right: 32px;
+      bottom: 140px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .scroll-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      color: #64748b;
+      font-size: 16px;
+      pointer-events: auto;
+    }
+
+    .scroll-btn:hover {
+      background: #3b82f6;
+      color: white;
+      border-color: #3b82f6;
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+    }
+
+    .scroll-btn:active {
+      transform: translateY(-1px) scale(1.02);
+    }
+
+    .scroll-btn.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.8);
+    }
+  </style>
+</head>
+
+<body class="bg-[#F9FAFB] text-slate-900">
+  <div id="app" class="flex h-screen overflow-hidden">
+    <!-- 侧边栏 -->
+    <aside class="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col hidden md:flex">
+      <div class="p-4 border-b border-slate-100 flex items-center gap-2">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">C</div>
+        <span class="font-semibold text-lg">Claude Chat</span>
+      </div>
+      <div class="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-2 sidebar-history-container">
+        <button @click="resetChat"
+          class="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plus"></i> 新对话
+        </button>
+        <div class="mt-4">
+          <h3 class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">对话记录</h3>
+          <div class="space-y-1">
+            <div v-for="h in chatHistory" :key="h.id" @click="loadHistoryConversation(h)"
+              class="group relative px-3 py-2.5 text-sm text-slate-700 hover:bg-blue-50 rounded-md cursor-pointer truncate transition-colors font-medium flex items-center justify-between hover:gap-2"
+              :class="{ 'bg-blue-100 text-blue-700': state.selectedHistoryId === h.id }">
+              <span class="flex-1 truncate">{{ h.title }}</span>
+              <button v-if="h.isRemote" @click.stop="deleteSession(h.sessionId)"
+                class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-slate-400 hover:text-red-600"
+                title="删除会话">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="p-4 border-t border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-slate-200"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">User Admin</p>
+            <p class="text-xs text-slate-500 truncate">Settings</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+
+    <!-- 主界面 -->
+    <main class="flex-1 h-full relative">
+
+      <!-- 子代理视图覆盖层 -->
+      <div v-if="state.subagentView.active" class="absolute inset-0 bg-white z-50 flex flex-col">
+        <!-- 子代理顶部导航 -->
+        <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button @click="closeSubagent"
+              class="w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+              <i class="fa-solid fa-arrow-left text-slate-700"></i>
+            </button>
+            <div>
+              <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-robot text-purple-600"></i>
+                子代理对话
+              </h2>
+              <p class="text-xs text-slate-500">{{ state.subagentView.description }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <button @click="toggleAllCollapseSubagent"
+              class="text-slate-500 hover:text-purple-500 transition flex items-center gap-1.5" title="全部折叠/展开">
+              <i class="fa-solid" :class="state.subagentView.allCollapsed ? 'fa-angles-down' : 'fa-angles-up'"></i>
+              {{ state.subagentView.allCollapsed ? '全部展开' : '全部折叠' }}
+            </button>
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+              <i class="fa-solid fa-layer-group"></i>
+              <span>{{ state.subagentView.messages.length }} 条消息</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- 子代理对话内容 -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4 bg-slate-50 subagent-messages-container">
+          <template v-if="subagentGroupedMessages.length > 0">
+            <div v-for="group in subagentGroupedMessages" :key="group.id" class="mb-4">
+              <message-renderer :group="group" :is-subagent="true" :is-collapsed="isCollapsed"
+                @toggle-collapse="toggleToolCollapse" @approve-permission="approvePermission"
+                @deny-permission="denyPermission" @open-subagent="openSubagent">
+              </message-renderer>
+            </div>
+          </template>
+          <div v-else class="h-full flex items-center justify-center text-slate-400">
+            <div class="text-center">
+              <i class="fa-solid fa-inbox text-4xl mb-3"></i>
+              <p>暂无子代理消息</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 滚动按钮组件 - 移到外层 -->
+        <scroll-buttons v-if="state.subagentView.active" container-id="subagent-messages-container"></scroll-buttons>
+      </div>
+
+      <div class="w-full h-full flex flex-col  overflow-hidden" v-show="!state.subagentView.active">
+        <!-- 顶部导航 -->
+        <header
+          class="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-10">
+          <div class="flex items-center gap-2">
+            <!-- 自定义下拉框 -->
+            <div class="custom-dropdown" v-click-outside="closeDropdown">
+              <div class="dropdown-header" :class="{ disabled: state.isStarting }">
+                <!-- 左侧：下拉触发区域 -->
+                <div class="dropdown-trigger" :class="{ disabled: state.isStarting }"
+                  @click="!state.isStarting && toggleDropdown()">
+                  <span class="dropdown-trigger-text">
+                    {{ state.selectedEvent || '测试场景' }}
+                  </span>
+                  <i class="fa-solid fa-chevron-down text-slate-400 dropdown-chevron"
+                    :class="{ open: state.dropdownOpen }"></i>
+                </div>
+
+                <!-- 右侧：运行按钮 -->
+                <div class="dropdown-run-btn" :class="{ disabled: !state.selectedEvent || state.isStarting }"
+                  @click.stop="sendTestRequest" :title="state.selectedEvent ? '运行测试' : '请先选择测试场景'">
+                  <i class="fa-solid fa-play"></i>
+                </div>
+              </div>
+
+              <!-- 下拉菜单 -->
+              <div v-if="state.dropdownOpen" class="dropdown-menu">
+                <div v-for="event in eventsList" :key="event.name" class="dropdown-item-wrapper"
+                  :class="{ selected: state.selectedEvent === event.name }">
+                  <div class="dropdown-item" @click="selectEvent(event.name)">
+                    {{ event.name }}
+                  </div>
+                  <button @click.stop="deleteEvent(event.name)" class="dropdown-delete-btn" title="删除此事件">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
+                <div v-if="eventsList.length === 0" class="dropdown-item text-slate-400 cursor-default">
+                  暂无测试场景
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <!-- Session ID 显示 -->
+            <div v-if="state.session"
+              class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+              <i class="fa-solid fa-link text-blue-600"></i>
+              <span class="text-xs font-medium text-blue-700">Session: {{ state.session.substring(0, 8) }}...</span>
+              <button @click="copySessionId" class="text-blue-600 hover:text-blue-800 transition"
+                title="复制完整 Session ID">
+                <i class="fa-solid fa-copy text-xs"></i>
+              </button>
+            </div>
+
+            <div v-if="state.streamingId" class="flex items-center gap-2 text-green-600 font-medium">
+              <span class="relative flex h-2 w-2">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              已连接: {{ state.streamingId }}
+            </div>
+
+            <!-- 自动刷新控制 -->
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors"
+              :class="state.autoRefresh.enabled ? 'bg-green-50 border-green-300' : 'bg-slate-50 border-slate-200'">
+              <button @click="toggleAutoRefresh" class="flex items-center gap-1.5 transition-colors"
+                :class="state.autoRefresh.enabled ? 'text-green-600 hover:text-green-700' : 'text-slate-500 hover:text-slate-700'"
+                :title="state.autoRefresh.enabled ? '关闭自动刷新' : '开启自动刷新'">
+                <i class="fa-solid" :class="state.autoRefresh.enabled ? 'fa-rotate animate-spin' : 'fa-rotate'"></i>
+                <span class="text-xs font-medium">{{ state.autoRefresh.enabled ? '自动刷新' : '手动' }}</span>
+              </button>
+              <div class="h-4 w-px bg-slate-300"></div>
+
+              <!-- 自定义下拉菜单 -->
+              <div class="relative" v-click-outside="closeIntervalDropdown">
+                <button @click="toggleIntervalDropdown"
+                  class="flex items-center gap-1 text-xs font-medium cursor-pointer transition-colors px-2 py-1 rounded hover:bg-slate-100"
+                  :class="state.autoRefresh.enabled ? 'text-green-600' : 'text-slate-600'">
+                  <span>{{ getIntervalLabel(state.autoRefresh.interval) }}</span>
+                  <i class="fa-solid fa-chevron-down text-[10px] transition-transform"
+                    :class="{ 'rotate-180': state.autoRefresh.intervalDropdownOpen }"></i>
+                </button>
+
+                <!-- 下拉选项 -->
+                <div v-if="state.autoRefresh.intervalDropdownOpen"
+                  class="absolute top-full right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-50 min-w-[100px]">
+                  <div v-for="option in intervalOptions" :key="option.value" @click="selectInterval(option.value)"
+                    class="px-3 py-2 text-xs cursor-pointer transition-colors flex items-center justify-between" :class="state.autoRefresh.interval === option.value 
+                      ? 'bg-blue-50 text-blue-600 font-medium' 
+                      : 'text-slate-700 hover:bg-slate-50'">
+                    <span>{{ option.label }}</span>
+                    <i v-if="state.autoRefresh.interval === option.value"
+                      class="fa-solid fa-check text-blue-600 text-[10px]"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button @click="manualRefresh"
+              class="text-slate-500 hover:text-blue-500 transition flex items-center gap-1.5" title="立即刷新"
+              :disabled="state.isRefreshing">
+              <i class="fa-solid fa-arrows-rotate" :class="{ 'animate-spin': state.isRefreshing }"></i>
+              刷新
+            </button>
+
+            <button @click="toggleAllCollapse"
+              class="text-slate-500 hover:text-blue-500 transition flex items-center gap-1.5" title="全部折叠/展开">
+              <i class="fa-solid" :class="state.allCollapsed ? 'fa-angles-down' : 'fa-angles-up'"></i>
+              {{ state.allCollapsed ? '全部展开' : '全部折叠' }}
+            </button>
+            <button @click="clearChat" class="text-slate-500 hover:text-red-500 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-trash"></i>
+              清空对话
+            </button>
+          </div>
+        </header>
+
+        <!-- 对话内容区域 -->
+        <div id="chat-container" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
+          <div v-if="chatItems.length === 0"
+            class="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+            <div
+              class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+              <i class="fa-solid fa-wand-magic-sparkles text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">今天能帮您做点什么？</h2>
+            <p class="text-slate-500">我可以帮您编写代码、分析数据或回答问题。请在下方输入您的需求。</p>
+          </div>
+
+          <!-- 分组渲染消息 -->
+          <template v-if="groupedMessages.length > 0">
+            <div v-for="group in groupedMessages" :key="group.id" class="mb-4">
+              <message-renderer :group="group" :is-subagent="false" :is-collapsed="isCollapsed"
+                @toggle-collapse="toggleToolCollapse" @approve-permission="approvePermission"
+                @deny-permission="denyPermission" @open-subagent="openSubagent">
+                <template #actions v-if="showSaveButton && group === groupedMessages[groupedMessages.length - 1]">
+                  <button @click="openSaveModal"
+                    class="save-icon-btn text-slate-400 hover:text-blue-600 transition-colors" title="保存对话事件">
+                    <i class="fa-solid fa-floppy-disk text-xs"></i>
+                  </button>
+                </template>
+              </message-renderer>
+            </div>
+            <div id="anchor" class="h-10"></div>
+          </template>
+        </div>
+
+        <!-- 滚动按钮组件 - 移到外层 -->
+        <scroll-buttons v-if="!state.subagentView.active" container-id="chat-container"></scroll-buttons>
+
+        <!-- 输入区域 - Gemini Style -->
+        <footer class="p-6 bg-gradient-to-t from-white via-white to-transparent border-t border-slate-100">
+          <div class="max-w-4xl mx-auto relative">
+            <div class="input-container-gemini">
+              <!-- Preview Area - Inside input container, above textarea -->
+              <div class="preview-area-input" id="preview-area-input"></div>
+
+              <!-- Textarea -->
+              <textarea v-model="state.message" @keydown.enter="handleEnter" @paste="handlePaste" @input="autoResize"
+                placeholder="给 Claude 发送消息..." ref="chatInput"
+                class="w-full border-none bg-transparent outline-none p-0 text-sm leading-relaxed max-h-[120px] resize-none text-slate-900 overflow-y-auto custom-scrollbar"
+                rows="1"></textarea>
+
+              <!-- Bottom: Button Row -->
+              <div class="button-row-input">
+                <label class="add-btn-input">
+                  <input type="file" ref="fileInput" hidden accept="image/*" multiple @change="handleFileSelect">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </label>
+
+                <div class="right-buttons-input">
+                  <div class="model-selector-input" @click.stop="toggleModelDropdown">
+                    <span>{{ state.selectedModel }}</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
+                  <button @click="startSession" :disabled="!canSend"
+                    class="w-7 h-7 rounded-full flex items-center justify-center transition"
+                    :class="canSend ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-200 text-slate-400'">
+                    <i v-if="!state.isStarting" class="fa-solid fa-paper-plane text-sm"></i>
+                    <span v-else
+                      class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Model Dropdown -->
+            <div class="model-dropdown-input" :class="{ active: state.modelDropdownOpen }" @click.stop>
+              <div class="model-dropdown-header">Claude 模型</div>
+              <div v-for="model in modelOptions" :key="model.name" class="model-option-input"
+                :class="{ selected: state.selectedModel === model.name }" @click="selectModel(model.name)">
+                <div class="model-option-content">
+                  <div class="model-option-title">{{ model.name }}</div>
+                  <div class="model-option-desc">{{ model.desc }}</div>
+                </div>
+                <div class="model-option-check">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </main>
+
+    <!-- Save Modal -->
+    <div v-if="state.showSaveModal" class="modal-overlay" @click.self="closeSaveModal">
+      <div class="modal-content">
+        <h3 class="text-xl font-bold text-slate-800 mb-4">保存对话事件</h3>
+        <p class="text-sm text-slate-600 mb-4">请输入事件名称，用于后续测试场景选择</p>
+        <input v-model="state.saveEventName" @keydown.enter="saveEvents" type="text" placeholder="例如: test-scenario-1"
+          class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+        <div class="flex gap-3 justify-end">
+          <button @click="closeSaveModal"
+            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">
+            取消
+          </button>
+          <button @click="saveEvents" :disabled="!state.saveEventName.trim()"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <i v-if="!state.isSaving" class="fa-solid fa-check"></i>
+            <span v-if="state.isSaving"
+              class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            {{ state.isSaving ? '保存中...' : '确认保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Viewer -->
+    <div class="image-viewer" id="image-viewer">
+      <div class="viewer-close" id="viewer-close">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </div>
+      <div class="viewer-image-wrapper" id="viewer-image-wrapper">
+        <img class="viewer-image" id="viewer-image" src="" alt="">
+      </div>
+      <div class="viewer-controls">
+        <button class="viewer-btn" id="zoom-out">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+          </svg>
+        </button>
+        <div class="viewer-zoom-level" id="zoom-level">100%</div>
+        <button class="viewer-btn" id="zoom-in">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <line x1="11" y1="8" x2="11" y2="14"></line>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+          </svg>
+        </button>
+        <button class="viewer-btn" id="zoom-reset">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M1 4v6h6M23 20v-6h-6"></path>
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, onMounted, onBeforeUnmount, nextTick, watch, computed } = Vue;
+
+    // 消息渲染组件
+    const MessageRenderer = {
+      template: '#message-renderer-template',
+      props: {
+        group: {
+          type: Object,
+          required: true
+        },
+        isSubagent: {
+          type: Boolean,
+          default: false
+        },
+        isCollapsed: {
+          type: Function,
+          required: true
+        }
+      },
+      emits: ['toggle-collapse', 'approve-permission', 'deny-permission', 'open-subagent']
+    };
+
+    // 滚动按钮组件
+    const ScrollButtons = {
+      template: `
+        <div class="scroll-buttons">
+          <button 
+            v-show="showScrollTop" 
+            @click="scrollToTop" 
+            class="scroll-btn"
+            title="回到顶部">
+            <i class="fa-solid fa-chevron-up"></i>
+          </button>
+          <button 
+            v-show="showScrollBottom" 
+            @click="scrollToBottom" 
+            class="scroll-btn"
+            title="回到底部">
+            <i class="fa-solid fa-chevron-down"></i>
+          </button>
+        </div>
+      `,
+      props: {
+        containerId: {
+          type: String,
+          required: true
+        }
+      },
+      data() {
+        return {
+          showScrollTop: false,
+          showScrollBottom: false,
+          scrollThreshold: 100 // 距离顶部/底部多少像素时显示按钮
+        };
+      },
+      mounted() {
+        this.container = document.querySelector(`.${this.containerId}`) || document.getElementById(this.containerId);
+        if (this.container) {
+          this.container.addEventListener('scroll', this.handleScroll);
+          this.handleScroll(); // 初始检查
+        }
+      },
+      beforeUnmount() {
+        if (this.container) {
+          this.container.removeEventListener('scroll', this.handleScroll);
+        }
+      },
+      methods: {
+        handleScroll() {
+          if (!this.container) return;
+
+          const { scrollTop, scrollHeight, clientHeight } = this.container;
+          const distanceFromTop = scrollTop;
+          const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+          // 显示回到顶部按钮：不在顶部时
+          this.showScrollTop = distanceFromTop > this.scrollThreshold;
+
+          // 显示回到底部按钮：不在底部时
+          this.showScrollBottom = distanceFromBottom > this.scrollThreshold;
+        },
+        scrollToTop() {
+          if (this.container) {
+            this.container.scrollTo({
+              top: 0,
+              behavior: 'smooth'
+            });
+          }
+        },
+        scrollToBottom() {
+          if (this.container) {
+            this.container.scrollTo({
+              top: this.container.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }
+      }
+    };
+
+    createApp({
+      components: {
+        MessageRenderer,
+        ScrollButtons
+      },
+      setup() {
+        const state = reactive({
+          message: '',
+          isStarting: false,
+          isRefreshing: false,
+          streamingId: '',
+          session: '', // 当前会话 ID
+          status: '',
+          selectedEvent: '',
+          dropdownOpen: false,
+          selectedModel: 'Claude 3.5 Sonnet',
+          modelDropdownOpen: false,
+          uploadedImages: [],
+          showSaveModal: false,
+          saveEventName: '',
+          isSaving: false,
+          conversationEnded: false,
+          allEvents: [], // 存储所有接收到的事件
+          selectedHistoryId: 1, // 当前选中的历史记录 ID
+          allCollapsed: false, // 主对话全部折叠状态
+          subagentView: {
+            active: false,
+            messages: [],
+            description: '',
+            scrollPosition: 0,
+            allCollapsed: false // 子代理全部折叠状态
+          },
+          autoRefresh: {
+            enabled: false, // 是否启用自动刷新
+            interval: 5000, // 刷新间隔（毫秒）
+            timerId: null, // 定时器 ID
+            lastRefreshTime: null, // 上次刷新时间
+            intervalDropdownOpen: false // 间隔下拉菜单是否打开
+          }
+        });
+
+        // 使用 Map 存储折叠状态，key 为消息 id
+        const collapseStateMap = reactive(new Map());
+        const subagentCollapseStateMap = reactive(new Map());
+
+        const chatItems = ref([]);
+        const eventsList = ref([]);
+
+        // 刷新间隔选项
+        const intervalOptions = [
+          { value: 500, label: '0.5秒' },
+          { value: 1000, label: '1秒' },
+          { value: 2000, label: '2秒' },
+          { value: 3000, label: '3秒' },
+          { value: 5000, label: '5秒' },
+          { value: 10000, label: '10秒' },
+          { value: 30000, label: '30秒' },
+          { value: 60000, label: '1分钟' }
+        ];
+
+        // 默认对话数据
+        const defaultConversation = [
+          {
+            id: 'msg-001',
+            role: 'user',
+            kind: 'text',
+            rawText: '帮我列出当前目录的文件',
+            time: '14:30'
+          },
+          {
+            id: 'msg-002',
+            role: 'assistant',
+            kind: 'text',
+            rawText: '好的，我来帮你执行 ls 命令查看文件列表。',
+            time: '14:30'
+          },
+          {
+            id: 'msg-003',
+            role: 'assistant',
+            kind: 'tool',
+            name: 'Bash',
+            input: {
+              command: 'ls -la'
+            },
+            result: 'total 48\ndrwxr-xr-x  5 user  staff   160 Jan 26 14:30 .\ndrwxr-xr-x  8 user  staff   256 Jan 25 10:00 ..\n-rw-r--r--  1 user  staff  1024 Jan 26 14:25 file1.txt\n-rw-r--r--  1 user  staff  2048 Jan 26 14:28 file2.js\n-rw-r--r--  1 user  staff   512 Jan 26 14:20 README.md',
+            tool_use_id: 'tool-001',
+            isError: false,
+            time: '14:30'
+          },
+          {
+            id: 'msg-004',
+            role: 'assistant',
+            kind: 'text',
+            rawText: '命令执行成功！当前目录有以下文件：\n\n- **file1.txt** (1KB)\n- **file2.js** (2KB)\n- **README.md** (512B)',
+            time: '14:30'
+          },
+          {
+            id: 'msg-005',
+            role: 'user',
+            kind: 'text',
+            rawText: '帮我创建一个新文件 test.js，包含一个简单的函数',
+            time: '14:31'
+          },
+          {
+            id: 'msg-006',
+            role: 'assistant',
+            kind: 'text',
+            rawText: '好的，我来创建这个文件，包含一个测试函数。',
+            time: '14:31'
+          },
+          {
+            id: 'msg-007',
+            role: 'assistant',
+            kind: 'tool',
+            name: 'Write',
+            input: {
+              path: 'test.js',
+              content: 'console.log("Hello World");\n\nfunction test() {\n  return true;\n}\n\nmodule.exports = { test };'
+            },
+            result: '文件创建成功',
+            tool_use_id: 'tool-002',
+            isError: false,
+            diffLines: [
+              { type: 'add', content: '+ console.log("Hello World");' },
+              { type: 'add', content: '+ ' },
+              { type: 'add', content: '+ function test() {' },
+              { type: 'add', content: '+   return true;' },
+              { type: 'add', content: '+ }' },
+              { type: 'add', content: '+ ' },
+              { type: 'add', content: '+ module.exports = { test };' }
+            ],
+            time: '14:31'
+          },
+          {
+            id: 'msg-008',
+            role: 'assistant',
+            kind: 'text',
+            rawText: '文件 `test.js` 已创建成功！包含了一个简单的测试函数。',
+            time: '14:31'
+          },
+          {
+            id: 'msg-009',
+            role: 'user',
+            kind: 'text',
+            rawText: '现在帮我规划一下接下来的开发任务',
+            time: '14:32'
+          },
+          {
+            id: 'msg-010',
+            role: 'assistant',
+            kind: 'text',
+            rawText: '好的，让我为你规划一下开发任务清单。',
+            time: '14:32'
+          },
+          {
+            id: 'msg-011',
+            role: 'assistant',
+            kind: 'todo_list',
+            name: 'TodoWrite',
+            input: {
+              todos: [
+                {
+                  id: 'todo-1',
+                  content: '分析项目结构和依赖',
+                  status: 'completed',
+                  activeForm: null
+                },
+                {
+                  id: 'todo-2',
+                  content: '创建配置文件 config.json',
+                  status: 'in_progress',
+                  activeForm: 'config.json'
+                },
+                {
+                  id: 'todo-3',
+                  content: '编写单元测试',
+                  status: 'pending',
+                  activeForm: null
+                },
+                {
+                  id: 'todo-4',
+                  content: '添加错误处理机制',
+                  status: 'pending',
+                  activeForm: null
+                },
+                {
+                  id: 'todo-5',
+                  content: '优化性能和代码质量',
+                  status: 'pending',
+                  activeForm: null
+                }
+              ]
+            },
+            todos: [
+              {
+                id: 'todo-1',
+                content: '分析项目结构和依赖',
+                status: 'completed',
+                activeForm: null
+              },
+              {
+                id: 'todo-2',
+                content: '创建配置文件 config.json',
+                status: 'in_progress',
+                activeForm: 'config.json'
+              },
+              {
+                id: 'todo-3',
+                content: '编写单元测试',
+                status: 'pending',
+                activeForm: null
+              },
+              {
+                id: 'todo-4',
+                content: '添加错误处理机制',
+                status: 'pending',
+                activeForm: null
+              },
+              {
+                id: 'todo-5',
+                content: '优化性能和代码质量',
+                status: 'pending',
+                activeForm: null
+              }
+            ],
+            tool_use_id: 'tool-003',
+            time: '14:32'
+          },
+          {
+            id: 'msg-012',
+            role: 'assistant',
+            kind: 'text',
+            rawText: '任务清单已创建！目前正在进行配置文件的创建工作。',
+            time: '14:32'
+          }
+        ];
+
+        // 历史记录列表，包含对话数据
+        const chatHistory = ref([
+          {
+            id: 1,
+            title: 'Session: Claude Code Demo',
+            messages: defaultConversation
+          }
+        ]);
+
+        const modelOptions = [
+          { name: 'Claude 3.5 Sonnet', desc: '快速回答，适合日常对话' },
+          { name: 'Claude 3 Opus', desc: '深度思考，解决复杂问题' },
+          { name: 'Claude 3 Haiku', desc: '轻量快速，简单任务' }
+        ];
+
+        const canSend = computed(() => {
+          return (state.message.trim() || state.uploadedImages.length > 0) && !state.isStarting;
+        });
+
+        const showSaveButton = computed(() => {
+          return state.conversationEnded && chatItems.value.length > 0 && state.allEvents.length > 0;
+        });
+
+        // 计算属性：将 chatItems 按角色分组
+        const groupedMessages = computed(() => {
+          const groups = [];
+          let currentGroup = null;
+
+          chatItems.value.forEach(item => {
+            if (item.role === 'user') {
+              // 用户消息单独成组，使用 marked 转换 rawText
+              groups.push({
+                id: item.id,
+                role: 'user',
+                html: item.html || item.rawText,
+                time: item.time
+              });
+              currentGroup = null;
+            } else if (item.role === 'assistant') {
+              // AI 消息合并到当前组
+              if (!currentGroup || currentGroup.role !== 'assistant') {
+                currentGroup = {
+                  id: `group-${item.id}`,
+                  role: 'assistant',
+                  items: [],
+                  time: item.time
+                };
+                groups.push(currentGroup);
+              }
+
+              // 为文本类型的消息添加 html 属性
+              const processedItem = { ...item };
+              if (item.kind === 'text' && !item.html && item.rawText) {
+                processedItem.html = marked.parse(item.rawText);
+              }
+
+              currentGroup.items.push(processedItem);
+              currentGroup.time = item.time; // 更新时间为最新
+            }
+          });
+
+          return groups;
+        });
+
+        // 计算属性：子代理消息分组
+        const subagentGroupedMessages = computed(() => {
+          const groups = [];
+          let currentGroup = null;
+
+          state.subagentView.messages.forEach(item => {
+            if (item.role === 'user') {
+              groups.push({
+                id: item.id,
+                role: 'user',
+                html: item.html || item.rawText,
+                time: item.time
+              });
+              currentGroup = null;
+            } else if (item.role === 'assistant') {
+              if (!currentGroup || currentGroup.role !== 'assistant') {
+                currentGroup = {
+                  id: `subagent-group-${item.id}`,
+                  role: 'assistant',
+                  items: [],
+                  time: item.time
+                };
+                groups.push(currentGroup);
+              }
+
+              const processedItem = { ...item };
+              if (item.kind === 'text' && !item.html && item.rawText) {
+                processedItem.html = marked.parse(item.rawText);
+              }
+
+              currentGroup.items.push(processedItem);
+              currentGroup.time = item.time;
+            }
+          });
+
+          return groups;
+        });
+
+        let eventSource = null;
+
+        const toggleToolCollapse = (item) => {
+          // 根据当前视图选择对应的 Map
+          const targetMap = state.subagentView.active ? subagentCollapseStateMap : collapseStateMap;
+
+          // 切换折叠状态
+          const currentState = targetMap.get(item.id) || false;
+          targetMap.set(item.id, !currentState);
+        };
+
+        // 获取折叠状态的辅助函数
+        const isCollapsed = (itemId, isSubagent = false) => {
+          const targetMap = isSubagent ? subagentCollapseStateMap : collapseStateMap;
+          return targetMap.get(itemId) || false;
+        };
+
+        const formatTime = (date) => {
+          return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        };
+
+        const scrollToBottom = (smooth = true) => {
+          nextTick(() => {
+            const container = document.getElementById('chat-container');
+            if (container) {
+              container.scrollTo({
+                top: container.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto'
+              });
+            }
+          });
+        };
+
+        // 智能滚动：只有在接近底部时才自动滚动
+        const smartScrollToBottom = (smooth = true, threshold = 100) => {
+          nextTick(() => {
+            const container = document.getElementById('chat-container');
+            if (container) {
+              const scrollTop = container.scrollTop;
+              const scrollHeight = container.scrollHeight;
+              const clientHeight = container.clientHeight;
+              const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+              // 只有当距离底部小于阈值时才滚动
+              if (distanceFromBottom <= threshold) {
+                container.scrollTo({
+                  top: scrollHeight,
+                  behavior: smooth ? 'smooth' : 'auto'
+                });
+              }
+            }
+          });
+        };
+
+        const scrollSidebarToBottom = (smooth = true) => {
+          nextTick(() => {
+            const sidebar = document.querySelector('.sidebar-history-container');
+            if (sidebar) {
+              sidebar.scrollTo({
+                top: sidebar.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto'
+              });
+            }
+          });
+        };
+
+        const scrollSubagentToBottom = (smooth = true) => {
+          nextTick(() => {
+            const subagentContainer = document.querySelector('.subagent-messages-container');
+            if (subagentContainer) {
+              subagentContainer.scrollTo({
+                top: subagentContainer.scrollHeight,
+                behavior: smooth ? 'smooth' : 'auto'
+              });
+            }
+          });
+        };
+
+        const addChatItem = (item) => {
+          const id = item.id || Math.random().toString(36).substr(2, 9);
+          chatItems.value.push({ ...item, id, time: formatTime(new Date()) });
+          smartScrollToBottom(); // 使用智能滚动
+        };
+
+        // 显示错误消息
+        const showErrorMessage = (errorMessage, error = null) => {
+          const fullMessage = error ? `${errorMessage}: ${error.message || error}` : errorMessage;
+          console.error(fullMessage, error);
+          chatItems.value = [{
+            type: 'error',
+            content: fullMessage,
+            timestamp: new Date().toISOString()
+          }];
+        };
+
+        // 流处理逻辑
+        const startStream = (id, url) => {
+          if (eventSource) eventSource.close();
+          state.streamingId = id;
+          state.status = 'SSE 连接中...';
+          state.conversationEnded = false;
+          state.allEvents = []; // 重置事件列表
+          eventSource = new EventSource(url);
+
+          eventSource.onopen = () => {
+            console.log('SSE Connected:', url);
+            state.status = '已连接，等待数据...';
+          };
+
+          eventSource.onmessage = (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              console.log("Stream Event:", data);
+
+              // 保存所有事件
+              state.allEvents.push(data);
+
+              handleStreamEvent(data);
+            } catch (err) {
+              console.error("Parse Error:", err, "Raw data:", e.data);
+            }
+          };
+
+          eventSource.onerror = (e) => {
+            console.error("SSE Error:", e);
+            state.status = '连接已中断';
+            stopStream();
+          };
+        };
+
+        const stopStream = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          state.streamingId = '';
+          state.isStarting = false;
+        };
+
+        // 核心解析逻辑：支持嵌套格式
+        const handleStreamEvent = (data) => {
+          console.log('handleStreamEvent:', data);
+
+          // 0. 检查并设置 sessionId（如果存在）
+          if (data.session_id && !state.session) {
+            state.session = data.session_id;
+            // 刷新一下列表
+            manualRefresh()
+            console.log('Session ID set from stream:', data.session_id);
+          }
+
+          // 1. 处理 message 类型（主要的消息格式）
+          if (data.type === 'message' && Array.isArray(data.content)) {
+            data.content.forEach(contentBlock => {
+              if (contentBlock.type === 'text' && contentBlock.text) {
+                updateTextContent(contentBlock.text);
+              } else if (contentBlock.type === 'thinking' && contentBlock.thinking) {
+                updateTextContent(contentBlock.thinking);
+              } else if (contentBlock.type === 'tool_use') {
+                handleToolUse(contentBlock);
+              }
+            });
+          }
+          // 2. 处理基础 content 类型
+          else if (data.type === 'content') {
+            updateTextContent(data.content);
+          }
+          // 3. 处理 content_block_delta 类型（流式文本增量）
+          else if (data.type === 'content_block_delta' && data.delta?.text) {
+            updateTextContent(data.delta.text);
+          }
+          // 4. 处理 assistant 类型的嵌套消息
+          else if (data.type === 'assistant' && data.message?.content) {
+            data.message.content.forEach(contentBlock => {
+              if (contentBlock.type === 'text') {
+                updateTextContent(contentBlock.text);
+              } else if (contentBlock.type === 'tool_use') {
+                handleToolUse(contentBlock);
+              }
+            });
+          }
+          // 5. 处理独立的 tool_use
+          else if (data.type === 'tool_use') {
+            handleToolUse(data);
+          }
+          // 6. 处理 user 类型（包含 tool_result）
+          else if (data.type === 'user' && Array.isArray(data.message?.content)) {
+            data.message.content.forEach(block => {
+              if (block.type === 'tool_result' && block.tool_use_id) {
+                const resText = typeof block.content === 'string'
+                  ? block.content
+                  : Array.isArray(block.content)
+                    ? block.content.map(p => p.text || '').join('\n')
+                    : JSON.stringify(block.content);
+
+                const targetIndex = chatItems.value.findIndex(i => i.tool_use_id === block.tool_use_id);
+                if (targetIndex >= 0) {
+                  // 创建新对象以触发响应式更新
+                  chatItems.value[targetIndex] = {
+                    ...chatItems.value[targetIndex],
+                    result: resText,
+                    isError: block.is_error
+                  };
+                }
+              }
+            });
+          }
+          // 7. 处理独立的 tool_result
+          else if (data.type === 'tool_result') {
+            const targetIndex = chatItems.value.findIndex(i => i.tool_use_id === data.tool_use_id);
+            if (targetIndex >= 0) {
+              // 创建新对象以触发响应式更新
+              chatItems.value[targetIndex] = {
+                ...chatItems.value[targetIndex],
+                result: data.result,
+                isError: data.is_error
+              };
+            }
+          }
+          // 8. 处理权限请求
+          else if (data.type === 'permission_request') {
+            const req = data.permission || data;
+            addChatItem({
+              role: 'assistant',
+              kind: 'permission_request',
+              toolName: req.toolName,
+              toolInput: req.toolInput,
+              payload: req.payload,
+              requestId: req.id
+            });
+          }
+          // 9. 处理权限决策
+          else if (data.type === 'permission_decision') {
+            // 权限已处理，可以移除对应的请求卡片
+            if (data.permission?.id) {
+              chatItems.value = chatItems.value.filter(i => i.requestId !== data.permission.id);
+            }
+          }
+          // 10. 处理错误
+          else if (data.type === 'error') {
+            state.status = `错误：${data.stderr || data.error || 'unknown'}`;
+            addChatItem({
+              role: 'assistant',
+              kind: 'text',
+              rawText: `❌ 错误: ${data.stderr || data.error || 'unknown'}`,
+              html: marked.parse(`❌ 错误: ${data.stderr || data.error || 'unknown'}`)
+            });
+          }
+          // 11. 处理流结束
+          else if (data.type === 'process_end') {
+            state.status = `结束 code=${data.code}`;
+            state.conversationEnded = true;
+            stopStream();
+          }
+        };
+
+        const updateTextContent = (text) => {
+          if (!text) return;
+
+          const last = chatItems.value[chatItems.value.length - 1];
+          if (last && last.role === 'assistant' && last.kind === 'text') {
+            // 追加到现有消息 - 创建新对象以触发响应式更新
+            const newRawText = (last.rawText || '') + text;
+            chatItems.value[chatItems.value.length - 1] = {
+              ...last,
+              rawText: newRawText,
+              html: marked.parse(newRawText)
+            };
+          } else {
+            // 创建新消息
+            addChatItem({
+              role: 'assistant',
+              kind: 'text',
+              rawText: text,
+              html: marked.parse(text)
+            });
+          }
+          // 流式输出时使用智能滚动
+          smartScrollToBottom(true);
+        };
+
+        const handleToolUse = (toolData) => {
+          console.log('handleToolUse:', toolData);
+
+          // 处理 Task 工具（子代理）
+          if (toolData.name === 'Task') {
+            addChatItem({
+              role: 'assistant',
+              kind: 'subagent',
+              name: toolData.name,
+              input: toolData.input,
+              result: '',
+              tool_use_id: toolData.id,
+              isError: false,
+              subagentMessages: [], // 子代理消息列表
+              agentId: null // 稍后填充
+            });
+            return;
+          }
+
+          // 处理 TodoWrite 工具
+          if (toolData.name === 'TodoWrite' && toolData.input?.todos) {
+            addChatItem({
+              role: 'assistant',
+              kind: 'todo_list',
+              name: toolData.name,
+              input: toolData.input,
+              todos: toolData.input.todos,
+              tool_use_id: toolData.id
+            });
+            return;
+          }
+
+          let item = {
+            role: 'assistant',
+            kind: 'tool',
+            name: toolData.name,
+            input: toolData.input,
+            result: '',
+            tool_use_id: toolData.id,
+            isError: false
+          };
+
+          // 如果是 Write 且有内容，生成预览
+          if (toolData.name === 'Write' && toolData.input?.content) {
+            item.diffLines = generatePreviewDiff(toolData.input.content);
+          }
+
+          addChatItem(item);
+        };
+
+        const approvePermission = async (item) => {
+          try {
+            const res = await fetch(`/api/permissions/${item.requestId}/decision`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'approve' })
+            });
+            if (res.ok) {
+              chatItems.value = chatItems.value.filter(i => i.id !== item.id);
+              state.status = '权限已批准';
+            } else {
+              const data = await res.json();
+              state.status = `审批失败: ${data.error || res.statusText}`;
+            }
+          } catch (e) {
+            state.status = "审批失败: " + e.message;
+          }
+        };
+
+        const denyPermission = async (item) => {
+          try {
+            const res = await fetch(`/api/permissions/${item.requestId}/decision`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'deny' })
+            });
+            if (res.ok) {
+              chatItems.value = chatItems.value.filter(i => i.id !== item.id);
+              state.status = '权限已拒绝';
+            } else {
+              const data = await res.json();
+              state.status = `拒绝失败: ${data.error || res.statusText}`;
+            }
+          } catch (e) {
+            state.status = "拒绝失败: " + e.message;
+          }
+        };
+
+        const startSession = async () => {
+          const msg = state.message.trim();
+          if (!canSend.value) return;
+
+          addChatItem({ role: 'user', kind: 'text', html: marked.parse(msg || '(附带图片)') });
+          state.message = '';
+          state.uploadedImages = [];
+          renderImagePreviews();
+          state.isStarting = true;
+          state.status = '发送中...';
+
+          try {
+            const res = await fetch('/api/chat/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: msg,
+                mock: false,
+                ...(state.session && { session: state.session })
+              })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              state.status = '流连接中...';
+              // 保存 session ID（如果服务器返回）
+              if (data.session) {
+                state.session = data.session;
+              }
+              startStream(data.streamingId, data.streamUrl);
+            } else {
+              state.status = 'Error: ' + data.error;
+              state.isStarting = false;
+            }
+          } catch (e) {
+            state.status = '请求失败';
+            state.isStarting = false;
+          }
+        };
+
+        const sendTestRequest = async () => {
+          if (state.isStarting || !state.selectedEvent) return;
+
+          const testMessage = `测试场景: ${state.selectedEvent}`;
+          addChatItem({ role: 'user', kind: 'text', html: marked.parse(testMessage) });
+          state.isStarting = true;
+          state.status = '发送测试请求...';
+
+          try {
+            const res = await fetch('/api/chat/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: testMessage,
+                mock: true,
+                eventName: state.selectedEvent
+              })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              state.status = '测试流连接中...';
+              startStream(data.streamingId, data.streamUrl);
+            } else {
+              state.status = 'Error: ' + data.error;
+              state.isStarting = false;
+            }
+          } catch (e) {
+            state.status = '测试请求失败';
+            state.isStarting = false;
+          }
+        };
+
+        const generatePreviewDiff = (content) => {
+          const lines = content.split('\n');
+          return lines.slice(0, 10).map(l => ({ type: 'add', content: '+ ' + l }));
+        };
+
+        const clearChat = () => {
+          chatItems.value = [];
+          state.allEvents = [];
+          state.conversationEnded = false;
+          state.session = ''; // 清空 session
+          stopStream();
+        };
+
+        // 自动刷新功能
+        const toggleAutoRefresh = () => {
+          state.autoRefresh.enabled = !state.autoRefresh.enabled;
+
+          if (state.autoRefresh.enabled) {
+            startAutoRefresh();
+          } else {
+            stopAutoRefresh();
+          }
+        };
+
+        const startAutoRefresh = () => {
+          if (state.autoRefresh.timerId) {
+            clearInterval(state.autoRefresh.timerId);
+          }
+
+          state.autoRefresh.timerId = setInterval(() => {
+            // 只有在不处于其他操作时才执行自动刷新
+            if (!state.isRefreshing && !state.isStarting) {
+              performAutoRefresh();
+            } else {
+              console.log('跳过自动刷新：正在进行其他操作');
+            }
+          }, state.autoRefresh.interval);
+
+          console.log(`自动刷新已启动，间隔: ${state.autoRefresh.interval}ms`);
+        };
+
+        const stopAutoRefresh = () => {
+          if (state.autoRefresh.timerId) {
+            clearInterval(state.autoRefresh.timerId);
+            state.autoRefresh.timerId = null;
+          }
+          console.log('自动刷新已停止');
+        };
+
+        const restartAutoRefresh = () => {
+          if (state.autoRefresh.enabled) {
+            stopAutoRefresh();
+            startAutoRefresh();
+          }
+        };
+
+        const performAutoRefresh = async () => {
+          console.log('执行自动刷新...');
+          state.autoRefresh.lastRefreshTime = new Date();
+
+          try {
+            // 1. 刷新对话历史列表
+            await loadProjects();
+
+            // 2. 如果有选中的对话，刷新其内容
+            if (state.selectedHistoryId) {
+              const selectedHistory = chatHistory.value.find(h => h.id === state.selectedHistoryId);
+              if (selectedHistory) {
+                if (selectedHistory.isRemote) {
+                  // 远程对话：重新加载，不自动滚动
+                  await loadSessionConversation(selectedHistory.projectId, selectedHistory.sessionId, false);
+                  // 刷新后使用智能滚动（只有在底部附近才滚动）
+                  smartScrollToBottom(true);
+                } else {
+                  // 本地对话：重新加载消息
+                  if (selectedHistory.messages && selectedHistory.messages.length > 0) {
+                    chatItems.value = [...selectedHistory.messages];
+                    // 刷新后使用智能滚动（只有在底部附近才滚动）
+                    smartScrollToBottom(true);
+                  }
+                }
+              }
+            }
+
+            console.log('自动刷新完成');
+          } catch (error) {
+            console.error('自动刷新失败:', error);
+          }
+        };
+
+        const manualRefresh = async () => {
+          if (state.isRefreshing || state.isStarting) {
+            console.log('跳过刷新：正在进行其他操作');
+            return;
+          }
+
+          state.isRefreshing = true;
+          state.status = '刷新中...';
+
+          try {
+            await performAutoRefresh();
+            state.status = '刷新完成';
+
+            // 2秒后清除状态
+            setTimeout(() => {
+              if (state.status === '刷新完成') {
+                state.status = '';
+              }
+            }, 2000);
+          } catch (error) {
+            state.status = '刷新失败';
+            console.error('手动刷新失败:', error);
+          } finally {
+            state.isRefreshing = false;
+          }
+        };
+
+        // 间隔下拉菜单控制
+        const toggleIntervalDropdown = () => {
+          state.autoRefresh.intervalDropdownOpen = !state.autoRefresh.intervalDropdownOpen;
+        };
+
+        const closeIntervalDropdown = () => {
+          state.autoRefresh.intervalDropdownOpen = false;
+        };
+
+        const selectInterval = (value) => {
+          state.autoRefresh.interval = value;
+          state.autoRefresh.intervalDropdownOpen = false;
+          restartAutoRefresh();
+        };
+
+        const getIntervalLabel = (value) => {
+          const option = intervalOptions.find(opt => opt.value === value);
+          return option ? option.label : '5秒';
+        };
+
+        const resetChat = () => {
+          clearChat();
+          state.status = '新会话';
+          state.selectedHistoryId = null; // 取消选中历史记录
+        };
+
+        // 复制 Session ID
+        const copySessionId = async () => {
+          try {
+            await navigator.clipboard.writeText(state.session);
+            // 可以添加一个临时提示
+            const originalStatus = state.status;
+            state.status = '✓ Session ID 已复制';
+            setTimeout(() => {
+              state.status = originalStatus;
+            }, 2000);
+          } catch (err) {
+            console.error('复制失败:', err);
+            state.status = '复制失败';
+          }
+        };
+
+        const loadEventsList = async () => {
+          try {
+            const res = await fetch('/api/events');
+            const data = await res.json();
+            if (res.ok) {
+              eventsList.value = data.events || [];
+              // 默认选中第一个
+              if (eventsList.value.length > 0 && !state.selectedEvent) {
+                state.selectedEvent = eventsList.value[0].name;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to load events list:', e);
+          }
+        };
+
+        const toggleDropdown = () => {
+          state.dropdownOpen = !state.dropdownOpen;
+        };
+
+        const closeDropdown = () => {
+          state.dropdownOpen = false;
+        };
+
+        const selectEvent = (eventName) => {
+          state.selectedEvent = eventName;
+          state.dropdownOpen = false;
+        };
+
+        const deleteEvent = async (eventName) => {
+          if (!confirm(`确定要删除事件 "${eventName}" 吗？`)) {
+            return;
+          }
+
+          try {
+            const res = await fetch(`/api/events/${eventName}`, {
+              method: 'DELETE'
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+              state.status = `事件已删除: ${eventName}`;
+              // 如果删除的是当前选中的事件，清空选择
+              if (state.selectedEvent === eventName) {
+                state.selectedEvent = '';
+              }
+              // 重新加载事件列表
+              await loadEventsList();
+            } else {
+              state.status = `删除失败: ${data.error}`;
+              alert(`删除失败: ${data.error}`);
+            }
+          } catch (e) {
+            state.status = '删除失败: ' + e.message;
+            alert('删除失败: ' + e.message);
+          }
+        };
+
+        // Save events functions
+        const openSaveModal = () => {
+          state.showSaveModal = true;
+          state.saveEventName = '';
+        };
+
+        const closeSaveModal = () => {
+          state.showSaveModal = false;
+          state.saveEventName = '';
+        };
+
+        const saveEvents = async () => {
+          const name = state.saveEventName.trim();
+          if (!name) return;
+
+          state.isSaving = true;
+          try {
+            const res = await fetch('/api/events/save', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: name,
+                events: state.allEvents
+              })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+              state.status = `事件已保存: ${name}`;
+              closeSaveModal();
+              // 重新加载事件列表
+              await loadEventsList();
+              // 自动选中刚保存的事件
+              state.selectedEvent = name;
+            } else {
+              state.status = `保存失败: ${data.error}`;
+              alert(`保存失败: ${data.error}`);
+            }
+          } catch (e) {
+            state.status = '保存失败: ' + e.message;
+            alert('保存失败: ' + e.message);
+          } finally {
+            state.isSaving = false;
+          }
+        };
+
+        // Model dropdown functions
+        const toggleModelDropdown = () => {
+          state.modelDropdownOpen = !state.modelDropdownOpen;
+        };
+
+        const selectModel = (modelName) => {
+          state.selectedModel = modelName;
+          state.modelDropdownOpen = false;
+        };
+
+        // Image upload functions
+        const handleFileSelect = (e) => {
+          const files = e.target.files;
+          for (let file of files) {
+            if (file.type.startsWith('image/')) {
+              addImagePreview(file);
+            }
+          }
+          e.target.value = '';
+        };
+
+        const addImagePreview = (file) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const imageData = {
+              id: Math.random().toString(36).substr(2, 9),
+              src: e.target.result,
+              name: file.name
+            };
+            state.uploadedImages.push(imageData);
+            renderImagePreviews();
+          };
+          reader.readAsDataURL(file);
+        };
+
+        const removeImage = (imageId) => {
+          state.uploadedImages = state.uploadedImages.filter(img => img.id !== imageId);
+          renderImagePreviews();
+        };
+
+        const renderImagePreviews = () => {
+          const previewArea = document.getElementById('preview-area-input');
+          if (!previewArea) return;
+
+          previewArea.innerHTML = '';
+          state.uploadedImages.forEach(img => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'preview-wrapper-input';
+
+            const imgEl = document.createElement('img');
+            imgEl.src = img.src;
+            imgEl.className = 'preview-item-input';
+            imgEl.onclick = () => openImageViewer(img.src); // 添加点击预览功能
+
+            const closeBtn = document.createElement('div');
+            closeBtn.className = 'preview-close-input';
+            closeBtn.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            `;
+            closeBtn.onclick = (e) => {
+              e.stopPropagation();
+              removeImage(img.id);
+            };
+
+            wrapper.appendChild(imgEl);
+            wrapper.appendChild(closeBtn);
+            previewArea.appendChild(wrapper);
+          });
+        };
+
+        const handlePaste = (e) => {
+          const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+          for (let item of items) {
+            if (item.type.includes('image')) {
+              addImagePreview(item.getAsFile());
+            }
+          }
+        };
+
+        const handleEnter = (e) => {
+          if (!e.shiftKey) {
+            e.preventDefault();
+            if (canSend.value) {
+              startSession();
+            }
+          }
+        };
+
+        const autoResize = (e) => {
+          const textarea = e.target;
+          textarea.style.height = 'auto';
+          textarea.style.height = textarea.scrollHeight + 'px';
+        };
+
+        // 子代理相关函数
+        const openSubagent = (item) => {
+          // 保存当前滚动位置
+          const container = document.getElementById('chat-container');
+          if (container) {
+            state.subagentView.scrollPosition = container.scrollTop;
+          }
+
+          // 设置子代理视图数据
+          state.subagentView.active = true;
+          state.subagentView.messages = item.subagentMessages || [];
+          state.subagentView.description = item.input?.description || item.input?.prompt || 'Subagent Task';
+
+          // 打开子代理视图后滚动到底部
+          scrollSubagentToBottom(false);
+        };
+
+        const closeSubagent = () => {
+          state.subagentView.active = false;
+          state.subagentView.messages = [];
+          state.subagentView.description = '';
+
+          // 恢复滚动位置
+          nextTick(() => {
+            const container = document.getElementById('chat-container');
+            if (container) {
+              container.scrollTop = state.subagentView.scrollPosition;
+            }
+          });
+        };
+
+        // 主对话：全部折叠/展开切换
+        const toggleAllCollapse = () => {
+          const newCollapsedState = !state.allCollapsed;
+          state.allCollapsed = newCollapsedState;
+
+          // 更新所有可折叠的消息项的折叠状态
+          chatItems.value.forEach(item => {
+            if (item.kind === 'tool' || item.kind === 'subagent' || item.kind === 'todo_list') {
+              collapseStateMap.set(item.id, newCollapsedState);
+            }
+          });
+        };
+
+        // 子代理：全部折叠/展开切换
+        const toggleAllCollapseSubagent = () => {
+          const newCollapsedState = !state.subagentView.allCollapsed;
+          state.subagentView.allCollapsed = newCollapsedState;
+
+          // 更新所有子代理消息中可折叠的项的折叠状态
+          state.subagentView.messages.forEach(item => {
+            if (item.kind === 'tool' || item.kind === 'subagent' || item.kind === 'todo_list') {
+              subagentCollapseStateMap.set(item.id, newCollapsedState);
+            }
+          });
+        };
+
+        const chatInput = ref(null);
+
+        // Image viewer state
+        const imageViewer = ref(null);
+        const viewerImage = ref(null);
+        const viewerImageWrapper = ref(null);
+        const viewerClose = ref(null);
+        const zoomIn = ref(null);
+        const zoomOut = ref(null);
+        const zoomReset = ref(null);
+        const zoomLevel = ref(null);
+
+        let currentZoom = 1;
+        let currentX = 0;
+        let currentY = 0;
+        let isDraggingImage = false;
+        let startDragX = 0;
+        let startDragY = 0;
+
+        const openImageViewer = (src) => {
+          if (!imageViewer.value) return;
+
+          viewerImage.value.src = src;
+          imageViewer.value.classList.add('active');
+          currentZoom = 1;
+          currentX = 0;
+          currentY = 0;
+          updateImageTransform();
+        };
+
+        const closeImageViewer = () => {
+          if (!imageViewer.value) return;
+
+          imageViewer.value.classList.remove('active');
+          viewerImage.value.src = '';
+        };
+
+        const updateImageTransform = () => {
+          if (!viewerImageWrapper.value || !zoomLevel.value) return;
+
+          viewerImageWrapper.value.style.transform = `translate(${currentX}px, ${currentY}px) scale(${currentZoom})`;
+          zoomLevel.value.textContent = Math.round(currentZoom * 100) + '%';
+        };
+
+        const zoom = (delta) => {
+          currentZoom = Math.max(0.5, Math.min(5, currentZoom + delta));
+          updateImageTransform();
+        };
+
+        const setupImageViewer = () => {
+          imageViewer.value = document.getElementById('image-viewer');
+          viewerImage.value = document.getElementById('viewer-image');
+          viewerImageWrapper.value = document.getElementById('viewer-image-wrapper');
+          viewerClose.value = document.getElementById('viewer-close');
+          zoomIn.value = document.getElementById('zoom-in');
+          zoomOut.value = document.getElementById('zoom-out');
+          zoomReset.value = document.getElementById('zoom-reset');
+          zoomLevel.value = document.getElementById('zoom-level');
+
+          if (!imageViewer.value) return;
+
+          // Close button
+          viewerClose.value.onclick = closeImageViewer;
+
+          // Zoom controls
+          zoomIn.value.onclick = () => zoom(0.5);
+          zoomOut.value.onclick = () => zoom(-0.5);
+          zoomReset.value.onclick = () => {
+            currentZoom = 1;
+            currentX = 0;
+            currentY = 0;
+            updateImageTransform();
+          };
+
+          // ESC to close
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+              // 优先关闭图片查看器
+              if (imageViewer.value.classList.contains('active')) {
+                closeImageViewer();
+              }
+              // 如果子代理视图打开，则关闭子代理视图
+              else if (state.subagentView.active) {
+                closeSubagent();
+              }
+            }
+          });
+
+          // Drag to pan
+          viewerImageWrapper.value.addEventListener('mousedown', (e) => {
+            isDraggingImage = true;
+            startDragX = e.clientX - currentX;
+            startDragY = e.clientY - currentY;
+            e.preventDefault();
+          });
+
+          document.addEventListener('mousemove', (e) => {
+            if (isDraggingImage) {
+              currentX = e.clientX - startDragX;
+              currentY = e.clientY - startDragY;
+              updateImageTransform();
+            }
+          });
+
+          document.addEventListener('mouseup', () => {
+            if (isDraggingImage) {
+              isDraggingImage = false;
+            }
+          });
+
+          // Mouse wheel zoom
+          imageViewer.value.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            zoom(delta);
+          });
+        };
+
+        // 监听子代理消息变化，自动滚动到底部
+        watch(() => state.subagentView.messages.length, () => {
+          if (state.subagentView.active) {
+            scrollSubagentToBottom(true);
+          }
+        });
+
+        // 监听对话历史变化，自动滚动侧边栏到底部
+        watch(() => chatHistory.value.length, () => {
+          scrollSidebarToBottom(true);
+        });
+
+        watch(() => state.message, (newVal) => {
+          if (newVal === '' && chatInput.value) {
+            chatInput.value.style.height = 'auto';
+          }
+        });
+
+        // Close dropdowns when clicking outside
+        const handleClickOutside = (e) => {
+          if (state.modelDropdownOpen) {
+            state.modelDropdownOpen = false;
+          }
+        };
+
+        // 点击外部关闭下拉框的指令
+        const clickOutsideDirective = {
+          mounted(el, binding) {
+            el.clickOutsideEvent = (event) => {
+              if (!(el === event.target || el.contains(event.target))) {
+                binding.value();
+              }
+            };
+            document.addEventListener('click', el.clickOutsideEvent);
+          },
+          unmounted(el) {
+            document.removeEventListener('click', el.clickOutsideEvent);
+          }
+        };
+
+        // 加载默认对话数据
+        const loadDefaultConversation = () => {
+          chatItems.value = [...defaultConversation];
+          scrollToBottom(false); // 初始加载时不使用平滑滚动
+        };
+
+        // 加载项目列表
+        const loadProjects = async () => {
+          try {
+            const response = await fetch('/api/projects');
+            const data = await response.json();
+
+            if (data.projects && data.projects.length > 0) {
+              // 将项目会话添加到对话历史列表
+              chatHistory.value = [];
+
+              data.projects.forEach(project => {
+                if (project.sessions && project.sessions.length > 0) {
+                  project.sessions.forEach(session => {
+                    chatHistory.value.push({
+                      id: `${project.id}/${session.id}`,
+                      title: session.title || `${project.name} - ${session.id}`,
+                      isRemote: true, // 标记为远程数据
+                      projectId: project.id,
+                      sessionId: session.id,
+                      messages: [] // 远程数据不预加载消息
+                    });
+                  });
+                }
+              });
+              return
+            }
+
+            // 如果没有项目或会话，加载默认对话
+            showErrorMessage('加载项目列表失败');
+          } catch (error) {
+            showErrorMessage('加载项目列表报错', error);
+          }
+        };
+
+        // 加载会话对话内容
+        // 加载会话对话内容
+        const loadSessionConversation = async (projectId, sessionId, shouldScroll = true) => {
+          try {
+            const response = await fetch(`/api/projects/${projectId}/sessions/${sessionId}`);
+            const data = await response.json();
+
+            if (data.conversation && data.conversation.length > 0) {
+              chatItems.value = data.conversation;
+              // 设置当前 session ID，以便继续对话
+              state.session = sessionId;
+              console.log(`Loaded ${data.conversation.length} messages from ${projectId}/${sessionId}`);
+              console.log('Session ID set to:', sessionId);
+              // 根据参数决定是否滚动
+              if (shouldScroll) {
+                scrollToBottom(false); // 加载会话时不使用平滑滚动
+              }
+            } else {
+              showErrorMessage('加载项目列表失败');
+            }
+          } catch (error) {
+            showErrorMessage('加载会话对话报错', error);
+          }
+        };
+
+        // 加载历史对话
+        const loadHistoryConversation = async (historyItem) => {
+          // 区分是否是远程数据
+          if (historyItem.isRemote) {
+            // 远程数据：通过 API 获取项目会话详情
+            console.log('Loading remote conversation:', {
+              projectId: historyItem.projectId,
+              sessionId: historyItem.sessionId
+            });
+
+            await loadSessionConversation(historyItem.projectId, historyItem.sessionId);
+            state.selectedHistoryId = historyItem.id;
+          } else {
+            // 本地数据：直接加载消息
+            if (historyItem.messages && historyItem.messages.length > 0) {
+              chatItems.value = [...historyItem.messages];
+              state.selectedHistoryId = historyItem.id;
+              scrollToBottom(false); // 加载历史记录时不使用平滑滚动
+            }
+          }
+        };
+
+        // 删除项目
+        // 删除 session（会话）
+        const deleteSession = async (sessionId) => {
+          if (!confirm(`确定要删除会话 "${sessionId}" 吗？\n\n这将删除该会话的所有记录和相关文件，此操作不可恢复！`)) {
+            return;
+          }
+
+          try {
+            state.status = '删除中...';
+            const response = await fetch(`/api/sessions/${sessionId}`, {
+              method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              state.status = `会话已删除: ${sessionId}`;
+
+              // 如果删除的是当前选中的会话，清空对话
+              const deletedHistoryIds = chatHistory.value
+                .filter(h => h.sessionId === sessionId)
+                .map(h => h.id);
+
+              if (deletedHistoryIds.includes(state.selectedHistoryId)) {
+                clearChat();
+                state.selectedHistoryId = null;
+              }
+
+              // 重新加载项目列表
+              await loadProjects();
+
+              // 如果还有其他会话，加载第一个
+              if (chatHistory.value.length > 0 && !state.selectedHistoryId) {
+                await loadHistoryConversation(chatHistory.value[0]);
+              }
+
+              // 2秒后清除状态
+              setTimeout(() => {
+                if (state.status === `会话已删除: ${sessionId}`) {
+                  state.status = '';
+                }
+              }, 2000);
+            } else {
+              state.status = `删除失败: ${data.error}`;
+              alert(`删除失败: ${data.error}`);
+            }
+          } catch (error) {
+            state.status = '删除失败: ' + error.message;
+            alert('删除失败: ' + error.message);
+            console.error('删除会话失败:', error);
+          }
+        };
+
+        onMounted(() => {
+          loadEventsList();
+          setupImageViewer();
+          document.addEventListener('click', handleClickOutside);
+          // 尝试加载项目对话，如果失败则加载默认对话
+          loadProjects().then(() => {
+            // 加载第一个历史对话
+            if (chatHistory.value.length > 0) {
+              loadHistoryConversation(chatHistory.value[0]);
+            }
+          });
+        });
+
+        onBeforeUnmount(() => {
+          document.removeEventListener('click', handleClickOutside);
+          // 清理自动刷新定时器
+          stopAutoRefresh();
+        });
+
+        return {
+          state, chatItems, chatHistory, groupedMessages, subagentGroupedMessages, eventsList, modelOptions, canSend, showSaveButton,
+          intervalOptions,
+          startSession, sendTestRequest, clearChat, resetChat, copySessionId,
+          approvePermission, denyPermission, toggleToolCollapse, isCollapsed,
+          toggleDropdown, closeDropdown, selectEvent, deleteEvent,
+          toggleModelDropdown, selectModel,
+          handleFileSelect, handlePaste, handleEnter, autoResize, chatInput,
+          openSaveModal, closeSaveModal, saveEvents,
+          loadHistoryConversation, deleteSession,
+          openSubagent, closeSubagent,
+          toggleAllCollapse, toggleAllCollapseSubagent,
+          scrollToBottom, smartScrollToBottom, scrollSidebarToBottom, scrollSubagentToBottom,
+          toggleAutoRefresh, manualRefresh, restartAutoRefresh,
+          toggleIntervalDropdown, closeIntervalDropdown, selectInterval, getIntervalLabel
+        };
+      },
+      directives: {
+        clickOutside: {
+          mounted(el, binding) {
+            el.clickOutsideEvent = (event) => {
+              if (!(el === event.target || el.contains(event.target))) {
+                binding.value();
+              }
+            };
+            document.addEventListener('click', el.clickOutsideEvent);
+          },
+          unmounted(el) {
+            document.removeEventListener('click', el.clickOutsideEvent);
+          }
+        }
+      }
+    }).mount('#app');
+  </script>
+
+  <!-- 消息渲染组件模板 -->
+  <script type="text/x-template" id="message-renderer-template">
+    <div>
+      <!-- 用户消息 -->
+      <div v-if="group.role === 'user'" class="flex gap-4 max-w-4xl mx-auto flex-row-reverse">
+        <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center mt-1 bg-blue-600 text-white">
+          <i class="fa-solid fa-user"></i>
+        </div>
+        <div class="flex-1 flex flex-col gap-2 items-end">
+          <div class="prose prose-slate max-w-full px-4 py-3 rounded-2xl shadow-sm bg-blue-600 text-white prose-invert"
+            v-html="group.html"></div>
+          <span class="text-[10px] text-slate-400 px-1">{{ group.time }}</span>
+        </div>
+      </div>
+
+      <!-- AI 消息组 -->
+      <div v-if="group.role === 'assistant'" class="flex gap-4 max-w-4xl mx-auto">
+        <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center bg-gradient-to-br text-white shadow-sm"
+          :class="isSubagent ? 'from-purple-500 to-purple-600' : 'from-blue-500 to-blue-600'">
+          <i class="fa-solid fa-robot"></i>
+        </div>
+        <div class="flex-1 bg-white shadow-xs rounded-xl p-4 space-y-3 overflow-hidden">
+          <template v-for="item in group.items" :key="item.id">
+            <!-- 文本内容 -->
+            <div v-if="item.kind === 'text'" class="assistant-text text-slate-800" v-html="item.html"></div>
+
+            <!-- 工具调用卡片 -->
+            <div v-if="item.kind === 'tool'" class="w-full">
+              <div class="bg-white border rounded-lg shadow-sm overflow-hidden" :class="[
+                isCollapsed(item.id, isSubagent) ? 'tool-collapsed' : '',
+                item.isError ? 'border-red-300 bg-red-50' : 'border-slate-200'
+              ]">
+                <div @click="$emit('toggle-collapse', item)"
+                  class="px-4 py-2.5 border-b flex justify-between items-center cursor-pointer transition select-none"
+                  :class="item.isError ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <i class="fa-solid fa-chevron-down tool-collapse-btn flex-shrink-0"
+                      :class="item.isError ? 'text-red-400' : 'text-slate-400'"></i>
+                    <span class="text-xs font-semibold flex-shrink-0"
+                      :class="item.isError ? 'text-red-700' : 'text-slate-700'">{{ item.name }}</span>
+                    <span v-if="isCollapsed(item.id, isSubagent) && item.name === 'Bash' && item.input?.command"
+                      class="text-xs font-mono truncate max-w-md"
+                      :class="item.isError ? 'text-red-600' : 'text-slate-500'">
+                      {{ item.input.command }}
+                    </span>
+                    <span v-else-if="item.input?.path || item.input?.file_path"
+                      class="text-[10px] font-mono truncate max-w-md"
+                      :class="item.isError ? 'text-red-500' : 'text-slate-400'">
+                      {{ item.input.path || item.input.file_path }}
+                    </span>
+                    <span v-if="isCollapsed(item.id, isSubagent) && item.name !== 'Bash'&& Object.keys(item.input).length > 0"
+                      class="text-[10px] font-mono truncate max-w-md"
+                      :class="item.isError ? 'text-red-500' : 'text-slate-400'">
+                      {{ item.input }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <span v-if="item.isError"
+                      class="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                      <i class="fa-solid fa-circle-exclamation"></i> ERROR
+                    </span>
+                    <span v-else-if="item.result"
+                      class="text-[10px] bg-green-600 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                      <i class="fa-solid fa-circle-check"></i> SUCCESS
+                    </span>
+                    <span v-else
+                      class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">TOOL</span>
+                  </div>
+                </div>
+
+                <div v-show="!isCollapsed(item.id, isSubagent)">
+                  <div class="px-3 font-mono text-xs border-b"
+                    :class="item.isError ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'">
+                    <div v-if="item.name === 'Bash'" class="py-3"
+                      :class="item.isError ? 'text-red-900' : 'text-slate-800'">{{ item.input?.command }}</div>
+                    <div v-else-if="item.name === 'Write'"></div>
+                    <div v-else class="py-3">{{ JSON.stringify(item.input) }}</div>
+                  </div>
+
+                  <div class="p-3 text-xs font-mono max-h-64 overflow-y-auto custom-scrollbar"
+                    :class="item.isError ? 'bg-red-50' : 'bg-white'">
+                    <div v-if="item.isError"
+                      class="bg-red-100 border-l-4 border-red-600 px-3 py-2 mb-2 rounded flex items-start gap-2">
+                      <i class="fa-solid fa-circle-xmark text-red-700 flex-shrink-0 mt-0.5"></i>
+                      <span class="text-red-800 font-semibold">执行错误</span>
+                    </div>
+                    <div v-if="item.diffLines">
+                      <div v-for="(line, idx) in item.diffLines" :key="idx"
+                        :class="line.type === 'add' ? 'diff-added' : line.type === 'rem' ? 'diff-removed' : 'text-slate-500'"
+                        class="px-2 py-0.5">
+                        {{ line.content }}
+                      </div>
+                    </div>
+                    <pre v-else
+                      :class="item.isError ? 'text-red-700' : 'text-slate-600'">{{ item.result || '执行中...' }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 权限审批 UI -->
+            <div v-if="item.kind === 'permission_request'" class="w-full">
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div class="flex gap-3">
+                  <div
+                    class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 flex-shrink-0">
+                    <i class="fa-solid fa-shield-halved text-lg"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="text-sm font-bold text-amber-800 flex items-center gap-2">
+                      <i class="fa-solid fa-lock"></i>
+                      操作权限请求: {{ item.toolName }}
+                    </h4>
+                    <div
+                      class="bg-white/50 rounded p-2 mt-2 font-mono text-[10px] text-slate-600 border border-amber-100 max-h-64 overflow-auto custom-scrollbar">
+                      <pre
+                        class="whitespace-pre-wrap break-words">{{ JSON.stringify(item.toolInput || item.payload, null, 2) }}</pre>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                      <button @click="$emit('approve-permission', item)"
+                        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-check"></i> 允许执行
+                      </button>
+                      <button @click="$emit('deny-permission', item)"
+                        class="px-4 py-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-xmark"></i> 拒绝
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 子代理卡片 -->
+            <div v-if="item.kind === 'subagent'" class="w-full">
+              <div class="bg-white border rounded-lg shadow-sm overflow-hidden" :class="[
+                isCollapsed(item.id, isSubagent) ? 'tool-collapsed' : '',
+                item.isError ? 'border-red-300 bg-red-50' : 'border-purple-200'
+              ]">
+                <div @click="$emit('toggle-collapse', item)"
+                  class="px-4 py-2.5 border-b flex justify-between items-center cursor-pointer transition select-none"
+                  :class="item.isError ? 'bg-red-50 border-red-200 hover:bg-red-100' : 'bg-purple-50 border-purple-200 hover:bg-purple-100'">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <i class="fa-solid fa-chevron-down tool-collapse-btn flex-shrink-0"
+                      :class="item.isError ? 'text-red-400' : 'text-purple-400'"></i>
+                    <i class="fa-solid fa-robot flex-shrink-0"
+                      :class="item.isError ? 'text-red-600' : 'text-purple-600'"></i>
+                    <span class="text-xs font-semibold flex-shrink-0"
+                      :class="item.isError ? 'text-red-700' : 'text-purple-700'">Agent</span>
+                    <span v-if="isCollapsed(item.id, isSubagent) && item.input?.description"
+                      class="text-xs font-mono truncate max-w-md"
+                      :class="item.isError ? 'text-red-600' : 'text-purple-600'">
+                      {{ item.input.description }}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <button v-if="item.subagentMessages && item.subagentMessages.length > 0"
+                      @click.stop="$emit('open-subagent', item)"
+                      class="text-xs px-2 py-1 rounded transition flex items-center gap-1"
+                      :class="item.isError ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'"
+                      title="打开子代理对话">
+                      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                      <span>打开</span>
+                    </button>
+                    <span v-if="item.isError"
+                      class="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                      <i class="fa-solid fa-circle-exclamation"></i> ERROR
+                    </span>
+                    <span v-else-if="item.result"
+                      class="text-[10px] bg-green-600 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                      <i class="fa-solid fa-circle-check"></i> SUCCESS
+                    </span>
+                    <span v-else
+                      class="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold">AGENT</span>
+                  </div>
+                </div>
+
+                <div v-show="!isCollapsed(item.id, isSubagent)">
+                  <div class="px-3 py-3 font-mono text-xs border-b"
+                    :class="item.isError ? 'bg-red-100 text-red-800 border-red-200' : 'bg-purple-50 text-purple-800 border-purple-200'">
+                    <div class="mb-2">
+                      <span class="font-bold">描述:</span> {{ item.input?.description || 'N/A' }}
+                    </div>
+                    <div class="mb-2">
+                      <span class="font-bold">类型:</span> {{ item.input?.subagent_type || 'N/A' }}
+                    </div>
+                    <div>
+                      <span class="font-bold">提示:</span> {{ item.input?.prompt || 'N/A' }}
+                    </div>
+                  </div>
+
+                  <div class="p-3 text-xs font-mono max-h-64 overflow-y-auto custom-scrollbar"
+                    :class="item.isError ? 'bg-red-50' : 'bg-white'">
+                    <div v-if="item.isError"
+                      class="bg-red-100 border-l-4 border-red-600 px-3 py-2 mb-2 rounded flex items-start gap-2">
+                      <i class="fa-solid fa-circle-xmark text-red-700 flex-shrink-0 mt-0.5"></i>
+                      <span class="text-red-800 font-semibold">执行错误</span>
+                    </div>
+
+                    <div v-if="item.subagentMessages && item.subagentMessages.length > 0"
+                      class="bg-purple-50 border-l-4 border-purple-500 px-3 py-2 rounded flex items-start gap-2 mb-3">
+                      <i class="fa-solid fa-comments text-purple-600 flex-shrink-0 mt-0.5"></i>
+                      <div class="flex-1">
+                        <div class="text-purple-800 font-semibold mb-1">子代理对话 ({{ item.subagentMessages.length }}
+                          条消息)</div>
+                        <div class="text-purple-600 text-[11px]">点击上方"打开"按钮查看完整对话</div>
+                      </div>
+                    </div>
+
+                    <div v-if="item.result">
+                      <div class="text-slate-500 font-semibold mb-2 text-[11px] uppercase tracking-wide">返回结果:
+                      </div>
+                      <pre class="whitespace-pre-wrap break-words"
+                        :class="item.isError ? 'text-red-700' : 'text-slate-700'">{{ item.result }}</pre>
+                    </div>
+                    <div v-else-if="!item.subagentMessages || item.subagentMessages.length === 0">
+                      <pre class="text-slate-400">执行中...</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TODO 列表卡片 -->
+            <div v-if="item.kind === 'todo_list'" class="w-full">
+              <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden"
+                :class="{ 'tool-collapsed': isCollapsed(item.id, isSubagent) }">
+                <div @click="$emit('toggle-collapse', item)"
+                  class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition select-none">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <i class="fa-solid fa-chevron-down text-slate-400 tool-collapse-btn flex-shrink-0"></i>
+                    <span class="text-xs font-semibold text-slate-700 flex-shrink-0">任务列表</span>
+                    <span class="text-[10px] text-slate-400 font-semibold truncate max-w-md">{{
+                      item.todos.length }} 项</span>
+                  </div>
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <span
+                      class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">TOOL</span>
+                  </div>
+                </div>
+
+                <div v-show="!isCollapsed(item.id, isSubagent)">
+                  <div class="p-3 text-xs max-h-64 overflow-y-auto custom-scrollbar bg-white">
+                    <div v-for="todo in item.todos" :key="todo.id" class="mb-2 last:mb-0">
+                      <div class="flex items-center gap-2 p-2 rounded hover:bg-slate-50 transition">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0"
+                          :class="todo.status === 'completed' ? 'bg-green-500' : todo.status === 'in_progress' ? 'bg-blue-500' : 'bg-slate-300'"></span>
+                        <div class="font-medium text-slate-800 flex-shrink-0"
+                          :class="{ 'line-through text-slate-400': todo.status === 'completed' }">
+                          {{ todo.content }}
+                        </div>
+                        <div v-if="todo.activeForm" class="text-[11px] text-slate-400 truncate flex-1 min-w-0"
+                          :title="todo.activeForm">
+                          {{ todo.activeForm }}
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ml-auto" :class="{
+                          'bg-green-100 text-green-700': todo.status === 'completed',
+                          'bg-blue-100 text-blue-700': todo.status === 'in_progress',
+                          'bg-slate-100 text-slate-600': todo.status === 'pending'
+                        }">
+                          {{ todo.status === 'completed' ? '完成' : todo.status === 'in_progress' ? '进行中' : '待处理'
+                          }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- 时间戳和保存按钮 -->
+          <div class="text-[10px] text-slate-400 pt-1 flex items-center gap-2">
+            <span>{{ group.time }}</span>
+            <slot name="actions"></slot>
+          </div>
+        </div>
+      </div>
+    </div>
+  </script>
+</body>
+
+</html>

@@ -1,21 +1,13 @@
 {
   "mcpServers": {
     "demo-permissions": {
-      "type": "stdio",
-      "command": "npx",
+      "command": "D:\\Node\\node-v22.16.0-win-x64\\node.exe",
       "args": [
-        "mcp-remote",
-        "http://localhost:3457/mcp/claude-permissions",
-        "--header",
-        "Authorization: Bearer <MCPROUTER_API_KEY>",
-        "--header",
-        "HTTP-Referer: https://claude.ai/download",
-        "--header",
-        "X-Title: Claude"
+        "G:\\ClaudeCode\\demo\\src\\mcp-server.js"
       ],
       "env": {
         "APPROVAL_ENDPOINT_BASE": "http://127.0.0.1:8080",
-        "MCP_STREAMING_ID": "e0326c9f-27bc-4a52-9905-75658f819e4f"
+        "MCP_STREAMING_ID": "68cbf851-f123-4c85-9db1-d4c278aa2fd9"
       }
     }
   }
