@@ -107,21 +107,29 @@ function registerChatRoutes(server) {
       return;
     }
 
-    reply.header('Content-Type', 'text/event-stream');
-    reply.header('Cache-Control', 'no-cache');
-    reply.header('Connection', 'keep-alive');
+    // 设置 SSE 响应头
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
     reply.raw.write('\n');
 
+    // 将客户端添加到会话
     session.clients.add(reply.raw);
+
+    // 回放已有事件，方便前端快速展示
     for (const evt of session.events) {
       reply.raw.write(`data: ${JSON.stringify(evt)}\n\n`);
     }
 
+    // 如果会话已结束，回放后直接结束响应，避免前端自动重连时报 404
     if (session.closed) {
       reply.raw.end();
       return;
     }
 
+    // 监听客户端断开连接
     req.raw.on('close', () => {
       session.clients.delete(reply.raw);
     });
