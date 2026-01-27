@@ -1,6 +1,6 @@
 const { readdir, access, } = require("fs/promises");
 const path = require("path");
-const { CLAUDE_PROJECTS_DIR } = require("../config/constants");
+const { CLAUDE_PROJECTS_DIR } = require("../../config/constants.js");
 const { randomUUID } = require("crypto");
 
 // ============================================

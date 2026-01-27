@@ -26,7 +26,7 @@ async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
   const streamingId = generateId();
   sessionManager.createSession(streamingId);
 
-  const streamUrl = `/api/stream/${streamingId}`;
+  const streamUrl = `/api/chat/stream/${streamingId}`;
 
   let events = [];
 
@@ -99,7 +99,7 @@ function registerChatRoutes(server) {
   // });
 
   // SSE 连接：前端用 streamingId 订阅流式事件
-  app.get('/api/stream/:streamingId', async (req, reply) => {
+  app.get('/api/chat/stream/:streamingId', async (req, reply) => {
     const { streamingId } = req.params;
     const session = sessionManager.getSession(streamingId);
     if (!session) {
@@ -265,7 +265,7 @@ function registerChatRoutes(server) {
         sessionManager.deleteSession(streamingId);
       });
 
-      return { streamingId, streamUrl: `/api/stream/${streamingId}` };
+      return { streamingId, streamUrl: `/api/chat/stream/${streamingId}` };
     } catch (error) {
       console.error('[聊天:启动] 处理器错误', error);
       reply.status(500).send({ error: String(error) });
@@ -273,7 +273,7 @@ function registerChatRoutes(server) {
   });
 
   // 权限通知：注册待审批请求
-  app.post('/api/permissions/notify', async (req, reply) => {
+  app.post('/api/chat/permissions/notify', async (req, reply) => {
     const body = req.body;
     const { toolName, toolInput, streamingId } = body || {};
     if (!toolName) {
@@ -308,14 +308,14 @@ function registerChatRoutes(server) {
   });
 
   // 权限列表
-  app.get('/api/permissions', async (req, reply) => {
+  app.get('/api/chat/permissions', async (req, reply) => {
     const { streamingId, status } = req.query;
     const permissions = permissionService.list({ streamingId, status });
     return { permissions };
   });
 
   // 权限决策
-  app.post('/api/permissions/:requestId/decision', async (req, reply) => {
+  app.post('/api/chat/permissions/:requestId/decision', async (req, reply) => {
     try {
       const { requestId } = req.params;
       const body = req.body;
@@ -385,7 +385,7 @@ function registerChatRoutes(server) {
   });
 
   // MCP-like approval_prompt endpoint
-  app.post('/mcp/approval_prompt', async (req, reply) => {
+  app.post('/api/chat/mcp/approval_prompt', async (req, reply) => {
     try {
       const body = req.body;
       const toolName = body?.tool_name;
@@ -437,7 +437,7 @@ function registerChatRoutes(server) {
   });
 
   // MCP config helper
-  app.get('/mcp/config', async (req, reply) => {
+  app.get('/api/chat/mcp/config', async (req, reply) => {
     const config = await getClaudeConfig();
     return {
       mcpServers: {
@@ -453,7 +453,7 @@ function registerChatRoutes(server) {
   });
 
   // 获取模拟事件列表
-  app.get('/api/events', async (req, reply) => {
+  app.get('/api/chat/events', async (req, reply) => {
     try {
       const eventsDir = path.join(__dirname, 'events');
 
@@ -478,7 +478,7 @@ function registerChatRoutes(server) {
   });
 
   // 保存 events 到文件
-  app.post('/api/events/save', async (req, reply) => {
+  app.post('/api/chat/events/save', async (req, reply) => {
     try {
       const body = req.body;
       const { name, events } = body;
@@ -509,7 +509,7 @@ function registerChatRoutes(server) {
   });
 
   // 删除 events
-  app.delete('/api/events/:eventName', async (req, reply) => {
+  app.delete('/api/chat/events/:eventName', async (req, reply) => {
     try {
       const { eventName } = req.params;
       const eventsDir = path.join(__dirname, 'events');
@@ -531,7 +531,7 @@ function registerChatRoutes(server) {
   });
 
   // 获取项目列表（包含 sessions）
-  app.get('/api/projects', async (req, reply) => {
+  app.get('/api/chat/projects', async (req, reply) => {
     try {
       const projects = await ConversationConverter.getProjectList(CLAUDE_PROJECTS_DIR);
       return { projects };
@@ -542,7 +542,7 @@ function registerChatRoutes(server) {
   });
 
   // 获取会话的对话内容
-  app.get('/api/projects/:projectId/sessions/:sessionId', async (req, reply) => {
+  app.get('/api/chat/projects/:projectId/sessions/:sessionId', async (req, reply) => {
     try {
       const { projectId, sessionId } = req.params;
       const sessionPath = path.join(CLAUDE_PROJECTS_DIR, projectId, `${sessionId}.jsonl`);
@@ -560,7 +560,7 @@ function registerChatRoutes(server) {
   });
 
   // 删除 session（会话）
-  app.delete('/api/sessions/:sessionId', async (req, reply) => {
+  app.delete('/api/chat/sessions/:sessionId', async (req, reply) => {
     try {
       const { sessionId } = req.params;
       console.log('[会话:删除] 尝试删除会话', { sessionId });
