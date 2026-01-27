@@ -1272,15 +1272,32 @@
         <footer v-show="state.showInputArea"
           class="p-6 bg-gradient-to-t from-white via-white to-transparent border-t border-slate-100">
           <div class="max-w-4xl mx-auto relative">
-            <div class="input-container-gemini">
+            <!-- 已存在会话的提示消息 - 显示在输入框上方 -->
+            <div v-if="state.inputDisabled" class="mb-3 px-4 py-2.5 rounded-lg flex items-center gap-3 text-sm border"
+              :class="state.projectPathMissing 
+                   ? 'bg-red-50 border-red-200 text-red-800' 
+                   : 'bg-amber-50 border-amber-200 text-amber-800'">
+              <i class="fa-solid text-base"
+                :class="state.projectPathMissing ? 'fa-exclamation-triangle' : 'fa-info-circle'"></i>
+              <div class="flex-1">
+                <div v-if="state.projectPathMissing" class="font-semibold mb-0.5">项目路径不存在</div>
+                <div v-else class="font-semibold mb-0.5">📁 已存在的会话</div>
+                <div class="text-xs opacity-90">
+                  <span v-if="state.projectPathMissing">项目目录已不存在，无法继续对话。请检查路径或点击"新对话"开始新会话。</span>
+                  <span v-else>这是一个已存在的会话，工作目录已加载。点击"新对话"按钮开始新的对话。</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="input-container-gemini" :class="{ 'opacity-60 pointer-events-none': state.projectPathMissing }">
               <!-- Preview Area - Inside input container, above textarea -->
               <div class="preview-area-input" id="preview-area-input"></div>
 
               <!-- Textarea -->
               <textarea v-model="state.message" @keydown.enter="handleEnter" @paste="handlePaste" @input="autoResize"
-                placeholder="给 Claude 发送消息..." ref="chatInput" :disabled="state.inputDisabled"
-                class="w-full border-none bg-transparent outline-none p-0 text-sm leading-relaxed max-h-[120px] resize-none text-slate-900 overflow-y-auto custom-scrollbar"
-                :class="{ 'opacity-60 cursor-not-allowed': state.inputDisabled }" rows="1"></textarea>
+                placeholder="给 Claude 发送消息..." ref="chatInput" :disabled="state.projectPathMissing"
+                class="w-full border-none bg-transparent outline-none p-0 text-sm leading-relaxed max-h-[120px] resize-none text-slate-900 overflow-y-auto custom-scrollbar disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                :class="{ 'opacity-60 cursor-not-allowed bg-gray-100': state.projectPathMissing }" rows="1"></textarea>
 
               <!-- Bottom: Button Row -->
               <div class="button-row-input">
@@ -1300,6 +1317,7 @@
                       <i class="fa-solid fa-folder cwd-icon"></i>
                       <input v-model="state.currentCwd" @click.stop="toggleCwdDropdown" @input="handleCwdInput"
                         type="text" class="cwd-input" placeholder="工作目录 (可选)" title="选择或输入工作目录">
+
                       <svg v-if="state.cwdList.length > 0" @click.stop="toggleCwdDropdown" class="cwd-dropdown-icon"
                         width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                         stroke-linecap="round" stroke-linejoin="round">
@@ -1566,6 +1584,7 @@
           allCollapsed: false, // 主对话全部折叠状态
           showInputArea: true, // 是否显示输入区域
           inputDisabled: false, // 输入框是否禁用
+          projectPathMissing: false, // 项目路径是否缺失
           subagentView: {
             active: false,
             messages: [],
@@ -2528,6 +2547,13 @@
           clearChat();
           state.status = '新会话';
           state.selectedHistoryId = null; // 取消选中历史记录
+          state.showInputArea = true; // 显示输入区域
+          state.inputDisabled = false; // 启用输入框（新对话可以输入）
+          state.projectPathMissing = false; // 重置路径缺失标记
+          console.log('[resetChat] 状态已重置', {
+            showInputArea: state.showInputArea,
+            inputDisabled: state.inputDisabled
+          });
         };
 
         // 复制 Session ID
@@ -3075,6 +3101,7 @@
         // 加载会话对话内容
         const loadSessionConversation = async (projectId, sessionId, shouldScroll = true) => {
           try {
+            console.log('[loadSessionConversation] 开始加载会话', { projectId, sessionId });
             const response = await fetch(`/api/chat/projects/${projectId}/sessions/${sessionId}`);
             const data = await response.json();
 
@@ -3082,9 +3109,20 @@
               chatItems.value = data.conversation;
               // 设置当前 session ID，以便继续对话
               state.session = sessionId;
-              // 显示输入框并设置为禁用状态（因为是已存在的会话）
+              // 设置项目路径到 currentCwd
+              state.currentCwd = data.projectPath || '';
+              state.projectPathMissing = !data.projectPath; // 标记路径是否缺失
+              // 显示输入框，标记为已存在的会话（用于显示提示图标）
               state.showInputArea = true;
-              state.inputDisabled = true;
+              state.inputDisabled = true; // 标记为已存在的会话（用于显示提示图标）
+              console.log('[loadSessionConversation] 状态已更新', {
+                showInputArea: state.showInputArea,
+                inputDisabled: state.inputDisabled,
+                session: state.session,
+                projectPath: data.projectPath,
+                currentCwd: state.currentCwd,
+                projectPathMissing: state.projectPathMissing
+              });
               console.log(`Loaded ${data.conversation.length} messages from ${projectId}/${sessionId}`);
               console.log('Session ID set to:', sessionId);
               // 根据参数决定是否滚动
@@ -3095,6 +3133,7 @@
               showErrorMessage('加载项目列表失败');
             }
           } catch (error) {
+            console.error('[loadSessionConversation] 错误', error);
             showErrorMessage('加载会话对话报错', error);
           }
         };
