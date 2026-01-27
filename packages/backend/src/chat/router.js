@@ -1,85 +1,22 @@
 ﻿const { spawn } = require('child_process');
 const path = require('path');
 const { readFile, writeFile, readdir, mkdir, unlink, stat } = require('fs/promises');
-const { PermissionService } = require('./permission-service.js');
-const ConversationConverter = require('./conversationConverter.js');
+const { PermissionService } = require('./utils/permissionService.js');
+const ConversationConverter = require('./utils/conversationConverter.js');
 const {
-  PROJECTS_ROOT_DIR,
-  SESSION_TTL_MS,
+  generateId,
   getClaudeConfig,
   findProjectPathBySessionId,
   folderNameToPath,
   ensureMcpConfigFile,
-  generateId,
-} = require('./utils.js');
+} = require('./utils/index.js');
+const { SessionManager } = require('./utils/sessionUtils.js');
+const { registerPermissionsFromMessage } = require('./utils/permissionUtils.js');
+const { CLAUDE_PROJECTS_DIR } = require("../config/constants.js")
 
 // 服务
 const permissionService = new PermissionService();
-const sessions = new Map();
-
-
-// ============================================
-// 会话管理函数
-// ============================================
-
-function sendEvent(streamingId, payload) {
-  const session = sessions.get(streamingId);
-  if (!session) return;
-  const data = `data: ${JSON.stringify(payload)}\n\n`;
-  for (const res of session.clients) {
-    res.write(data);
-  }
-  session.events.push(payload);
-}
-
-function closeSession(streamingId, code) {
-  const session = sessions.get(streamingId);
-  if (!session) return;
-  session.closed = true;
-  sendEvent(streamingId, {
-    type: 'process_end',
-    code,
-    timestamp: new Date().toISOString(),
-  });
-  for (const res of session.clients) res.end();
-  session.clients.clear();
-  setTimeout(() => sessions.delete(streamingId), SESSION_TTL_MS);
-}
-
-function registerPermissionsFromMessage(msg, streamingId) {
-  if (msg?.type !== 'message' || !Array.isArray(msg.content)) return;
-  for (const block of msg.content) {
-    if (block?.type === 'tool_use' && block?.name) {
-      console.log('[权限] 检测到工具调用', {
-        streamingId,
-        toolName: block.name,
-        toolInput: block.input,
-        toolUseId: block.id,
-      });
-
-      const requiresPermission = ['Write', 'Edit', 'Bash', 'Read'].includes(block.name);
-
-      if (requiresPermission) {
-        const req = permissionService.add(block.name, block.input || {}, streamingId);
-        console.log('[权限] 已注册权限请求', {
-          streamingId,
-          permissionId: req.id,
-          toolName: block.name,
-        });
-
-        if (streamingId) {
-          sendEvent(streamingId, {
-            type: 'permission_request',
-            permission: req,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
-    }
-  }
-}
-
-
+const sessionManager = new SessionManager();
 
 // ============================================
 // 辅助函数
@@ -87,13 +24,7 @@ function registerPermissionsFromMessage(msg, streamingId) {
 
 async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
   const streamingId = generateId();
-  const session = {
-    child: null,
-    clients: new Set(),
-    events: [],
-    closed: false,
-  };
-  sessions.set(streamingId, session);
+  sessionManager.createSession(streamingId);
 
   const streamUrl = `/api/stream/${streamingId}`;
 
@@ -136,10 +67,10 @@ async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
   const timer = setInterval(() => {
     if (idx >= events.length) {
       clearInterval(timer);
-      closeSession(streamingId, 0);
+      sessionManager.closeSession(streamingId, 0);
       return;
     }
-    sendEvent(streamingId, events[idx]);
+    sessionManager.sendEvent(streamingId, events[idx]);
     idx += 1;
   }, 400);
 
@@ -159,7 +90,7 @@ function registerChatRoutes(server) {
   // SSE 连接：前端用 streamingId 订阅流式事件
   app.get('/api/stream/:streamingId', async (req, reply) => {
     const { streamingId } = req.params;
-    const session = sessions.get(streamingId);
+    const session = sessionManager.getSession(streamingId);
     if (!session) {
       reply.status(404).send('流不存在');
       return;
@@ -260,13 +191,13 @@ function registerChatRoutes(server) {
           syscall: error.syscall,
           path: error.path,
         });
-        sendEvent(streamingId, {
+        sessionManager.sendEvent(streamingId, {
           type: 'error',
           stderr: `进程启动错误: ${error.message}`,
         });
       });
 
-      sessions.set(streamingId, { child, clients: new Set(), events: [] });
+      sessionManager.createSession(streamingId, child);
 
       child.stdout?.setEncoding('utf8');
       child.stdout?.on('data', (chunk) => {
@@ -278,11 +209,11 @@ function registerChatRoutes(server) {
           try {
             const msg = JSON.parse(trimmed);
             console.log('[聊天:启动] 解析消息', { streamingId, type: msg.type, subtype: msg.subtype });
-            registerPermissionsFromMessage(msg, streamingId);
-            sendEvent(streamingId, msg);
+            registerPermissionsFromMessage(msg, streamingId, permissionService, sessionManager);
+            sessionManager.sendEvent(streamingId, msg);
           } catch (err) {
             console.log('[聊天:启动] 解析行失败', { streamingId, line: trimmed });
-            sendEvent(streamingId, { type: 'raw', data: trimmed });
+            sessionManager.sendEvent(streamingId, { type: 'raw', data: trimmed });
           }
         }
       });
@@ -295,7 +226,7 @@ function registerChatRoutes(server) {
           length: stderrText.length,
           text: stderrText,
         });
-        sendEvent(streamingId, { type: 'error', stderr: stderrText });
+        sessionManager.sendEvent(streamingId, { type: 'error', stderr: stderrText });
       });
 
       child.on('close', (code, signal) => {
@@ -315,12 +246,12 @@ function registerChatRoutes(server) {
           });
         }
 
-        sendEvent(streamingId, { type: 'process_end', code });
-        const sessionData = sessions.get(streamingId);
+        sessionManager.sendEvent(streamingId, { type: 'process_end', code });
+        const sessionData = sessionManager.getSession(streamingId);
         if (sessionData) {
           for (const res of sessionData.clients) res.end();
         }
-        sessions.delete(streamingId);
+        sessionManager.deleteSession(streamingId);
       });
 
       return { streamingId, streamUrl: `/api/stream/${streamingId}` };
@@ -356,7 +287,7 @@ function registerChatRoutes(server) {
     });
 
     if (streamingId) {
-      sendEvent(streamingId, {
+      sessionManager.sendEvent(streamingId, {
         type: 'permission_request',
         permission: request,
         timestamp: new Date().toISOString(),
@@ -429,7 +360,7 @@ function registerChatRoutes(server) {
       });
 
       if (updated.streamingId) {
-        sendEvent(updated.streamingId, {
+        sessionManager.sendEvent(updated.streamingId, {
           type: 'permission_decision',
           permission: updated,
           timestamp: new Date().toISOString(),
@@ -591,7 +522,7 @@ function registerChatRoutes(server) {
   // 获取项目列表（包含 sessions）
   app.get('/api/projects', async (req, reply) => {
     try {
-      const projects = await ConversationConverter.getProjectList(PROJECTS_ROOT_DIR);
+      const projects = await ConversationConverter.getProjectList(CLAUDE_PROJECTS_DIR);
       return { projects };
     } catch (error) {
       console.error('[项目:列表] 错误', error);
@@ -603,7 +534,7 @@ function registerChatRoutes(server) {
   app.get('/api/projects/:projectId/sessions/:sessionId', async (req, reply) => {
     try {
       const { projectId, sessionId } = req.params;
-      const sessionPath = path.join(PROJECTS_ROOT_DIR, projectId, `${sessionId}.jsonl`);
+      const sessionPath = path.join(CLAUDE_PROJECTS_DIR, projectId, `${sessionId}.jsonl`);
       const converter = new ConversationConverter();
       const conversation = converter.convertFromFile(sessionPath);
       return {

@@ -3,24 +3,26 @@ const path = require("path");
 const { mkdir, access } = require("fs/promises");
 const { HOME_DIR, LOGS_DIR } = require("../config/constants");
 
+
+/**
+ * 确保目录存在
+ * @param {string} dirPath - 目录路径
+ * @returns {Promise<void>}
+ */
+const ensureDirAsync = async (dirPath) => {
+  try {
+    await access(dirPath);
+  } catch {
+    await mkdir(dirPath, { recursive: true });
+  }
+};
+
 /**
  * 初始化目录
  * 确保 HOME_DIR 和 logs 目录存在，如果不存在则创建
  * @returns {Promise<void>}
  */
 async function initDir() {
-  /**
-   * 确保目录存在
-   * @param {string} dirPath - 目录路径
-   * @returns {Promise<void>}
-   */
-  const ensureDirAsync = async (dirPath) => {
-    try {
-      await access(dirPath);
-    } catch {
-      await mkdir(dirPath, { recursive: true });
-    }
-  };
   await ensureDirAsync(HOME_DIR);
   await ensureDirAsync(LOGS_DIR);
 }
@@ -37,4 +39,5 @@ function ensureDir(dirPath) {
 module.exports = {
   initDir,
   ensureDir,
+  ensureDirAsync,
 };
