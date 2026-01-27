@@ -366,7 +366,15 @@ class ConversationConverter {
         const sessions = await this.getProjectSessions(projectPath);
 
         // 过滤掉无效的 sessions
-        const validSessions = this.validateProjectSessions(sessions, projectPath);
+        const validSessions1 = this.validateProjectSessions(sessions, projectPath);
+        const validSessions2 = await this.validateProjectSessions2(sessions, projectPath);
+
+        // 合并两个 session 数组并根据 id 去重
+        const sessionMap = new Map();
+        [...validSessions1, ...validSessions2].forEach(session => {
+          sessionMap.set(session.id, session);
+        });
+        const validSessions = Array.from(sessionMap.values());
 
         if (validSessions.length > 0) {
           return {
@@ -496,6 +504,40 @@ class ConversationConverter {
       console.error(`Error reading sessions-index.json in ${projectPath}:`, error.message);
       return [];
     }
+  }
+
+  /**
+ * 验证项目的 sessions，返回有效的主 session（极简版本）
+ * @param {Array} sessions - session 数组
+ * @param {string} projectPath - 项目路径
+ * @returns {Promise<Array>} 验证后的有效 session 数组
+ */
+  static async validateProjectSessions2(sessions, projectPath) {
+    if (!sessions || sessions.length === 0) {
+      return [];
+    }
+
+    // 使用 Promise.all 并发读取所有 session 文件
+    const validationPromises = sessions.map(async (session) => {
+      try {
+        const converter = new ConversationConverter();
+        const messages = converter.convertFromFile(session.path);
+
+        // 判断是否存在对话（至少有一条消息）
+        if (messages && messages.length > 0) {
+          return session;
+        }
+        return null;
+      } catch (error) {
+        console.error(`Error validating session ${session.id}:`, error.message);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(validationPromises);
+
+    // 过滤掉 null 值（无效的 sessions）
+    return results.filter(session => session !== null);
   }
 }
 
