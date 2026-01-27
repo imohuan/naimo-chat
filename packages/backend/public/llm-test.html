@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang=\"zh-CN\">
+
+<head>
+  <meta charset=\"UTF-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+  <title>LLM 中断请求测试</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      padding: 2rem;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 1rem;
+      padding: 2rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(to right, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      color: var(--text-dim);
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background-color: rgba(0, 0, 0, 0.2);
+      color: var(--text);
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    button {
+      flex: 1;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-primary:disabled {
+      background-color: #475569;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background-color: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-danger:hover {
+      background-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-danger:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .output-container {
+      margin-top: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 9999px;
+      background-color: rgba(255, 255, 255, 0.05);
+      color: var(--text-dim);
+    }
+
+    .status-active {
+      background-color: rgba(59, 130, 246, 0.1);
+      color: #60a5fa;
+    }
+
+    .status-aborted {
+      background-color: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    .status-success {
+      background-color: rgba(16, 185, 129, 0.1);
+      color: #34d399;
+    }
+
+    #output {
+      background-color: rgba(0, 0, 0, 0.3);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      min-height: 100px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: 'Fira Code', 'Monaco', monospace;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background-color: var(--primary);
+      margin-left: 2px;
+      animation: blink 1s infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    .log {
+      margin-top: 1rem;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 1rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>LLM 中断请求测试 (Interruption Test)</h1>
+
+      <div class="form-group">
+        <label for="baseUrl">基础 URL (Base URL)</label>
+        <input type="text" id="baseUrl" placeholder="http://127.0.0.1:3457">
+      </div>
+
+      <div class="form-group">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="输入 API Key">
+      </div>
+
+      <div class="form-group">
+        <label for="model">模型 (Model)</label>
+        <input type="text" id="model" placeholder="例如: iflow,glm-4.6">
+      </div>
+
+      <div class="form-group">
+        <label for="message">输入消息 (Message)</label>
+        <textarea id="message" rows="3" placeholder="输入一条长消息以便测试中断..."></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="sendBtn" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+          </svg>
+          发送请求
+        </button>
+        <button id="abortBtn" class="btn-danger" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+          </svg>
+          中断请求
+        </button>
+      </div>
+
+      <div class="output-container">
+        <div class="output-header">
+          <label>模型响应</label>
+          <span id="status" class="status-badge">等待中</span>
+        </div>
+        <div id="output"></div>
+      </div>
+
+      <div id="log" class="log">
+        准备就绪
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const baseUrlInput = document.getElementById('baseUrl');
+    const apiKeyInput = document.getElementById('apiKey');
+    const modelInput = document.getElementById('model');
+    const messageInput = document.getElementById('message');
+    const sendBtn = document.getElementById('sendBtn');
+    const abortBtn = document.getElementById('abortBtn');
+    const output = document.getElementById('output');
+    const status = document.getElementById('status');
+    const log = document.getElementById('log');
+
+    // 初始化默认值
+    baseUrlInput.value = window.location.origin;
+    messageInput.value = "请写一篇关于量子纠缠的长篇科普文章，至少 1000 字，请慢慢输出。";
+    modelInput.value = "iflow,glm-4.6";
+
+    let abortController = null;
+
+    function updateLog(msg) {
+      const time = new Date().toLocaleTimeString();
+      log.innerText = `[${time}] ${msg}`;
+    }
+
+    function updateStatus(state, text) {
+      status.className = 'status-badge ' + state;
+      status.innerText = text;
+    }
+
+    sendBtn.addEventListener('click', async () => {
+      const baseUrl = baseUrlInput.value.trim();
+      const apiKey = apiKeyInput.value.trim();
+      const model = modelInput.value.trim();
+      const message = messageInput.value.trim();
+
+      if (!message) return alert('请输入消息');
+
+      // 重置状态
+      output.innerHTML = '<span class=\"cursor\"></span>';
+      updateStatus('status-active', '正在请求...');
+      updateLog('正在启动流式对话...');
+      sendBtn.disabled = true;
+      abortBtn.disabled = false;
+
+      abortController = new AbortController();
+
+      try {
+        const url = `${baseUrl}/v1/messages`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': apiKey ? `Bearer ${apiKey}` : ''
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: message }],
+            stream: true
+          }),
+          signal: abortController.signal
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\\n');
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed === 'data: [DONE]') continue;
+
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const json = JSON.parse(trimmed.slice(6));
+                // 兼容不同格式
+                const delta = json.choices?.[0]?.delta?.content || json.delta?.text || '';
+                if (delta) {
+                  fullContent += delta;
+                  output.innerHTML = escapeHtml(fullContent) + '<span class=\"cursor\"></span>';
+                  output.scrollTop = output.scrollHeight;
+                }
+              } catch (e) {
+                console.warn('解析失败:', trimmed);
+              }
+            }
+          }
+        }
+
+        updateStatus('status-success', '已完成');
+        updateLog('请求正常完成');
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          updateStatus('status-aborted', '已中断');
+          updateLog('用户中断了请求');
+          output.innerHTML += '\\n\\n[请求已由用户中断]';
+        } else {
+          updateStatus('status-aborted', '发生错误');
+          updateLog('错误: ' + err.message);
+          output.innerHTML += `\\n\\n[错误]: ${err.message}`;
+        }
+      } finally {
+        sendBtn.disabled = false;
+        abortBtn.disabled = true;
+        abortController = null;
+      }
+    });
+
+    abortBtn.addEventListener('click', () => {
+      if (abortController) {
+        abortController.abort();
+        updateLog('正在发送中断信号...');
+      }
+    });
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+
+</html>

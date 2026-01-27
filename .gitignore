@@ -16,7 +16,7 @@ embedded-resources.js
 # 符号链接
 links/
 # 后端公共资源 - 静态资源
-packages/backend/public
+packages/backend/public1
 packages/backend/src/chat/mcp-server-text.js
 
 # Dependencies
