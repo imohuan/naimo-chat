@@ -3,44 +3,15 @@ const path = require('path');
 const { readFile, writeFile, readdir, mkdir, unlink, stat } = require('fs/promises');
 const { PermissionService } = require('./permission-service.js');
 const ConversationConverter = require('./conversationConverter.js');
-const { readConfigFile } = require('../utils/configFile.js');
 const {
   PROJECTS_ROOT_DIR,
   SESSION_TTL_MS,
+  getClaudeConfig,
   findProjectPathBySessionId,
   folderNameToPath,
   ensureMcpConfigFile,
   generateId,
 } = require('./utils.js');
-
-// 配置
-let hostname = '127.0.0.1';
-let port = process.env.PORT ? Number(process.env.PORT) : 8080;
-
-// 从配置文件读取环境变量
-let DEFAULT_ENV = {
-  API_TIMEOUT_MS: '300000',
-  ANTHROPIC_BASE_URL: 'http://127.0.0.1:3457/',
-  ANTHROPIC_AUTH_TOKEN: 'sk-123456',
-};
-
-const model = process.env.ANTHROPIC_MODEL;
-const CLAUDE_CMD = process.platform === 'win32' ? 'claude.exe' : 'claude';
-
-// 异步初始化配置
-async function initializeConfig() {
-  const config = await readConfigFile();
-  if (config) {
-    hostname = config.HOST || hostname;
-    port = config.PORT ? Number(config.PORT) : port;
-    DEFAULT_ENV = {
-      API_TIMEOUT_MS: config.API_TIMEOUT_MS || DEFAULT_ENV.API_TIMEOUT_MS,
-      ANTHROPIC_BASE_URL: config.ANTHROPIC_BASE_URL || DEFAULT_ENV.ANTHROPIC_BASE_URL,
-      ANTHROPIC_AUTH_TOKEN: config.ANTHROPIC_AUTH_TOKEN || DEFAULT_ENV.ANTHROPIC_AUTH_TOKEN,
-    };
-  }
-}
-
 
 // 服务
 const permissionService = new PermissionService();
@@ -79,7 +50,7 @@ function registerPermissionsFromMessage(msg, streamingId) {
   if (msg?.type !== 'message' || !Array.isArray(msg.content)) return;
   for (const block of msg.content) {
     if (block?.type === 'tool_use' && block?.name) {
-      console.log('[permission] detected tool_use', {
+      console.log('[权限] 检测到工具调用', {
         streamingId,
         toolName: block.name,
         toolInput: block.input,
@@ -90,7 +61,7 @@ function registerPermissionsFromMessage(msg, streamingId) {
 
       if (requiresPermission) {
         const req = permissionService.add(block.name, block.input || {}, streamingId);
-        console.log('[permission] registered permission request', {
+        console.log('[权限] 已注册权限请求', {
           streamingId,
           permissionId: req.id,
           toolName: block.name,
@@ -143,14 +114,14 @@ async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
               events.push(event);
             }
           } catch (e) {
-            console.error('[mock] parse event error', e);
+            console.error('[模拟] 解析事件错误', e);
           }
         }
       }
 
-      console.log(`[mock] loaded ${events.length} events from ${eventName}.txt`);
+      console.log(`[模拟] 从 ${eventName}.txt 加载了 ${events.length} 个事件`);
     } catch (error) {
-      console.error(`[mock] failed to load event file ${eventName}`, error);
+      console.error(`[模拟] 加载事件文件失败 ${eventName}`, error);
     }
   }
 
@@ -185,17 +156,12 @@ async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
 function registerChatRoutes(server) {
   const app = server.app;
 
-  // 初始化配置
-  initializeConfig().catch(err => {
-    console.error('[config] failed to initialize config', err);
-  });
-
   // SSE 连接：前端用 streamingId 订阅流式事件
   app.get('/api/stream/:streamingId', async (req, reply) => {
     const { streamingId } = req.params;
     const session = sessions.get(streamingId);
     if (!session) {
-      reply.status(404).send('stream not found');
+      reply.status(404).send('流不存在');
       return;
     }
 
@@ -237,8 +203,9 @@ function registerChatRoutes(server) {
         return handleChatTestStart(reply, userMessage, eventName);
       }
 
+      const config = await getClaudeConfig();
       const streamingId = generateId();
-      const claudePath = CLAUDE_CMD;
+      const claudePath = config.CLAUDE_PATH;
       const args = session
         ? ['--resume', session, `"${userMessage}"`, '--output-format', 'stream-json', '--verbose']
         : ['-p', `"${userMessage}"`, '--output-format', 'stream-json', '--verbose'];
@@ -248,33 +215,35 @@ function registerChatRoutes(server) {
         const folder = await findProjectPathBySessionId(session);
         if (folder) {
           cwd = await folderNameToPath(folder.name);
-          console.log(`[chat:start] Found project path for session ${session}: ${cwd}`);
+          console.log(`[聊天:启动] 找到会话 ${session} 的项目路径: ${cwd}`);
         } else {
-          console.warn(`[chat:start] Could not find project path for session ${session}, using default cwd`);
+          console.warn(`[聊天:启动] 无法找到会话 ${session} 的项目路径，使用默认工作目录`);
         }
       }
 
-      const mcpConfigPath = await ensureMcpConfigFile(streamingId, hostname, port);
+      const mcpConfigPath = await ensureMcpConfigFile(streamingId, config.HOST, config.PORT);
       args.push('--mcp-config', mcpConfigPath);
       args.push('--permission-prompt-tool', 'mcp__demo-permissions__approval_prompt');
       args.push('--allowedTools', 'mcp__demo-permissions__approval_prompt');
 
       const env = {
-        ...DEFAULT_ENV,
+        API_TIMEOUT_MS: config.API_TIMEOUT_MS,
+        ANTHROPIC_BASE_URL: `http://${config.HOST}:${config.PORT}/`,
+        ANTHROPIC_AUTH_TOKEN: config.APIKEY,
         MCP_STREAMING_ID: streamingId,
       };
 
-      console.log('[chat:start] spawning', {
+      console.log('[聊天:启动] 正在启动进程', {
         streamingId,
         cli: claudePath,
         args,
         mcpConfigPath,
         useMock,
         cwd,
-        session: session || 'none',
+        session: session || '无',
       });
 
-      console.log(`[chat:start-cmd] ${claudePath} ${args.join(' ')}`);
+      console.log(`[聊天:启动-命令] ${claudePath} ${args.join(' ')}`);
 
       const child = spawn(claudePath, args, {
         cwd,
@@ -283,7 +252,7 @@ function registerChatRoutes(server) {
       });
 
       child.on('error', (error) => {
-        console.error('[chat:start] spawn error', {
+        console.error('[聊天:启动] 进程启动错误', {
           streamingId,
           error: error.message,
           code: error.code,
@@ -293,7 +262,7 @@ function registerChatRoutes(server) {
         });
         sendEvent(streamingId, {
           type: 'error',
-          stderr: `Spawn error: ${error.message}`,
+          stderr: `进程启动错误: ${error.message}`,
         });
       });
 
@@ -302,17 +271,17 @@ function registerChatRoutes(server) {
       child.stdout?.setEncoding('utf8');
       child.stdout?.on('data', (chunk) => {
         const fullText = chunk.toString();
-        console.log('[chat:start] stdout chunk', { streamingId, length: fullText.length });
+        console.log('[聊天:启动] 标准输出数据块', { streamingId, length: fullText.length });
         for (const line of fullText.split('\n')) {
           const trimmed = line.trim();
           if (!trimmed) continue;
           try {
             const msg = JSON.parse(trimmed);
-            console.log('[chat:start] parsed message', { streamingId, type: msg.type, subtype: msg.subtype });
+            console.log('[聊天:启动] 解析消息', { streamingId, type: msg.type, subtype: msg.subtype });
             registerPermissionsFromMessage(msg, streamingId);
             sendEvent(streamingId, msg);
           } catch (err) {
-            console.log('[chat:start] failed to parse line', { streamingId, line: trimmed });
+            console.log('[聊天:启动] 解析行失败', { streamingId, line: trimmed });
             sendEvent(streamingId, { type: 'raw', data: trimmed });
           }
         }
@@ -321,7 +290,7 @@ function registerChatRoutes(server) {
       child.stderr?.setEncoding('utf8');
       child.stderr?.on('data', (chunk) => {
         const stderrText = chunk.toString();
-        console.error('[chat:start] stderr chunk', {
+        console.error('[聊天:启动] 标准错误数据块', {
           streamingId,
           length: stderrText.length,
           text: stderrText,
@@ -330,7 +299,7 @@ function registerChatRoutes(server) {
       });
 
       child.on('close', (code, signal) => {
-        console.log('[chat:start] process closed', {
+        console.log('[聊天:启动] 进程关闭', {
           streamingId,
           code,
           signal,
@@ -338,11 +307,11 @@ function registerChatRoutes(server) {
         });
 
         if (code !== 0) {
-          console.error('[chat:start] ERROR: process exited with non-zero code', {
+          console.error('[聊天:启动] 错误: 进程以非零代码退出', {
             streamingId,
             exitCode: code,
             signal,
-            sessionIdUsed: session || 'none',
+            sessionIdUsed: session || '无',
           });
         }
 
@@ -356,7 +325,7 @@ function registerChatRoutes(server) {
 
       return { streamingId, streamUrl: `/api/stream/${streamingId}` };
     } catch (error) {
-      console.error('[chat:start] handler error', error);
+      console.error('[聊天:启动] 处理器错误', error);
       reply.status(500).send({ error: String(error) });
     }
   });
@@ -366,11 +335,11 @@ function registerChatRoutes(server) {
     const body = req.body;
     const { toolName, toolInput, streamingId } = body || {};
     if (!toolName) {
-      reply.status(400).send({ error: 'toolName is required' });
+      reply.status(400).send({ error: '工具名称必填' });
       return;
     }
 
-    console.log('[permission] notify received', {
+    console.log('[权限] 收到通知', {
       toolName,
       toolInput,
       streamingId,
@@ -379,7 +348,7 @@ function registerChatRoutes(server) {
 
     const request = permissionService.add(toolName, toolInput, streamingId);
 
-    console.log('[permission] permission request created', {
+    console.log('[权限] 权限请求已创建', {
       permissionId: request.id,
       toolName,
       streamingId,
@@ -409,30 +378,30 @@ function registerChatRoutes(server) {
       const { requestId } = req.params;
       const body = req.body;
 
-      console.log('[permission] decision request', {
+      console.log('[权限] 决策请求', {
         requestId,
         body,
       });
 
       if (!requestId) {
-        reply.status(400).send({ error: 'permission ID not found in path' });
+        reply.status(400).send({ error: '路径中未找到权限ID' });
         return;
       }
 
       const { action, modifiedInput, denyReason } = body || {};
       if (!action || !['approve', 'deny'].includes(action)) {
-        reply.status(400).send({ error: 'action must be approve or deny' });
+        reply.status(400).send({ error: '操作必须是 approve 或 deny' });
         return;
       }
 
       const existing = permissionService.get(requestId);
       if (!existing) {
-        console.log('[permission] permission not found', { requestId });
-        reply.status(404).send({ error: 'permission not found or not pending' });
+        console.log('[权限] 权限未找到', { requestId });
+        reply.status(404).send({ error: '权限未找到或不在待审批状态' });
         return;
       }
 
-      console.log('[permission] processing decision', {
+      console.log('[权限] 正在处理决策', {
         requestId,
         action,
         currentStatus: existing.status,
@@ -444,15 +413,15 @@ function registerChatRoutes(server) {
       });
 
       if (!updated) {
-        console.log('[permission] decision failed - not pending', {
+        console.log('[权限] 决策失败 - 不在待审批状态', {
           requestId,
           currentStatus: existing.status,
         });
-        reply.status(404).send({ error: 'permission not found or not pending' });
+        reply.status(404).send({ error: '权限未找到或不在待审批状态' });
         return;
       }
 
-      console.log('[permission] decision successful', {
+      console.log('[权限] 决策成功', {
         requestId,
         action,
         newStatus: updated.status,
@@ -468,7 +437,7 @@ function registerChatRoutes(server) {
       }
       return { success: true, status: updated.status, id: updated.id };
     } catch (error) {
-      console.error('[permission] decision error', error);
+      console.error('[权限] 决策错误', error);
       reply.status(500).send({ error: String(error) });
     }
   });
@@ -482,13 +451,13 @@ function registerChatRoutes(server) {
       const streamingId = body?.streamingId || 'unknown';
 
       if (!toolName) {
-        reply.status(400).send({ error: 'tool_name is required' });
+        reply.status(400).send({ error: '工具名称必填' });
         return;
       }
 
       const request = permissionService.add(toolName, toolInput || {}, streamingId);
 
-      const TIMEOUT = 10 * 60 * 1000; // 10 minutes
+      const TIMEOUT = 10 * 60 * 1000; // 10 分钟
       const POLL = 1000;
       const start = Date.now();
 
@@ -497,7 +466,7 @@ function registerChatRoutes(server) {
           const elapsed = Date.now() - start;
           if (elapsed > TIMEOUT) {
             clearInterval(timer);
-            resolve({ behavior: 'deny', message: 'Permission request timed out' });
+            resolve({ behavior: 'deny', message: '权限请求超时' });
             return;
           }
           const current = permissionService.get(request.id);
@@ -512,7 +481,7 @@ function registerChatRoutes(server) {
             clearInterval(timer);
             resolve({
               behavior: 'deny',
-              message: current.denyReason || 'Permission denied',
+              message: current.denyReason || '权限被拒绝',
             });
           }
         }, POLL);
@@ -520,20 +489,21 @@ function registerChatRoutes(server) {
 
       return decision;
     } catch (error) {
-      console.error('[approval_prompt] error', error);
+      console.error('[审批提示] 错误', error);
       reply.status(500).send({ error: String(error) });
     }
   });
 
   // MCP config helper
   app.get('/mcp/config', async (req, reply) => {
+    const config = await getClaudeConfig();
     return {
       mcpServers: {
         'demo-permissions': {
           command: process.execPath,
           args: [path.join(__dirname, 'mcp-server.js')],
           env: {
-            APPROVAL_ENDPOINT_BASE: `http://${hostname}:${port}`,
+            APPROVAL_ENDPOINT_BASE: `http://${config.HOST}:${config.PORT}`,
           },
         },
       },
@@ -560,8 +530,8 @@ function registerChatRoutes(server) {
         }));
       return { events: eventFiles };
     } catch (error) {
-      console.error('[events:list] error', error);
-      reply.status(500).send({ error: 'Failed to list events' });
+      console.error('[事件:列表] 错误', error);
+      reply.status(500).send({ error: '获取事件列表失败' });
     }
   });
 
@@ -572,7 +542,7 @@ function registerChatRoutes(server) {
       const { name, events } = body;
 
       if (!name || !events || !Array.isArray(events)) {
-        reply.status(400).send({ error: 'name and events array are required' });
+        reply.status(400).send({ error: '名称和事件数组必填' });
         return;
       }
 
@@ -588,11 +558,11 @@ function registerChatRoutes(server) {
 
       await writeFile(filepath, sseContent, 'utf-8');
 
-      console.log('[events:save] saved', { name, filename, eventCount: events.length });
+      console.log('[事件:保存] 已保存', { name, filename, eventCount: events.length });
       return { success: true, filename };
     } catch (error) {
-      console.error('[events:save] error', error);
-      reply.status(500).send({ error: 'Failed to save events: ' + error.message });
+      console.error('[事件:保存] 错误', error);
+      reply.status(500).send({ error: '保存事件失败: ' + error.message });
     }
   });
 
@@ -606,14 +576,14 @@ function registerChatRoutes(server) {
 
       await unlink(filepath);
 
-      console.log('[events:delete] deleted', { eventName, filename });
+      console.log('[事件:删除] 已删除', { eventName, filename });
       return { success: true, deleted: eventName };
     } catch (error) {
-      console.error('[events:delete] error', error);
+      console.error('[事件:删除] 错误', error);
       if (error.code === 'ENOENT') {
-        reply.status(404).send({ error: 'Event not found' });
+        reply.status(404).send({ error: '事件未找到' });
       } else {
-        reply.status(500).send({ error: 'Failed to delete event: ' + error.message });
+        reply.status(500).send({ error: '删除事件失败: ' + error.message });
       }
     }
   });
@@ -624,8 +594,8 @@ function registerChatRoutes(server) {
       const projects = await ConversationConverter.getProjectList(PROJECTS_ROOT_DIR);
       return { projects };
     } catch (error) {
-      console.error('[projects:list] error', error);
-      reply.status(500).send({ error: 'Failed to list projects: ' + error.message });
+      console.error('[项目:列表] 错误', error);
+      reply.status(500).send({ error: '获取项目列表失败: ' + error.message });
     }
   });
 
@@ -642,8 +612,8 @@ function registerChatRoutes(server) {
         conversation
       };
     } catch (error) {
-      console.error('[session:conversation] error', error);
-      reply.status(500).send({ error: 'Failed to load conversation: ' + error.message });
+      console.error('[会话:对话] 错误', error);
+      reply.status(500).send({ error: '加载对话失败: ' + error.message });
     }
   });
 
@@ -651,31 +621,31 @@ function registerChatRoutes(server) {
   app.delete('/api/sessions/:sessionId', async (req, reply) => {
     try {
       const { sessionId } = req.params;
-      console.log('[session:delete] attempting to delete session', { sessionId });
+      console.log('[会话:删除] 尝试删除会话', { sessionId });
 
       const folder = await findProjectPathBySessionId(sessionId);
 
       if (!folder) {
-        console.error('[session:delete] session not found', { sessionId });
-        reply.status(404).send({ error: 'Session not found' });
+        console.error('[会话:删除] 会话未找到', { sessionId });
+        reply.status(404).send({ error: '会话未找到' });
         return;
       }
 
       const projectPath = path.join(folder.parentPath, folder.name);
-      console.log('[session:delete] found project path', { sessionId, projectPath });
+      console.log('[会话:删除] 找到项目路径', { sessionId, projectPath });
 
       const sessionFilePath = path.join(projectPath, `${sessionId}.jsonl`);
 
       try {
         await stat(sessionFilePath);
       } catch (error) {
-        console.error('[session:delete] session file not found', { sessionId, sessionFilePath });
-        reply.status(404).send({ error: 'Session file not found' });
+        console.error('[会话:删除] 会话文件未找到', { sessionId, sessionFilePath });
+        reply.status(404).send({ error: '会话文件未找到' });
         return;
       }
 
       await unlink(sessionFilePath);
-      console.log('[session:delete] deleted session file', { sessionId, sessionFilePath });
+      console.log('[会话:删除] 已删除会话文件', { sessionId, sessionFilePath });
 
       const indexPath = path.join(projectPath, 'sessions-index.json');
       try {
@@ -693,17 +663,17 @@ function registerChatRoutes(server) {
 
           if (removedCount > 0) {
             await writeFile(indexPath, JSON.stringify(indexData, null, 2), 'utf-8');
-            console.log('[session:delete] updated sessions-index.json', {
+            console.log('[会话:删除] 已更新 sessions-index.json', {
               sessionId,
               removedCount,
               remainingEntries: indexData.entries.length
             });
           } else {
-            console.log('[session:delete] session not found in index', { sessionId });
+            console.log('[会话:删除] 索引中未找到会话', { sessionId });
           }
         }
       } catch (error) {
-        console.log('[session:delete] no sessions-index.json found or error reading it', {
+        console.log('[会话:删除] 未找到 sessions-index.json 或读取错误', {
           sessionId,
           error: error.message
         });
@@ -711,12 +681,12 @@ function registerChatRoutes(server) {
 
       return {
         success: true,
-        message: 'Session deleted successfully',
+        message: '会话删除成功',
         sessionId
       };
     } catch (error) {
-      console.error('[session:delete] error', error);
-      reply.status(500).send({ error: 'Failed to delete session: ' + error.message });
+      console.error('[会话:删除] 错误', error);
+      reply.status(500).send({ error: '删除会话失败: ' + error.message });
     }
   });
 }

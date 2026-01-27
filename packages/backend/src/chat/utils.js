@@ -16,6 +16,35 @@ const SESSION_TTL_MS = 30_000; // 30s 保留已结束会话，避免 EventSource
 // ============================================
 
 /**
+ * 从配置文件中获取 Claude 相关配置
+ * @returns {Promise<Object>} 配置对象，包含 HOST, PORT, APIKEY, API_TIMEOUT_MS, CLAUDE_PATH
+ */
+async function getClaudeConfig() {
+  const defaultConfig = {
+    HOST: "127.0.0.1",
+    PORT: 3457,
+    APIKEY: "sk-123456",
+    API_TIMEOUT_MS: "300000",
+    CLAUDE_PATH: process.platform === "win32" ? "claude.exe" : "claude",
+  };
+
+  try {
+    const config = await readConfigFile() || defaultConfig;
+    return {
+      HOST: config.HOST || defaultConfig.HOST,
+      PORT: Number(config.PORT) || defaultConfig.PORT,
+      APIKEY: config.APIKEY || defaultConfig.APIKEY,
+      API_TIMEOUT_MS: config.API_TIMEOUT_MS || defaultConfig.API_TIMEOUT_MS,
+      CLAUDE_PATH: config.CLAUDE_PATH?.trim() || defaultConfig.CLAUDE_PATH,
+    };
+  } catch (error) {
+    console.error("[chatRoutes] Failed to read config file:", error);
+    // 出错时返回默认值
+    return defaultConfig;
+  }
+}
+
+/**
  * 根据 session ID 查找对应的项目目录
  * @param {string} sessionId - session ID
  * @returns {Promise<string|null>} - 返回项目路径，如果找不到返回 null
@@ -178,6 +207,7 @@ function generateId() {
 module.exports = {
   PROJECTS_ROOT_DIR,
   SESSION_TTL_MS,
+  getClaudeConfig,
   findProjectPathBySessionId,
   folderNameToPath,
   extractTextFromEvents,

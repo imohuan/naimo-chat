@@ -3,7 +3,7 @@
  * 用于调用 /v1/messages 接口，支持流式响应
  */
 
-const { getClaudeConfig } = require("../../chat/router/chatRoutes");
+const { getClaudeConfig } = require("../../chat/utils");
 
 // 兼容 Node.js 环境的 fetch
 const fetch =
