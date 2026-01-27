@@ -285,8 +285,9 @@ function createUsageCacheMiddleware(
                     // 如果请求头中包含 Model-Full，则设置请求体中的 model 为 Model-Full
                     // 这是因为模型可能需要知道当前使用的模型，以便正确处理工具调用 （因为模型会被解析，丢失前面的名称）
                     if (req.headers["model-full"]) {
-                      headers["model-full"] = req.headers["model-full"];
-                      req.body.model = req.headers["model-full"];
+                      const Model_Full = decodeURIComponent(req.headers["model-full"]);
+                      headers["model-full"] = Model_Full
+                      req.body.model = Model_Full
                     }
 
                     if (req.headers["x-request-id"]) {
