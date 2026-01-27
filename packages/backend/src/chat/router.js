@@ -177,10 +177,12 @@ function registerChatRoutes(server) {
       args.push('--allowedTools', 'mcp__permissions__approval_prompt');
 
       const env = {
+        // ...process.env,  // 继承系统环境变量（包括 PATH 等）
         API_TIMEOUT_MS: config.API_TIMEOUT_MS,
         ANTHROPIC_BASE_URL: `http://${config.HOST}:${config.PORT}/`,
         ANTHROPIC_AUTH_TOKEN: config.APIKEY,
         MCP_STREAMING_ID: streamingId,
+        CLAUDE_CODE_ENABLE_TELEMETRY: '0'  // 改为字符串
       };
 
       console.log('[聊天:启动] 正在启动进程', {
@@ -197,7 +199,7 @@ function registerChatRoutes(server) {
 
       const child = spawn(claudePath, args, {
         cwd,
-        stdio: ['inherit', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', 'pipe'],  // 改为 ignore，避免 stdin 继承问题
         env,
       });
 

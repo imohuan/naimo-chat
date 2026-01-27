@@ -24,6 +24,7 @@ const DEFAULT_ENV = {
   API_TIMEOUT_MS: "300000",
   ANTHROPIC_BASE_URL: "http://127.0.0.1:3457/",
   ANTHROPIC_AUTH_TOKEN: "sk-123456",
+  CLAUDE_CODE_ENABLE_TELEMETRY: 0
 };
 
 // ============================================
