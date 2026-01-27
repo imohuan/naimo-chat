@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaaS Modal UI Components</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- VueUse -->
+  <script src="https://unpkg.com/@vueuse/shared"></script>
+  <script src="https://unpkg.com/@vueuse/core"></script>
+  <style>
+    [v-cloak] {
+      display: none;
+    }
+
+    .modal-enter-active,
+    .modal-leave-active {
+      transition: all 0.3s ease;
+    }
+
+    .modal-enter-from,
+    .modal-leave-to {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+
+    .backdrop-enter-active,
+    .backdrop-leave-active {
+      transition: opacity 0.3s ease;
+    }
+
+    .backdrop-enter-from,
+    .backdrop-leave-to {
+      opacity: 0;
+    }
+
+    .drawer-enter-active,
+    .drawer-leave-active {
+      transition: transform 0.3s ease;
+    }
+
+    .drawer-enter-from {
+      transform: translateX(100%);
+    }
+
+    .drawer-leave-to {
+      transform: translateX(100%);
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 font-sans">
+
+  <div id="app" v-cloak>
+    <div class="min-h-screen p-8 max-w-4xl mx-auto">
+      <!-- Header -->
+      <header class="mb-12">
+        <h1 class="text-3xl font-bold text-slate-900 tracking-tight">模态框组件库</h1>
+        <p class="mt-2 text-slate-600">基于 Vue 3 + Tailwind CSS 的现代 SaaS 风格模态框实现。</p>
+      </header>
+
+      <!-- Demo Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Basic Modal Card -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <h3 class="font-semibold mb-2">标准模态框</h3>
+          <p class="text-sm text-slate-500 mb-4">用于显示重要信息或简单的二次确认操作。</p>
+          <button @click="openModal('standard')"
+            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm font-medium">
+            打开标准模态框
+          </button>
+        </div>
+
+        <!-- Form Modal Card -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <h3 class="font-semibold mb-2">表单模态框</h3>
+          <p class="text-sm text-slate-500 mb-4">嵌入复杂表单，支持数据绑定与表单提交逻辑。</p>
+          <button @click="openModal('form')"
+            class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition-colors text-sm font-medium">
+            编辑个人资料
+          </button>
+        </div>
+
+        <!-- Drawer Card -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <h3 class="font-semibold mb-2">侧边抽屉 (Drawer)</h3>
+          <p class="text-sm text-slate-500 mb-4">常用于配置详情、设置或长内容的辅助展示。</p>
+          <button @click="openModal('drawer')"
+            class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg transition-colors text-sm font-medium">
+            打开右侧抽屉
+          </button>
+        </div>
+
+        <!-- Destructive Card -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <h3 class="font-semibold mb-2">危险操作确认</h3>
+          <p class="text-sm text-slate-500 mb-4">醒目的警示样式，用于删除或重置等高风险操作。</p>
+          <button @click="openModal('danger')"
+            class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-colors text-sm font-medium border border-rose-100">
+            删除该项目
+          </button>
+        </div>
+      </div>
+
+      <!-- Component Implementations -->
+
+      <!-- Standard Modal -->
+      <app-modal v-model="modals.standard" title="项目已成功保存">
+        <template #content>
+          <div class="flex items-start gap-4">
+            <div
+              class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-slate-600">您的更改已经同步到云端服务器。您现在可以继续进行下一步操作或关闭此窗口。</p>
+            </div>
+          </div>
+        </template>
+        <template #footer>
+          <button @click="modals.standard = false"
+            class="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium">知道了</button>
+        </template>
+      </app-modal>
+
+      <!-- Form Modal -->
+      <app-modal v-model="modals.form" title="编辑个人资料" size="lg">
+        <template #content>
+          <form class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">全名</label>
+              <input type="text"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                value="Alex Johnson">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">职业</label>
+              <input type="text"
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                placeholder="例如：前端开发工程师">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">个人简介</label>
+              <textarea
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                rows="3"></textarea>
+            </div>
+          </form>
+        </template>
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <button @click="modals.form = false"
+              class="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">取消</button>
+            <button @click="handleSave"
+              class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium shadow-sm shadow-indigo-200">保存更改</button>
+          </div>
+        </template>
+      </app-modal>
+
+      <!-- Danger Modal -->
+      <app-modal v-model="modals.danger" title="确认删除项目？">
+        <template #content>
+          <p class="text-slate-600">此操作无法撤销。该项目的所有关联数据和文档将永久从我们的服务器中移除。</p>
+        </template>
+        <template #footer>
+          <div class="flex flex-col sm:flex-row-reverse gap-3">
+            <button @click="modals.danger = false"
+              class="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors">确认删除</button>
+            <button @click="modals.danger = false"
+              class="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-medium hover:bg-slate-50">取消</button>
+          </div>
+        </template>
+      </app-modal>
+
+      <!-- Drawer Component -->
+      <app-drawer v-model="modals.drawer" title="系统活动日志">
+        <div class="space-y-6">
+          <div v-for="i in 5" :key="i" class="flex gap-4">
+            <div class="w-2 h-2 rounded-full bg-indigo-400 mt-2"></div>
+            <div>
+              <p class="text-sm font-medium text-slate-900">管理员更新了安全策略</p>
+              <p class="text-xs text-slate-500">10 分钟前 · IP: 192.168.1.1</p>
+            </div>
+          </div>
+        </div>
+      </app-drawer>
+
+    </div>
+  </div>
+
+  <!-- Modal Component Template -->
+  <script type="text/x-template" id="modal-template">
+    <teleport to="body">
+        <!-- Backdrop -->
+        <transition name="backdrop">
+            <div v-if="modelValue" 
+                 class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60]"
+                 @click="$emit('update:modelValue', false)">
+            </div>
+        </transition>
+
+        <!-- Modal Content -->
+        <div v-if="modelValue" class="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
+            <transition name="modal" appear>
+                <div class="bg-white rounded-2xl shadow-2xl pointer-events-auto overflow-hidden flex flex-col"
+                     :class="sizeClasses"
+                     @click.stop>
+                    
+                    <!-- Header -->
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <h2 class="text-lg font-bold text-slate-800">{{ title }}</h2>
+                        <button @click="$emit('update:modelValue', false)" class="text-slate-400 hover:text-slate-600 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        </button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="px-6 py-6 overflow-y-auto max-h-[70vh]">
+                        <slot name="content"></slot>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-100">
+                        <slot name="footer"></slot>
+                    </div>
+                </div>
+            </transition>
+        </div>
+    </teleport>
+</script>
+
+  <!-- Drawer Component Template -->
+  <script type="text/x-template" id="drawer-template">
+    <teleport to="body">
+        <transition name="backdrop">
+            <div v-if="modelValue" 
+                 class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[80]"
+                 @click="$emit('update:modelValue', false)">
+            </div>
+        </transition>
+
+        <transition name="drawer">
+            <div v-if="modelValue" 
+                 class="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-[90] flex flex-col">
+                <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+                    <h2 class="text-xl font-bold text-slate-900">{{ title }}</h2>
+                    <button @click="$emit('update:modelValue', false)" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    </button>
+                </div>
+                <div class="flex-1 p-6 overflow-y-auto">
+                    <slot></slot>
+                </div>
+                <div class="p-6 border-t border-slate-100 bg-slate-50">
+                    <button @click="$emit('update:modelValue', false)" class="w-full py-2.5 bg-slate-900 text-white rounded-xl font-medium">关闭侧边栏</button>
+                </div>
+            </div>
+        </transition>
+    </teleport>
+</script>
+
+  <script>
+    const { createApp, ref, computed, watch } = Vue;
+    const { useMagicKeys, useScrollLock } = VueUse;
+
+    // Component: Modal
+    const AppModal = {
+      template: '#modal-template',
+      props: {
+        modelValue: Boolean,
+        title: String,
+        size: {
+          type: String,
+          default: 'md' // sm, md, lg, xl
+        }
+      },
+      emits: ['update:modelValue'],
+      setup(props, { emit }) {
+        const sizeClasses = computed(() => {
+          const sizes = {
+            sm: 'max-w-sm w-full',
+            md: 'max-w-md w-full',
+            lg: 'max-w-xl w-full',
+            xl: 'max-w-3xl w-full'
+          };
+          return sizes[props.size];
+        });
+
+        // ESC to close
+        const { escape } = useMagicKeys();
+        watch(escape, (v) => {
+          if (v && props.modelValue) emit('update:modelValue', false);
+        });
+
+        // Prevent scroll
+        const body = ref(document.body);
+        const isLocked = useScrollLock(body);
+        watch(() => props.modelValue, (val) => {
+          isLocked.value = val;
+        });
+
+        return { sizeClasses };
+      }
+    };
+
+    // Component: Drawer
+    const AppDrawer = {
+      template: '#drawer-template',
+      props: {
+        modelValue: Boolean,
+        title: String
+      },
+      emits: ['update:modelValue'],
+      setup(props, { emit }) {
+        const body = ref(document.body);
+        const isLocked = useScrollLock(body);
+        watch(() => props.modelValue, (val) => {
+          isLocked.value = val;
+        });
+
+        return {};
+      }
+    };
+
+    // Root App
+    const App = {
+      components: { AppModal, AppDrawer },
+      setup() {
+        const modals = ref({
+          standard: false,
+          form: false,
+          drawer: false,
+          danger: false
+        });
+
+        const openModal = (type) => {
+          modals.value[type] = true;
+        };
+
+        const handleSave = () => {
+          // Simulate saving
+          setTimeout(() => {
+            modals.value.form = false;
+          }, 500);
+        };
+
+        return {
+          modals,
+          openModal,
+          handleSave
+        };
+      }
+    };
+
+    createApp(App).mount('#app');
+  </script>
+
+</body>
+
+</html>
