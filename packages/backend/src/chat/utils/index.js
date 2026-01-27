@@ -122,7 +122,6 @@ async function folderNameToPath(folderName) {
   return await tryAllCombinations(`${drive}:/`, segments);
 }
 
-
 module.exports = {
   generateId,
   getClaudeConfig,

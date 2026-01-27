@@ -278,7 +278,7 @@ function registerChatRoutes(server) {
           if (!trimmed) continue;
           try {
             const msg = JSON.parse(trimmed);
-            console.log('[聊天:启动] 解析消息', { streamingId, type: msg.type, subtype: msg.subtype });
+            console.log('[聊天:启动] 解析消息', { streamingId, type: msg.type, subtype: msg.subtype, msg });
             registerPermissionsFromMessage(msg, streamingId, permissionService, sessionManager);
             sessionManager.sendEvent(streamingId, msg);
           } catch (err) {
