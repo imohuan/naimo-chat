@@ -14,8 +14,8 @@ const {
 } = require("@modelcontextprotocol/sdk/types.js");
 
 const BASE = process.env.APPROVAL_ENDPOINT_BASE || "http://127.0.0.1:8080";
-const NOTIFY_URL = `${BASE}/api/permissions/notify`;
-const LIST_URL = `${BASE}/api/permissions`;
+const NOTIFY_URL = `${BASE}/api/chat/permissions/notify`;
+const LIST_URL = `${BASE}/api/chat/permissions`;
 const STREAMING_ID = process.env.MCP_STREAMING_ID || process.env.CUI_STREAMING_ID;
 
 console.error("[MCP] Starting demo-permissions MCP server", {
@@ -27,7 +27,7 @@ console.error("[MCP] Starting demo-permissions MCP server", {
 });
 
 const server = new Server(
-  { name: "demo-permissions", version: "1.0.0" },
+  { name: "permissions", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
 

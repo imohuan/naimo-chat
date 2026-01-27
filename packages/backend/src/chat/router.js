@@ -135,6 +135,55 @@ function registerChatRoutes(server) {
     });
   });
 
+  // 中断会话：通过 streamingId 关闭进程
+  app.post('/api/chat/abort', async (req, reply) => {
+    try {
+      const { streamingId } = req.body;
+
+      if (!streamingId) {
+        reply.status(400).send({ error: 'streamingId 必填' });
+        return;
+      }
+
+      const session = sessionManager.getSession(streamingId);
+      if (!session) {
+        reply.status(404).send({ error: '会话不存在或已结束' });
+        return;
+      }
+
+      console.log('[聊天:中断] 正在中断进程', { streamingId });
+
+      // 关闭子进程
+      if (session.child && !session.child.killed) {
+        session.child.kill('SIGTERM');
+        console.log('[聊天:中断] 已发送 SIGTERM 信号', { streamingId });
+
+        // 如果 2 秒后进程还没结束，强制杀死
+        setTimeout(() => {
+          if (session.child && !session.child.killed) {
+            session.child.kill('SIGKILL');
+            console.log('[聊天:中断] 已发送 SIGKILL 信号（强制）', { streamingId });
+          }
+        }, 2000);
+      }
+
+      // 发送中断事件给客户端
+      sessionManager.sendEvent(streamingId, {
+        type: 'aborted',
+        message: '会话已被用户中断',
+        timestamp: new Date().toISOString()
+      });
+
+      // 关闭所有客户端连接
+      sessionManager.closeSession(streamingId, -1);
+
+      return { success: true, message: '会话已中断', streamingId };
+    } catch (error) {
+      console.error('[聊天:中断] 处理器错误', error);
+      reply.status(500).send({ error: String(error) });
+    }
+  });
+
   // 创建新会话：启动 Claude CLI 子进程，返回 streamingId + streamUrl
   app.post('/api/chat/start', async (req, reply) => {
     try {
