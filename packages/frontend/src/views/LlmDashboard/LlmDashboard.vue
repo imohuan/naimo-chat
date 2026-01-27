@@ -348,12 +348,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div
-    class="w-full h-full bg-slate-50 text-slate-800 overflow-hidden flex flex-col relative"
-  >
+  <div class="w-full h-full bg-slate-50 text-slate-800 overflow-hidden flex flex-col relative">
     <header
-      class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0 shadow-sm z-20"
-    >
+      class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shrink-0 shadow-sm z-20">
       <div class="flex items-center gap-8">
         <div class="flex items-center gap-2 text-primary">
           <StorageOutlined class="w-6 h-6" />
@@ -362,63 +359,48 @@ onMounted(() => {
         <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg scale-90">
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-            :class="
-              currentTab === 'chat'
-                ? 'bg-white text-primary shadow-sm border border-primary/20'
-                : 'text-slate-500 hover:text-slate-700'
-            "
-            @click="navigateToTab('chat')"
-          >
+            :class="currentTab === 'chat'
+              ? 'bg-white text-primary shadow-sm border border-primary/20'
+              : 'text-slate-500 hover:text-slate-700'
+              " @click="navigateToTab('chat')">
             <ForumOutlined class="w-4 h-4" />
             对话
           </button>
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-            :class="
-              currentTab === 'mcp'
-                ? 'bg-white text-primary shadow-sm border border-primary/20'
-                : 'text-slate-500 hover:text-slate-700'
-            "
-            @click="navigateToTab('mcp')"
-          >
+            :class="currentTab === 'mcp'
+              ? 'bg-white text-primary shadow-sm border border-primary/20'
+              : 'text-slate-500 hover:text-slate-700'
+              " @click="navigateToTab('mcp')">
             <ExtensionOutlined class="w-4 h-4" />
             MCP
           </button>
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-            :class="
-              currentTab === 'providers'
-                ? 'bg-white text-primary shadow-sm border border-primary/20'
-                : 'text-slate-500 hover:text-slate-700'
-            "
-            @click="navigateToTab('providers')"
-          >
+            :class="currentTab === 'providers'
+              ? 'bg-white text-primary shadow-sm border border-primary/20'
+              : 'text-slate-500 hover:text-slate-700'
+              " @click="navigateToTab('providers')">
             <DnsOutlined class="w-4 h-4" />
             提供商
           </button>
 
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-            :class="
-              currentTab === 'statusline'
-                ? 'bg-white text-primary shadow-sm border border-primary/20'
-                : 'text-slate-500 hover:text-slate-700'
-            "
-            @click="navigateToTab('statusline')"
-          >
+            :class="currentTab === 'statusline'
+              ? 'bg-white text-primary shadow-sm border border-primary/20'
+              : 'text-slate-500 hover:text-slate-700'
+              " @click="navigateToTab('statusline')">
             <DashboardOutlined class="w-4 h-4" />
             状态栏
           </button>
 
           <button
             class="px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 border border-transparent"
-            :class="
-              currentTab === 'logger'
-                ? 'bg-white text-primary shadow-sm border border-primary/20'
-                : 'text-slate-500 hover:text-slate-700'
-            "
-            @click="navigateToTab('logger')"
-          >
+            :class="currentTab === 'logger'
+              ? 'bg-white text-primary shadow-sm border border-primary/20'
+              : 'text-slate-500 hover:text-slate-700'
+              " @click="navigateToTab('logger')">
             <DescriptionOutlined class="w-4 h-4" />
             日志
           </button>
@@ -427,45 +409,38 @@ onMounted(() => {
 
       <div class="flex items-center gap-3">
         <template v-if="currentTab !== 'logger'">
+          <a href="/ui/chat.html" target="_blank"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40">
+            <ClaudeIcon class="w-5 h-5 rounded-md overflow-hidden" />
+            <span>Claude UI</span>
+          </a>
+
           <button
             class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40"
-            type="button"
-            @click="openClaudeSettings"
-          >
+            type="button" @click="openClaudeSettings">
             <ClaudeIcon class="w-5 h-5 rounded-md overflow-hidden" />
             <span class="leading-1 font-mono">Claude CLI</span>
           </button>
 
           <button
             class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium border transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-            :class="
-              store.isRestarting
-                ? 'bg-primary text-white border-primary shadow-sm'
-                : store.needsRestart
+            :class="store.isRestarting
+              ? 'bg-primary text-white border-primary shadow-sm'
+              : store.needsRestart
                 ? 'bg-amber-50 text-amber-700 border-amber-200'
                 : 'bg-white text-slate-700 border-slate-200 hover:text-primary /40'
-            "
-            :disabled="store.isRestarting"
-            @click="handleRestart"
-          >
-            <AutorenewOutlined
-              class="w-4 h-4"
-              :class="{ 'animate-spin': store.isRestarting }"
-            />
+              " :disabled="store.isRestarting" @click="handleRestart">
+            <AutorenewOutlined class="w-4 h-4" :class="{ 'animate-spin': store.isRestarting }" />
             <span>{{ store.isRestarting ? "重启中..." : "重启服务" }}</span>
-            <span
-              v-if="store.needsRestart && !store.isRestarting"
-              class="text-amber-700 text-xs bg-amber-100 px-1.5 py-0.5 rounded-full"
-            >
+            <span v-if="store.needsRestart && !store.isRestarting"
+              class="text-amber-700 text-xs bg-amber-100 px-1.5 py-0.5 rounded-full">
               需重启
             </span>
           </button>
 
           <button
             class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm border transition-all bg-white text-slate-700 border-slate-200 hover:text-primary hover:border-primary/40"
-            type="button"
-            @click="openConfigJsonEditor"
-          >
+            type="button" @click="openConfigJsonEditor">
             <CodeOutlined class="w-4 h-4" />
             <span>编辑配置</span>
           </button>
@@ -487,71 +462,34 @@ onMounted(() => {
       </RouterView>
     </main>
 
-    <div
-      v-if="store.isRestarting"
-      class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-50"
-    >
-      <div
-        class="h-12 w-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"
-      ></div>
+    <div v-if="store.isRestarting"
+      class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-50">
+      <div class="h-12 w-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       <div class="text-sm text-slate-700">服务重启中，请稍候...</div>
     </div>
 
-    <SettingsModal
-      v-model:show="store.showSettingsModal"
-      v-model:base-url="store.baseUrl"
-      v-model:temp-api-key="store.tempApiKey"
-      v-model:translation-model="store.translationModel"
-      v-model:auto-translate="store.autoTranslate"
-      :health-status="store.healthStatus"
-      :providers="store.providers"
-      @save="saveSettings"
-      @check="store.checkHealth"
-    />
+    <SettingsModal v-model:show="store.showSettingsModal" v-model:base-url="store.baseUrl"
+      v-model:temp-api-key="store.tempApiKey" v-model:translation-model="store.translationModel"
+      v-model:auto-translate="store.autoTranslate" :health-status="store.healthStatus" :providers="store.providers"
+      @save="saveSettings" @check="store.checkHealth" />
 
-    <ClaudeSettingsModal
-      v-model:show="store.showClaudeSettingsModal"
-      v-model:timeout-ms="store.claudeTimeoutMs"
-      v-model:base-url="store.claudeBaseUrl"
-      v-model:api-key="store.claudeApiKey"
-      v-model:claude-path="store.claudePath"
-      v-model:work-dir="store.claudeWorkDir"
-      v-model:terminal-type="store.claudeTerminalType"
-      @confirm="handleConfirmClaudeSettings"
-    />
+    <ClaudeSettingsModal v-model:show="store.showClaudeSettingsModal" v-model:timeout-ms="store.claudeTimeoutMs"
+      v-model:base-url="store.claudeBaseUrl" v-model:api-key="store.claudeApiKey" v-model:claude-path="store.claudePath"
+      v-model:work-dir="store.claudeWorkDir" v-model:terminal-type="store.claudeTerminalType"
+      @confirm="handleConfirmClaudeSettings" />
 
-    <JSONEditorModal
-      v-model:show="store.showProvidersJsonModal"
-      v-model:json-value="store.providersJson"
-      :error="store.providersJsonError"
-      :is-saving="store.isSavingProvidersJson"
-      title="编辑 Providers JSON"
-      description="编辑 Providers 配置数组，保存后将立即重启服务。"
-      @save="handleSaveProvidersJson"
-    />
+    <JSONEditorModal v-model:show="store.showProvidersJsonModal" v-model:json-value="store.providersJson"
+      :error="store.providersJsonError" :is-saving="store.isSavingProvidersJson" title="编辑 Providers JSON"
+      description="编辑 Providers 配置数组，保存后将立即重启服务。" @save="handleSaveProvidersJson" />
 
-    <JSONEditorModal
-      v-model:show="store.showConfigJsonModal"
-      v-model:json-value="store.configJson"
-      :error="store.configJsonError"
-      :is-saving="store.isSavingConfigJson"
-      title="编辑配置 JSON"
-      description="编辑完整的配置 JSON，保存后将立即重启服务。"
-      @save="handleSaveConfigJson"
-    />
+    <JSONEditorModal v-model:show="store.showConfigJsonModal" v-model:json-value="store.configJson"
+      :error="store.configJsonError" :is-saving="store.isSavingConfigJson" title="编辑配置 JSON"
+      description="编辑完整的配置 JSON，保存后将立即重启服务。" @save="handleSaveConfigJson" />
 
-    <ProviderEditorModal
-      v-model:show="store.showEditor"
-      v-model:editor-tab="store.editorTab"
-      v-model:form="store.editForm"
-      v-model:new-array-key="store.newArrayKey"
-      v-model:json-preview="store.providersJson"
-      :is-editing="store.isEditing"
-      @addKey="store.addArrayKey"
-      @removeKey="store.removeArrayKey"
-      @save="handleSaveProvider"
-      @close="closeEditor"
-    />
+    <ProviderEditorModal v-model:show="store.showEditor" v-model:editor-tab="store.editorTab"
+      v-model:form="store.editForm" v-model:new-array-key="store.newArrayKey" v-model:json-preview="store.providersJson"
+      :is-editing="store.isEditing" @addKey="store.addArrayKey" @removeKey="store.removeArrayKey"
+      @save="handleSaveProvider" @close="closeEditor" />
   </div>
 </template>
 

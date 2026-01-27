@@ -2,11 +2,16 @@
  * 资源生成脚本
  * 在打包时读取 public 目录的所有文件，生成嵌入资源文件
  */
-const { readdir, readFile, stat } = require("fs/promises");
-const { join, relative, sep } = require("path");
+const { readdir, readFile } = require("fs/promises");
+const { join, relative } = require("path");
 const { writeFileSync } = require("fs");
 
-const publicDir = join(__dirname, "..", "internal-public");
+// 多个资源目录
+const resourceDirs = [
+  join(__dirname, "..", "internal-public"),
+  join(__dirname, "..", "public"),
+];
+
 const outputFile = join(
   __dirname,
   "..",
@@ -73,9 +78,20 @@ function isTextFile(filename) {
 async function generateResources() {
   try {
     console.log("📦 开始生成嵌入资源...");
-    console.log(`📂 读取目录: ${publicDir}`);
 
-    const files = await readDirectory(publicDir);
+    // 合并所有目录的文件
+    const files = {};
+    for (const dir of resourceDirs) {
+      console.log(`📂 读取目录: ${dir}`);
+      try {
+        const dirFiles = await readDirectory(dir);
+        Object.assign(files, dirFiles);
+        console.log(`   ✅ 读取了 ${Object.keys(dirFiles).length} 个文件`);
+      } catch (error) {
+        console.warn(`   ⚠️  目录不存在或无法读取: ${dir}`);
+      }
+    }
+
     const fileCount = Object.keys(files).length;
     const totalSize = Object.values(files).reduce(
       (sum, file) => sum + file.size,
@@ -83,7 +99,7 @@ async function generateResources() {
     );
 
     console.log(
-      `✅ 读取了 ${fileCount} 个文件，总大小: ${(
+      `✅ 总共读取了 ${fileCount} 个文件，总大小: ${(
         totalSize /
         1024 /
         1024
