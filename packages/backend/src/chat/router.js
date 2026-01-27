@@ -8,6 +8,7 @@ const {
   getClaudeConfig,
   findProjectPathBySessionId,
   folderNameToPath,
+  getSessionFileAttr,
 } = require('./utils/index.js');
 const { ensureMcpConfigFile, buildMcpConfig } = require('./utils/mcpUtils.js');
 const { SessionManager } = require('./utils/sessionUtils.js');

@@ -122,9 +122,65 @@ async function folderNameToPath(folderName) {
   return await tryAllCombinations(`${drive}:/`, segments);
 }
 
+/**
+ * 从 JSONL 文件中获取指定属性的第一次出现值
+ * @param {string} sessionPath - JSONL 文件的完整路径
+ * @param {string} attr - 要查找的属性名称
+ * @returns {Promise<any|null>} - 返回属性值，如果未找到返回 null
+ * @example
+ * // 获取 cwd 属性
+ * const cwd = await getSessionFileAttr('path/to/session.jsonl', 'cwd');
+ * // 返回: "E:\\Code\\Git\\code-skills\\novel-to-video-studio"
+ * 
+ * // 获取不存在的属性
+ * const notExist = await getSessionFileAttr('path/to/session.jsonl', 'notExist');
+ * // 返回: null
+ */
+async function getSessionFileAttr(sessionPath, attr) {
+  const fs = require("fs");
+  const readline = require("readline");
+
+  return new Promise((resolve, reject) => {
+    let found = false;
+
+    const fileStream = fs.createReadStream(sessionPath);
+    const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity,
+    });
+
+    rl.on("line", (line) => {
+      if (found) return;
+
+      try {
+        const jsonObj = JSON.parse(line);
+        if (jsonObj[attr] !== undefined) {
+          found = true;
+          rl.close();
+          resolve(jsonObj[attr]);
+        }
+      } catch (err) {
+        // 忽略解析错误，继续下一行
+      }
+    });
+
+    rl.on("close", () => {
+      if (!found) {
+        resolve(null); // 未找到属性
+      }
+    });
+
+    rl.on("error", (err) => {
+      reject(err);
+    });
+  });
+}
+
+
 module.exports = {
   generateId,
   getClaudeConfig,
   findProjectPathBySessionId,
   folderNameToPath,
+  getSessionFileAttr,
 };
