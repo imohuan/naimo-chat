@@ -12,7 +12,7 @@ const {
 const { ensureMcpConfigFile } = require('./utils/mcpUtils.js');
 const { SessionManager } = require('./utils/sessionUtils.js');
 const { registerPermissionsFromMessage } = require('./utils/permissionUtils.js');
-const { CLAUDE_PROJECTS_DIR } = require("../config/constants.js")
+const { CLAUDE_PROJECTS_DIR, EVENTS_DIR } = require("../config/constants.js")
 
 // 服务
 const permissionService = new PermissionService();
@@ -32,7 +32,7 @@ async function handleChatTestStart(reply, _userMessage, eventName = 'default') {
 
   if (eventName && eventName !== 'default') {
     try {
-      const eventFilePath = path.join(__dirname, 'events', `${eventName}.txt`);
+      const eventFilePath = path.join(EVENTS_DIR, `${eventName}.txt`);
       const eventContent = await readFile(eventFilePath, 'utf-8');
 
       const lines = eventContent.split('\n');
@@ -514,15 +514,13 @@ function registerChatRoutes(server) {
   // 获取模拟事件列表
   app.get('/api/chat/events', async (req, reply) => {
     try {
-      const eventsDir = path.join(__dirname, 'events');
-
       try {
-        await mkdir(eventsDir, { recursive: true });
+        await mkdir(EVENTS_DIR, { recursive: true });
       } catch (e) {
         // 目录已存在，忽略错误
       }
 
-      const files = await readdir(eventsDir);
+      const files = await readdir(EVENTS_DIR);
       const eventFiles = files
         .filter((f) => f.endsWith('.txt'))
         .map((f) => ({
@@ -547,15 +545,14 @@ function registerChatRoutes(server) {
         return;
       }
 
-      const eventsDir = path.join(__dirname, 'events');
-      await mkdir(eventsDir, { recursive: true });
+      await mkdir(EVENTS_DIR, { recursive: true });
 
       const sseContent = events
         .map(event => `data: ${JSON.stringify(event)}`)
         .join('\n\n') + '\n\n';
 
       const filename = `${name}.txt`;
-      const filepath = path.join(eventsDir, filename);
+      const filepath = path.join(EVENTS_DIR, filename);
 
       await writeFile(filepath, sseContent, 'utf-8');
 
@@ -571,9 +568,8 @@ function registerChatRoutes(server) {
   app.delete('/api/chat/events/:eventName', async (req, reply) => {
     try {
       const { eventName } = req.params;
-      const eventsDir = path.join(__dirname, 'events');
       const filename = `${eventName}.txt`;
-      const filepath = path.join(eventsDir, filename);
+      const filepath = path.join(EVENTS_DIR, filename);
 
       await unlink(filepath);
 

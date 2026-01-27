@@ -41,6 +41,8 @@ const PLUGINS_DIR = join(HOME_DIR, "plugins");
 const LOGS_DIR = join(HOME_DIR, "logs");
 /* 日志目录：存储日志文件的位置 */
 const CLIPBOARD_IMAGES_DIR = join(HOME_DIR, "clipboard-images");
+/* 事件目录：存储模拟事件文件的目录 */
+const EVENTS_DIR = join(HOME_DIR, "chat-cache-events");
 /* 引用计数文件：用于跟踪服务引用次数的临时文件 */
 const REFERENCE_COUNT_FILE = join(tmpdir(), "claude-llm-reference-count.txt");
 /* Claude 主目录：Claude 编辑器的主配置目录 */
@@ -76,5 +78,6 @@ module.exports = {
   MCP_SERVERS_CONFIG_FILE,
   FILE_HASH_INDEX_FILE,
   MCP_LOG_DIR,
-  MCP_TOOL_CALL_LOG_DIR
+  MCP_TOOL_CALL_LOG_DIR,
+  EVENTS_DIR
 };
