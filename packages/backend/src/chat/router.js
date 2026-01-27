@@ -192,6 +192,7 @@ function registerChatRoutes(server) {
       const useMock = !!body?.mock;
       const eventName = body?.eventName || 'default';
       const session = body?.session;
+      const cwdParam = body?.cwd;
 
       if (!userMessage) {
         reply.status(400).send({ error: 'message 必填' });
@@ -217,6 +218,23 @@ function registerChatRoutes(server) {
           console.log(`[聊天:启动] 找到会话 ${session} 的项目路径: ${cwd}`);
         } else {
           console.warn(`[聊天:启动] 无法找到会话 ${session} 的项目路径，使用默认工作目录`);
+        }
+      } else if (cwdParam) {
+        // 标准化路径
+        const normalizedCwd = path.resolve(cwdParam);
+
+        // 检查文件夹是否存在
+        try {
+          const stats = await stat(normalizedCwd);
+          if (!stats.isDirectory()) {
+            reply.status(400).send({ error: `指定的 cwd 不是一个文件夹: ${normalizedCwd}` });
+            return;
+          }
+          cwd = normalizedCwd;
+          console.log(`[聊天:启动] 使用传入的 cwd 参数: ${cwd}`);
+        } catch (error) {
+          reply.status(400).send({ error: `指定的 cwd 文件夹不存在: ${normalizedCwd}` });
+          return;
         }
       }
 
@@ -592,11 +610,13 @@ function registerChatRoutes(server) {
   app.get('/api/chat/projects/:projectId/sessions/:sessionId', async (req, reply) => {
     try {
       const { projectId, sessionId } = req.params;
+      const projectPath = await folderNameToPath(projectId);
       const sessionPath = path.join(CLAUDE_PROJECTS_DIR, projectId, `${sessionId}.jsonl`);
       const converter = new ConversationConverter();
       const conversation = converter.convertFromFile(sessionPath);
       return {
         projectId,
+        projectPath,
         sessionId,
         conversation
       };

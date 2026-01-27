@@ -192,6 +192,13 @@
       background: #e8eaed;
     }
 
+    .left-buttons-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+
     .right-buttons-input {
       display: flex;
       align-items: center;
@@ -286,6 +293,147 @@
 
     .model-option-input.selected .model-option-check {
       opacity: 1;
+    }
+
+    /* CWD Selector Styles */
+    .cwd-selector-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .cwd-input-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      background: transparent;
+      transition: 0.2s;
+      overflow: hidden;
+    }
+
+    .cwd-input-container:hover {
+      border-color: #bdc1c6;
+      background: #f8f9fa;
+    }
+
+    .cwd-input-container:focus-within {
+      background: #ffffff;
+      border-color: #d2d5da;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .cwd-icon {
+      padding-left: 10px;
+      color: #5f6368;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .cwd-input {
+      width: 200px;
+      padding: 4px 28px 4px 8px;
+      border: none;
+      background: transparent;
+      color: #202124;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .cwd-dropdown-icon {
+      position: absolute;
+      right: 8px;
+      cursor: pointer;
+      color: #5f6368;
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .cwd-dropdown-icon:hover {
+      color: #202124;
+    }
+
+    .cwd-dropdown {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      padding: 6px 0;
+      min-width: 300px;
+      max-width: 500px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+      z-index: 1000;
+    }
+
+    .cwd-dropdown.active {
+      display: block;
+    }
+
+    .cwd-dropdown-empty {
+      padding: 20px;
+      text-align: center;
+      color: #5f6368;
+      font-size: 13px;
+    }
+
+    .cwd-option {
+      padding: 10px 14px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: 0.2s;
+    }
+
+    .cwd-option:hover {
+      background: #f8f9fa;
+    }
+
+    .cwd-option.selected {
+      background: #e8f0fe;
+    }
+
+    .cwd-option-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #202124;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cwd-option-icon {
+      color: #5f6368;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .cwd-remove-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: #5f6368;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.2s;
+      flex-shrink: 0;
+    }
+
+    .cwd-remove-btn:hover {
+      background: #f1f3f4;
+      color: #d93025;
     }
 
     .assistant-group {
@@ -1121,7 +1269,8 @@
         <scroll-buttons v-if="!state.subagentView.active" container-id="chat-container"></scroll-buttons>
 
         <!-- 输入区域 - Gemini Style -->
-        <footer class="p-6 bg-gradient-to-t from-white via-white to-transparent border-t border-slate-100">
+        <footer v-show="state.showInputArea"
+          class="p-6 bg-gradient-to-t from-white via-white to-transparent border-t border-slate-100">
           <div class="max-w-4xl mx-auto relative">
             <div class="input-container-gemini">
               <!-- Preview Area - Inside input container, above textarea -->
@@ -1129,23 +1278,58 @@
 
               <!-- Textarea -->
               <textarea v-model="state.message" @keydown.enter="handleEnter" @paste="handlePaste" @input="autoResize"
-                placeholder="给 Claude 发送消息..." ref="chatInput"
+                placeholder="给 Claude 发送消息..." ref="chatInput" :disabled="state.inputDisabled"
                 class="w-full border-none bg-transparent outline-none p-0 text-sm leading-relaxed max-h-[120px] resize-none text-slate-900 overflow-y-auto custom-scrollbar"
-                rows="1"></textarea>
+                :class="{ 'opacity-60 cursor-not-allowed': state.inputDisabled }" rows="1"></textarea>
 
               <!-- Bottom: Button Row -->
               <div class="button-row-input">
-                <label class="add-btn-input">
-                  <input type="file" ref="fileInput" hidden accept="image/*" multiple @change="handleFileSelect">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                </label>
+                <div class="left-buttons-input">
+                  <label class="add-btn-input">
+                    <input type="file" ref="fileInput" hidden accept="image/*" multiple @change="handleFileSelect">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                  </label>
 
+                  <!-- 目录选择 -->
+                  <div class="cwd-selector-wrapper">
+                    <div class="cwd-input-container">
+                      <i class="fa-solid fa-folder cwd-icon"></i>
+                      <input v-model="state.currentCwd" @click.stop="toggleCwdDropdown" @input="handleCwdInput"
+                        type="text" class="cwd-input" placeholder="工作目录 (可选)" title="选择或输入工作目录">
+                      <svg v-if="state.cwdList.length > 0" @click.stop="toggleCwdDropdown" class="cwd-dropdown-icon"
+                        width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </div>
+
+                    <!-- CWD Dropdown -->
+                    <div class="cwd-dropdown" :class="{ active: state.cwdDropdownOpen }" @click.stop>
+                      <div v-if="state.cwdList.length === 0" class="cwd-dropdown-empty">
+                        暂无历史目录
+                      </div>
+                      <div v-else>
+                        <div v-for="(cwd, index) in state.cwdList" :key="index" class="cwd-option"
+                          :class="{ selected: state.currentCwd === cwd }" @click="selectCwd(cwd)">
+                          <div class="cwd-option-content">
+                            <i class="fa-solid fa-folder cwd-option-icon"></i>
+                            <span>{{ cwd }}</span>
+                          </div>
+                          <button @click.stop="removeCwd(index)" class="cwd-remove-btn" title="删除">
+                            <i class="fa-solid fa-xmark"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="right-buttons-input">
-                  <div class="model-selector-input" @click.stop="toggleModelDropdown">
+                  <!-- 模型选择下拉框 -->
+                  <div class="model-selector-input hidden" @click.stop="toggleModelDropdown">
                     <span>{{ state.selectedModel }}</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                       stroke-linecap="round" stroke-linejoin="round">
@@ -1369,6 +1553,9 @@
           dropdownOpen: false,
           selectedModel: 'Claude 3.5 Sonnet',
           modelDropdownOpen: false,
+          currentCwd: '', // 当前工作目录
+          cwdList: [], // 工作目录历史列表
+          cwdDropdownOpen: false, // 工作目录下拉菜单是否打开
           uploadedImages: [],
           showSaveModal: false,
           saveEventName: '',
@@ -1377,6 +1564,8 @@
           allEvents: [], // 存储所有接收到的事件
           selectedHistoryId: 1, // 当前选中的历史记录 ID
           allCollapsed: false, // 主对话全部折叠状态
+          showInputArea: true, // 是否显示输入区域
+          inputDisabled: false, // 输入框是否禁用
           subagentView: {
             active: false,
             messages: [],
@@ -1772,7 +1961,7 @@
         const addChatItem = (item) => {
           const id = item.id || Math.random().toString(36).substr(2, 9);
           chatItems.value.push({ ...item, id, time: formatTime(new Date()) });
-          smartScrollToBottom(); // 使用智能滚动
+          smartScrollToBottom(true, 150); // 使用智能滚动，只有在底部附近才滚动
         };
 
         // 显示错误消息
@@ -2121,15 +2310,23 @@
           state.isStarting = true;
           state.status = '发送中...';
 
+          // 如果有 cwd 且不是恢复会话，保存到列表
+          if (state.currentCwd && !state.session) {
+            addCwdToList(state.currentCwd);
+          }
+
           try {
+            const requestBody = {
+              message: msg,
+              mock: false,
+              ...(state.session && { session: state.session }),
+              ...(state.currentCwd && !state.session && { cwd: state.currentCwd })
+            };
+
             const res = await fetch('/api/chat/start', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                message: msg,
-                mock: false,
-                ...(state.session && { session: state.session })
-              })
+              body: JSON.stringify(requestBody)
             });
             const data = await res.json();
             if (res.ok) {
@@ -2249,17 +2446,26 @@
             if (state.selectedHistoryId) {
               const selectedHistory = chatHistory.value.find(h => h.id === state.selectedHistoryId);
               if (selectedHistory) {
+                // 记录刷新前的滚动位置
+                const container = document.getElementById('chat-container');
+                const wasNearBottom = container ?
+                  (container.scrollHeight - container.scrollTop - container.clientHeight) <= 150 : true;
+
                 if (selectedHistory.isRemote) {
                   // 远程对话：重新加载，不自动滚动
                   await loadSessionConversation(selectedHistory.projectId, selectedHistory.sessionId, false);
-                  // 刷新后使用智能滚动（只有在底部附近才滚动）
-                  smartScrollToBottom(true);
+                  // 如果刷新前在底部附近，刷新后滚动到底部（保持吸附）
+                  if (wasNearBottom) {
+                    nextTick(() => scrollToBottom(true));
+                  }
                 } else {
                   // 本地对话：重新加载消息
                   if (selectedHistory.messages && selectedHistory.messages.length > 0) {
                     chatItems.value = [...selectedHistory.messages];
-                    // 刷新后使用智能滚动（只有在底部附近才滚动）
-                    smartScrollToBottom(true);
+                    // 如果刷新前在底部附近，刷新后滚动到底部（保持吸附）
+                    if (wasNearBottom) {
+                      nextTick(() => scrollToBottom(true));
+                    }
                   }
                 }
               }
@@ -2452,6 +2658,72 @@
         const selectModel = (modelName) => {
           state.selectedModel = modelName;
           state.modelDropdownOpen = false;
+        };
+
+        // CWD (工作目录) 相关方法
+        const loadCwdList = () => {
+          try {
+            const saved = localStorage.getItem('cwdList');
+            if (saved) {
+              state.cwdList = JSON.parse(saved);
+              // 默认选中最后一次添加的地址
+              if (state.cwdList.length > 0) {
+                state.currentCwd = state.cwdList[state.cwdList.length - 1];
+              }
+            }
+          } catch (e) {
+            console.error('加载工作目录列表失败', e);
+            state.cwdList = [];
+          }
+        };
+
+        const saveCwdList = () => {
+          try {
+            localStorage.setItem('cwdList', JSON.stringify(state.cwdList));
+          } catch (e) {
+            console.error('保存工作目录列表失败', e);
+          }
+        };
+
+        const toggleCwdDropdown = () => {
+          state.cwdDropdownOpen = !state.cwdDropdownOpen;
+        };
+
+        const selectCwd = (cwd) => {
+          state.currentCwd = cwd;
+          state.cwdDropdownOpen = false;
+        };
+
+        const handleCwdInput = () => {
+          // 输入时不做任何操作，只在发送时保存
+        };
+
+        const addCwdToList = (cwd) => {
+          if (!cwd || !cwd.trim()) return;
+
+          const trimmedCwd = cwd.trim();
+
+          // 如果已存在，先移除
+          const index = state.cwdList.indexOf(trimmedCwd);
+          if (index > -1) {
+            state.cwdList.splice(index, 1);
+          }
+
+          // 添加到列表末尾
+          state.cwdList.push(trimmedCwd);
+
+          // 保存到本地存储
+          saveCwdList();
+        };
+
+        const removeCwd = (index) => {
+          state.cwdList.splice(index, 1);
+          saveCwdList();
+
+          // 如果删除的是当前选中的，清空当前选择
+          if (state.currentCwd === state.cwdList[index]) {
+            state.currentCwd = '';
+          }
         };
 
         // Image upload functions
@@ -2739,6 +3011,9 @@
           if (state.modelDropdownOpen) {
             state.modelDropdownOpen = false;
           }
+          if (state.cwdDropdownOpen) {
+            state.cwdDropdownOpen = false;
+          }
         };
 
         // 点击外部关闭下拉框的指令
@@ -2807,6 +3082,9 @@
               chatItems.value = data.conversation;
               // 设置当前 session ID，以便继续对话
               state.session = sessionId;
+              // 显示输入框并设置为禁用状态（因为是已存在的会话）
+              state.showInputArea = true;
+              state.inputDisabled = true;
               console.log(`Loaded ${data.conversation.length} messages from ${projectId}/${sessionId}`);
               console.log('Session ID set to:', sessionId);
               // 根据参数决定是否滚动
@@ -2898,6 +3176,7 @@
 
         onMounted(() => {
           loadEventsList();
+          loadCwdList(); // 加载工作目录列表
           setupImageViewer();
           document.addEventListener('click', handleClickOutside);
           // 尝试加载项目对话，如果失败则加载默认对话
@@ -2922,6 +3201,7 @@
           approvePermission, denyPermission, toggleToolCollapse, isCollapsed,
           toggleDropdown, closeDropdown, selectEvent, deleteEvent,
           toggleModelDropdown, selectModel,
+          toggleCwdDropdown, selectCwd, handleCwdInput, removeCwd,
           handleFileSelect, handlePaste, handleEnter, autoResize, chatInput,
           openSaveModal, closeSaveModal, saveEvents,
           loadHistoryConversation, deleteSession,
