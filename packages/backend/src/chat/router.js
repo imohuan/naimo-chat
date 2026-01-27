@@ -173,8 +173,8 @@ function registerChatRoutes(server) {
 
       const mcpConfigPath = await ensureMcpConfigFile(streamingId, config.HOST, config.PORT);
       args.push('--mcp-config', mcpConfigPath);
-      args.push('--permission-prompt-tool', 'mcp__demo-permissions__approval_prompt');
-      args.push('--allowedTools', 'mcp__demo-permissions__approval_prompt');
+      args.push('--permission-prompt-tool', 'mcp__permissions__approval_prompt');
+      args.push('--allowedTools', 'mcp__permissions__approval_prompt');
 
       const env = {
         API_TIMEOUT_MS: config.API_TIMEOUT_MS,

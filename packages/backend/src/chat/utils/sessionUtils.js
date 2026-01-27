@@ -20,7 +20,7 @@ class SessionManager {
     /** @type {Map<string, Session>} 内存会话表 */
     this.sessions = new Map();
     /** 会话保留时间（毫秒），避免 EventSource 自动重连时 404 */
-    this.SESSION_TTL_MS = 30_000;
+    this.SESSION_TTL_MS = 600_000;
   }
 
   /**
