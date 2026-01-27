@@ -1,4 +1,4 @@
-﻿const { spawn } = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
 const { readFile, writeFile, readdir, mkdir, unlink, stat } = require('fs/promises');
 const { PermissionService } = require('./utils/permissionService.js');

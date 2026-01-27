@@ -90,23 +90,29 @@ function startBackend() {
       const message = data.toString();
       stdoutBuffer += message;
 
-      // 实时输出每一行
-      const lines = message.split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          colorLog("blue", "BACKEND", trimmed);
-
-          // 检测服务启动成功
-          if (
-            trimmed.includes("服务已启动") ||
-            trimmed.includes("Server listening") ||
-            trimmed.includes("listening on") ||
-            trimmed.includes("ready")
-          ) {
-            colorLog("green", "BACKEND", "✅ 后端服务启动成功");
-            resolve();
+      // 保持原始格式输出，不破坏换行
+      if (message.trim()) {
+        // 为每一行添加前缀，但保持原始换行
+        const lines = message.split("\n");
+        const formattedLines = lines.map(line => {
+          if (line.trim()) {
+            const timestamp = new Date().toLocaleTimeString();
+            return `${colors.blue}[${timestamp}] [BACKEND]${colors.reset} ${line}`;
           }
+          return line;
+        }).join("\n");
+
+        process.stdout.write(formattedLines);
+
+        // 检测服务启动成功
+        if (
+          message.includes("服务已启动") ||
+          message.includes("Server listening") ||
+          message.includes("listening on") ||
+          message.includes("ready")
+        ) {
+          colorLog("green", "BACKEND", "✅ 后端服务启动成功");
+          resolve();
         }
       }
     });
@@ -115,13 +121,18 @@ function startBackend() {
       const message = data.toString();
       stderrBuffer += message;
 
-      // 实时输出每一行
-      const lines = message.split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          colorLog("red", "BACKEND", trimmed);
-        }
+      // 保持原始格式输出，不破坏换行
+      if (message.trim()) {
+        const lines = message.split("\n");
+        const formattedLines = lines.map(line => {
+          if (line.trim()) {
+            const timestamp = new Date().toLocaleTimeString();
+            return `${colors.red}[${timestamp}] [BACKEND]${colors.reset} ${line}`;
+          }
+          return line;
+        }).join("\n");
+
+        process.stderr.write(formattedLines);
       }
     });
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Minimal MCP server exposing approval_prompt (CommonJS for node compat).
  * Proxies to demo backend permission endpoints.
