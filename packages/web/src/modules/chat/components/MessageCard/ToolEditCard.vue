@@ -142,15 +142,21 @@ const indicator = (chunk: DiffBlock) => {
                   'hover:bg-slate-50': !chunk.added && !chunk.removed
                 }" class="transition-colors">
                   <!-- 指示符列 -->
-                  <td class="w-8 px-2 text-center font-bold select-none sticky left-0" :class="{
-                    'bg-green-200 text-green-700 border-r border-green-300': chunk.added,
-                    'bg-red-200 text-red-700 border-r border-red-300': chunk.removed,
-                    'bg-slate-100 text-slate-400 border-r border-slate-200': !chunk.added && !chunk.removed
+                  <td class="px-3 py-2 text-center select-none align-top border-l-4" :class="{
+                    'border-green-600 bg-green-50': chunk.added,
+                    'border-red-600 bg-red-50': chunk.removed,
+                    'border-slate-200 bg-slate-50': !chunk.added && !chunk.removed
                   }">
-                    {{ indicator(chunk) }}
+                    <span class="text-sm font-bold" :class="{
+                      'text-green-700': chunk.added,
+                      'text-red-700': chunk.removed,
+                      'text-slate-400': !chunk.added && !chunk.removed
+                    }">
+                      {{ indicator(chunk) }}
+                    </span>
                   </td>
                   <!-- 代码内容列 -->
-                  <td class="py-1 px-3 align-top">
+                  <td class="py-2 px-3 align-top">
                     <pre class="m-0 p-0 text-slate-900 leading-relaxed">{{ line }}</pre>
                   </td>
                 </tr>
