@@ -6,6 +6,7 @@ defineProps<{
   group: MessageGroup;
   isSubagent?: boolean;
   isCollapsed: (itemId: string, isSubagent?: boolean) => boolean;
+  isLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -60,6 +61,10 @@ const trimSW = (text: string) => text.replace(/^"|"$/g, '');
         <!-- 时间戳 -->
         <div class="text-[10px] text-slate-400 pt-1 flex items-center gap-2">
           <span>{{ group.time }}</span>
+          <!-- 加载状态指示器 -->
+          <div v-if="isLoading" class="flex items-center">
+            <span class="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></span>
+          </div>
           <slot name="actions"></slot>
         </div>
       </div>

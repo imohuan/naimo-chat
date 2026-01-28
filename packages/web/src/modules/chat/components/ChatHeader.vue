@@ -46,12 +46,14 @@ const getIntervalLabel = (value: number) => {
 </script>
 
 <template>
-  <header class="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-10">
+  <header
+    class="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-10">
     <div class="flex items-center gap-2">
       <!-- 测试场景下拉框 -->
       <div class="custom-dropdown relative">
         <div class="dropdown-header" :class="{ disabled: isStarting }">
-          <div class="dropdown-trigger" :class="{ disabled: isStarting }" @click="!isStarting && emit('toggle-dropdown')">
+          <div class="dropdown-trigger" :class="{ disabled: isStarting }"
+            @click="!isStarting && emit('toggle-dropdown')">
             <span class="dropdown-trigger-text">{{ selectedEvent || '测试场景' }}</span>
             <i class="fa-solid fa-chevron-down text-slate-400 dropdown-chevron" :class="{ open: dropdownOpen }"></i>
           </div>
@@ -76,22 +78,27 @@ const getIntervalLabel = (value: number) => {
 
     <div class="flex items-center gap-4 text-sm">
       <!-- Session ID -->
-      <div v-if="session" class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-        <i class="fa-solid fa-link text-blue-600"></i>
-        <span class="text-xs font-medium text-blue-700">Session: {{ session.substring(0, 8) }}...</span>
-        <button @click="emit('copy-session')" class="text-blue-600 hover:text-blue-800 transition" title="复制完整 Session ID">
+      <div v-if="session || streamingId" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
+        :class="streamingId ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'">
+        <i class="fa-solid fa-link" :class="streamingId ? 'text-green-600' : 'text-blue-600'"></i>
+        <span class="text-xs font-medium" :class="streamingId ? 'text-green-700' : 'text-blue-700'">
+          {{ streamingId ? 'Streaming' : 'Session' }}: {{ (streamingId || session).substring(0, 8) }}...
+        </span>
+        <button @click="emit('copy-session')" class="transition"
+          :class="streamingId ? 'text-green-600 hover:text-green-800' : 'text-blue-600 hover:text-blue-800'"
+          title="复制完整 Session ID">
           <i class="fa-solid fa-copy text-xs"></i>
         </button>
       </div>
 
       <!-- 连接状态 -->
-      <div v-if="streamingId" class="flex items-center gap-2 text-green-600 font-medium">
+      <!-- <div v-if=" " class="flex items-center gap-2 text-green-600 font-medium">
         <span class="relative flex h-2 w-2">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
         </span>
         已连接: {{ streamingId }}
-      </div>
+      </div> -->
 
       <!-- 自动刷新控制 -->
       <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors"
@@ -124,18 +131,21 @@ const getIntervalLabel = (value: number) => {
         </div>
       </div>
 
-      <button @click="emit('manual-refresh')" class="text-slate-500 hover:text-blue-500 transition flex items-center gap-1.5"
-        title="立即刷新" :disabled="isRefreshing">
+      <button @click="emit('manual-refresh')"
+        class="text-slate-500 hover:text-blue-500 transition flex items-center gap-1.5" title="立即刷新"
+        :disabled="isRefreshing">
         <i class="fa-solid fa-arrows-rotate" :class="{ 'animate-spin': isRefreshing }"></i>
         刷新
       </button>
 
-      <button @click="emit('toggle-all-collapse')" class="text-slate-500 hover:text-blue-500 transition flex items-center gap-1.5">
+      <button @click="emit('toggle-all-collapse')"
+        class="text-slate-500 hover:text-blue-500 transition flex items-center gap-1.5">
         <i class="fa-solid" :class="allCollapsed ? 'fa-angles-down' : 'fa-angles-up'"></i>
         {{ allCollapsed ? '全部展开' : '全部折叠' }}
       </button>
 
-      <button @click="emit('clear-chat')" class="text-slate-500 hover:text-red-500 transition flex items-center gap-1.5">
+      <button @click="emit('clear-chat')"
+        class="text-slate-500 hover:text-red-500 transition flex items-center gap-1.5">
         <i class="fa-solid fa-trash"></i>
         清空对话
       </button>

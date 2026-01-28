@@ -13,11 +13,15 @@ import ChatInput from '../components/ChatInput.vue';
 import MessageRenderer from '../components/MessageRenderer.vue';
 import ImageViewer from '../components/ImageViewer.vue';
 import ScrollButtons from '../components/ScrollButtons.vue';
-import type { ChatHistory, EventItem, IntervalOption } from '@/types';
+import type { ChatHistory, EventItem, IntervalOption, ChatMessage } from '@/types';
 
 const { state, canSend, showSaveButton } = useChatState();
 const { chatItems, groupedMessages, addChatItem, toggleToolCollapse, isCollapsed, toggleAllCollapse, clearMessages } = useChatMessages();
-const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems);
+const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems, () => {
+  // 流结束时清除 streamingId
+  state.streamingId = '';
+  state.isStarting = false;
+});
 const collapseStore = useCollapseStore();
 const {
   images: uploadedImages,
@@ -128,6 +132,7 @@ const startSession = async () => {
       manualRefresh();
     });
     state.streamingId = data.streamingId;
+    state.isStarting = false; // 流开始后重置 isStarting
   } catch (e) {
     console.error('Failed to start session:', e);
     state.isStarting = false;
@@ -164,6 +169,7 @@ const sendTestRequest = async () => {
 
     startStream(data.streamingId, data.streamUrl);
     state.streamingId = data.streamingId;
+    state.isStarting = false; // 流开始后重置 isStarting
   } catch (e) {
     console.error('Failed to send test request:', e);
     state.isStarting = false;
@@ -429,8 +435,9 @@ onBeforeUnmount(() => {
         <!-- 子代理对话内容 -->
         <div id="subagent-messages-container" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4 bg-slate-50">
           <template v-if="subagentGroupedMessages.length > 0">
-            <div v-for="group in subagentGroupedMessages" :key="group.id" class="mb-4">
+            <div v-for="(group, index) in subagentGroupedMessages" :key="group.id" class="mb-4">
               <MessageRenderer :group="group" :is-subagent="true"
+                :is-loading="state.streamingId && index === subagentGroupedMessages.length - 1 && group.role === 'assistant'"
                 :is-collapsed="(itemId) => isSubagentCollapsed(itemId)"
                 @toggle-collapse="(item) => toggleSubagentCollapse(item.id)" @approve-permission="approvePermission"
                 @deny-permission="denyPermission" @open-subagent="openSubagent" />
@@ -481,8 +488,9 @@ onBeforeUnmount(() => {
 
           <!-- 分组渲染消息 -->
           <template v-if="groupedMessages.length > 0">
-            <div v-for="group in groupedMessages" :key="group.id" class="mb-4">
+            <div v-for="(group, index) in groupedMessages" :key="group.id" class="mb-4">
               <MessageRenderer :group="group" :is-subagent="false" :is-collapsed="isCollapsed"
+                :is-loading="state.streamingId && index === groupedMessages.length - 1 && group.role === 'assistant'"
                 @toggle-collapse="(item) => toggleToolCollapse(item.id)" @approve-permission="approvePermission"
                 @deny-permission="denyPermission" @open-subagent="openSubagent" />
             </div>

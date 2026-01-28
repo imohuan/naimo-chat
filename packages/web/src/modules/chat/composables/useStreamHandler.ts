@@ -9,11 +9,14 @@ import type { ChatMessage } from '@/types';
  * 
  * @param addChatItem - 添加聊天项的回调函数
  * @param chatItems - 聊天项列表的响应式引用
+ * @param onStreamEnd - 流结束时的回调函数（可选）
  * @returns 流处理控制对象
  * 
  * @example
  * ```ts
- * const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems)
+ * const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems, () => {
+ *   console.log('Stream ended')
+ * })
  * 
  * // 启动流
  * startStream(streamingId, streamUrl, (sessionId) => {
@@ -26,7 +29,8 @@ import type { ChatMessage } from '@/types';
  */
 export function useStreamHandler(
   addChatItem: (item: Partial<ChatMessage>) => void,
-  chatItems: { value: ChatMessage[] }
+  chatItems: { value: ChatMessage[] },
+  onStreamEnd?: () => void
 ) {
   const eventSource = ref<EventSource | null>(null);
 
@@ -70,6 +74,10 @@ export function useStreamHandler(
       console.log('[StreamHandler] Closing SSE connection');
       eventSource.value.close();
       eventSource.value = null;
+      // 调用流结束回调
+      if (onStreamEnd) {
+        onStreamEnd();
+      }
     }
   };
 
