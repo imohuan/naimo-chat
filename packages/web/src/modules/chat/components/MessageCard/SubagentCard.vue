@@ -52,11 +52,11 @@ watch(() => collapseStore.allCollapsed, () => {
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <button v-if="item.subagentMessages && item.subagentMessages.length > 0" @click.stop="emit('open-subagent')"
-            class="text-xs px-2 py-1 rounded transition flex items-center gap-1"
+            class="text-xs px-2 py-0.5 rounded transition flex items-center gap-1"
             :class="item.isError ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'"
             title="打开子代理对话">
             <i class="fa-solid fa-arrow-up-right-from-square"></i>
-            <span>打开</span>
+            <span class="text-[11px]">打开</span>
           </button>
           <span v-if="item.isError"
             class="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded font-bold flex items-center gap-1">

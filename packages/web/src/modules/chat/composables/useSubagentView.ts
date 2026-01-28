@@ -1,4 +1,5 @@
 import { ref, computed, nextTick } from 'vue'
+import { useCollapseStore } from '../stores/collapseStore'
 import type { ChatMessage } from '@/types/chat'
 
 /**
@@ -45,6 +46,9 @@ export interface SubagentViewState {
  * ```
  */
 export function useSubagentView() {
+  // 使用 Pinia collapse store
+  const collapseStore = useCollapseStore()
+
   // 子代理视图状态
   const state = ref<SubagentViewState>({
     active: false,
@@ -53,9 +57,6 @@ export function useSubagentView() {
     scrollPosition: 0,
     allCollapsed: false
   })
-
-  // 子代理折叠状态 Map - 使用 ref 包装以支持响应式
-  const collapseStateMap = ref(new Map<string, boolean>())
 
   // 计算属性
   const isActive = computed(() => state.value.active)
@@ -79,6 +80,13 @@ export function useSubagentView() {
     state.value.active = true
     state.value.messages = item.subagentMessages || []
     state.value.description = item.input?.description || item.input?.prompt || 'Subagent Task'
+
+    // 注册所有子代理消息中可折叠的项到 collapse store
+    state.value.messages.forEach((msg: any) => {
+      if (msg.kind === 'tool' || msg.kind === 'subagent' || msg.kind === 'todo_list') {
+        collapseStore.registerItem(msg.id)
+      }
+    })
 
     // 打开子代理视图后滚动到底部
     nextTick(() => {
@@ -116,12 +124,15 @@ export function useSubagentView() {
     const newCollapsedState = !state.value.allCollapsed
     state.value.allCollapsed = newCollapsedState
 
-    // 更新所有子代理消息中可折叠的项的折叠状态
+    // 先确保所有可折叠项目都已注册
     state.value.messages.forEach((item: any) => {
       if (item.kind === 'tool' || item.kind === 'subagent' || item.kind === 'todo_list') {
-        collapseStateMap.value.set(item.id, newCollapsedState)
+        collapseStore.registerItem(item.id)
       }
     })
+
+    // 使用 collapse store 设置全部折叠状态
+    collapseStore.setAllCollapsed(newCollapsedState)
   }
 
   /**
@@ -130,7 +141,7 @@ export function useSubagentView() {
    * @returns 是否折叠
    */
   const isCollapsed = (itemId: string): boolean => {
-    return collapseStateMap.value.get(itemId) || false
+    return collapseStore.isCollapsed(itemId)
   }
 
   /**
@@ -138,11 +149,7 @@ export function useSubagentView() {
    * @param itemId - 项 ID
    */
   const toggleCollapse = (itemId: string) => {
-    const currentState = collapseStateMap.value.get(itemId) || false
-    // 创建新的 Map 以触发响应式更新
-    const newMap = new Map(collapseStateMap.value)
-    newMap.set(itemId, !currentState)
-    collapseStateMap.value = newMap
+    collapseStore.toggleCollapse(itemId)
   }
 
   return {
