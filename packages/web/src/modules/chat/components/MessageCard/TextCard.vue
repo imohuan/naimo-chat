@@ -13,14 +13,86 @@ const contentRef = ref<HTMLElement>();
 const collapseStore = useCollapseStore();
 
 const htmlContent = computed(() => {
+  let content = '';
   if (props.item.html) {
-    return props.item.html;
+    content = props.item.html;
+  } else if (props.item.rawText) {
+    content = props.item.rawText;
   }
-  if (props.item.rawText) {
-    return marked.parse(props.item.rawText);
-  }
-  return '';
+
+  // 预处理 <think> 标签，转换为自定义结构
+  content = processThinkTags(content);
+
+  return marked.parse(content);
 });
+
+// 处理 <think> 标签
+const processThinkTags = (text: string): string => {
+  // 匹配 <think>...</think> 标签
+  const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+
+  return text.replace(thinkRegex, (_match, thinkContent) => {
+    // 生成唯一 ID
+    const thinkId = `think-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    // 转换为自定义 HTML 结构
+    return `
+<div class="think-block" data-think-id="${thinkId}">
+  <div class="think-header">
+    <svg class="think-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+    </svg>
+    <span class="think-title">已完成思考</span>
+    <button class="think-toggle" data-think-id="${thinkId}">
+      <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
+  </div>
+  <div class="think-content" data-think-id="${thinkId}">
+${thinkContent.trim()}
+  </div>
+</div>
+    `.trim();
+  });
+};
+
+// 处理 think 块的折叠功能
+const processThinkBlocks = () => {
+  nextTick(() => {
+    if (!contentRef.value) return;
+
+    const thinkBlocks = contentRef.value.querySelectorAll('.think-block');
+    thinkBlocks.forEach((block) => {
+      const thinkId = (block as HTMLElement).dataset.thinkId;
+      if (!thinkId) return;
+
+      // 注册到 store
+      collapseStore.registerItem(thinkId);
+
+      const toggleBtn = block.querySelector('.think-toggle') as HTMLElement;
+      const content = block.querySelector('.think-content') as HTMLElement;
+      const chevron = toggleBtn?.querySelector('.chevron-icon') as HTMLElement;
+
+      if (!toggleBtn || !content || !chevron) return;
+
+      // 默认折叠
+      const isCollapsed = collapseStore.isCollapsed(thinkId);
+      content.classList.toggle('collapsed', isCollapsed);
+      chevron.classList.toggle('collapsed', isCollapsed);
+
+      // 点击切换
+      toggleBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        collapseStore.toggleCollapse(thinkId);
+        const newCollapsed = collapseStore.isCollapsed(thinkId);
+        content.classList.toggle('collapsed', newCollapsed);
+        chevron.classList.toggle('collapsed', newCollapsed);
+      };
+    });
+  });
+};
 
 // 处理代码块，添加自定义工具栏和语法高亮
 const processCodeBlocks = () => {
@@ -161,10 +233,12 @@ const processCodeBlocks = () => {
 };
 
 onMounted(() => {
+  processThinkBlocks();
   processCodeBlocks();
 });
 
 watch(() => props.item, () => {
+  processThinkBlocks();
   processCodeBlocks();
 }, { deep: true });
 
@@ -393,5 +467,108 @@ watch(() => collapseStore.allCollapsed, () => {
 /* 属性值 */
 .assistant-text :deep(.hljs-attr) {
   color: #0891b2;
+}
+
+/* Think 块样式 - 参考 UI 设计 */
+.assistant-text :deep(.think-block) {
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  overflow: hidden;
+}
+
+.assistant-text :deep(.think-header) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.assistant-text :deep(.think-header:hover) {
+  background-color: #e5e7eb;
+}
+
+.assistant-text :deep(.think-icon) {
+  width: 1rem;
+  height: 1rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.assistant-text :deep(.think-title) {
+  flex: 1;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.25;
+}
+
+.assistant-text :deep(.think-toggle) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+}
+
+.assistant-text :deep(.think-toggle:hover) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.assistant-text :deep(.chevron-icon) {
+  width: 1rem;
+  height: 1rem;
+  color: #9ca3af;
+  transition: transform 0.3s ease;
+}
+
+.assistant-text :deep(.chevron-icon.collapsed) {
+  transform: rotate(-90deg);
+}
+
+.assistant-text :deep(.think-content) {
+  padding: 1rem;
+  color: #4b5563;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background-color: #ffffff;
+  max-height: 1000px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  position: relative;
+}
+
+.assistant-text :deep(.think-content.collapsed) {
+  max-height: 80px;
+  overflow: hidden;
+}
+
+.assistant-text :deep(.think-content.collapsed::after) {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, #ffffff);
+  pointer-events: none;
+}
+
+.assistant-text :deep(.think-content p) {
+  margin-bottom: 0.5rem;
+}
+
+.assistant-text :deep(.think-content p:last-child) {
+  margin-bottom: 0;
 }
 </style>
