@@ -14,6 +14,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5174,
     // API 代理配置：将 /api/chat 请求转发到后端服务器
     proxy: {
       '/api/chat': {

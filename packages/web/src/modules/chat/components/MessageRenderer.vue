@@ -56,6 +56,8 @@ const trimSW = (text: string) => text.replace(/^"|"$/g, '');
           <TodoListCard v-else-if="item.kind === 'todo_list'" :item="item"
             :is-collapsed="isCollapsed(item.id, isSubagent)" :is-subagent="isSubagent"
             @toggle-collapse="emit('toggle-collapse', item)" />
+
+          <TextCard v-else :item="item" />
         </template>
 
         <!-- 时间戳 -->

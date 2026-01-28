@@ -31,6 +31,7 @@ function colorLog(color, label, message) {
 const rootDir = path.resolve(__dirname, "..");
 const backendDir = path.join(rootDir, "packages", "backend");
 const frontendDir = path.join(rootDir, "packages", "frontend");
+const webDir = path.join(rootDir, "packages", "web");
 
 // 存储子进程
 const processes = [];
@@ -262,13 +263,86 @@ function startFrontend() {
   });
 }
 
+// 启动 Web 服务
+function startWeb() {
+  return new Promise((resolve, reject) => {
+    colorLog("cyan", "WEB", "正在启动 Web 服务...");
+
+    // 使用 pnpm 启动 web
+    const webProcess = spawn("pnpm", ["dev"], {
+      cwd: webDir,
+      stdio: "pipe",
+      shell: true,
+      env: { ...process.env },
+    });
+
+    processes.push(webProcess);
+
+    webProcess.stdout.on("data", (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        colorLog("cyan", "WEB", message);
+
+        // 检测 Vite 启动成功
+        if (
+          message.includes("Local:") ||
+          message.includes("Network:") ||
+          message.includes("ready in") ||
+          message.includes("VITE")
+        ) {
+          colorLog("green", "WEB", "✅ Web 服务启动成功");
+          resolve();
+        }
+      }
+    });
+
+    webProcess.stderr.on("data", (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        // Vite 可能将一些信息输出到 stderr，但不一定是错误
+        if (message.includes("Local:") || message.includes("Network:")) {
+          colorLog("cyan", "WEB", message);
+        } else {
+          colorLog("red", "WEB", message);
+        }
+      }
+    });
+
+    webProcess.on("error", (error) => {
+      colorLog("red", "WEB", `启动失败: ${error.message}`);
+      reject(error);
+    });
+
+    webProcess.on("exit", (code) => {
+      if (code !== 0 && code !== null) {
+        colorLog("red", "WEB", `进程退出，代码: ${code}`);
+        if (code !== 143) {
+          reject(new Error(`Web 服务异常退出: ${code}`));
+        }
+      }
+    });
+
+    // 超时处理
+    setTimeout(() => {
+      if (!webProcess.killed) {
+        colorLog(
+          "yellow",
+          "WEB",
+          "⚠️  未检测到启动成功消息，但进程仍在运行"
+        );
+        resolve();
+      }
+    }, 30000);
+  });
+}
+
 // 主函数
 async function main() {
   try {
     colorLog("bright", "START", "🚀 开始启动开发环境...\n");
 
-    // 并行启动前后端
-    await Promise.all([startBackend(), startFrontend()]);
+    // 并行启动后端、前端和 Web 服务
+    await Promise.all([startBackend(), startFrontend(), startWeb()]);
 
     colorLog("green", "SUCCESS", "\n✨ 所有服务已启动！");
     colorLog("cyan", "INFO", "按 Ctrl+C 停止所有服务\n");
