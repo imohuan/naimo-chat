@@ -15,7 +15,7 @@ export function useChatMessages() {
         groups.push({
           id: item.id,
           role: 'user',
-          html: item.html || item.rawText,
+          html: item.html || item.rawText || '',
           time: item.time
         });
         currentGroup = null;
@@ -30,12 +30,9 @@ export function useChatMessages() {
           groups.push(currentGroup);
         }
 
-        const processedItem = { ...item };
-        if (item.kind === 'text' && !item.html && item.rawText) {
-          processedItem.html = marked.parse(item.rawText) as string;
-        }
-
-        currentGroup.items!.push(processedItem);
+        // 直接使用 item，不要重新处理 html
+        // html 已经在 updateTextContent 中处理过了
+        currentGroup.items!.push(item);
         currentGroup.time = item.time;
       }
     });
