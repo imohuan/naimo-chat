@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { MessageGroup, ChatMessage } from '@/types';
-import { TextCard, ToolCard, PermissionCard, SubagentCard, TodoListCard } from './MessageCard';
+import { TextCard, ToolCard, ToolEditCard, PermissionCard, SubagentCard, TodoListCard } from './MessageCard';
 
 defineProps<{
   group: MessageGroup;
@@ -17,6 +17,16 @@ const emit = defineEmits<{
 }>();
 
 const trimSW = (text: string) => text.replace(/^"|"$/g, '');
+
+// 判断是否是编辑类型的工具
+const isEditTool = (item: ChatMessage) => {
+  return (
+    item.name === 'Edit' ||
+    item.name === 'strReplace' ||
+    item.name?.toLowerCase().includes('edit') ||
+    (item.input && (item.input.old_string || item.input.new_string || item.input.oldStr || item.input.newStr))
+  );
+};
 </script>
 
 <template>
@@ -42,6 +52,10 @@ const trimSW = (text: string) => text.replace(/^"|"$/g, '');
       <div class="flex-1 bg-white shadow-xs rounded-xl p-4 space-y-3 overflow-hidden">
         <template v-for="item in group.items" :key="item.id">
           <TextCard v-if="item.kind === 'text'" :item="item" />
+
+          <ToolEditCard v-else-if="item.kind === 'tool' && isEditTool(item)" :item="item"
+            :is-collapsed="isCollapsed(item.id, isSubagent)" :is-subagent="isSubagent"
+            @toggle-collapse="emit('toggle-collapse', item)" />
 
           <ToolCard v-else-if="item.kind === 'tool'" :item="item" :is-collapsed="isCollapsed(item.id, isSubagent)"
             :is-subagent="isSubagent" @toggle-collapse="emit('toggle-collapse', item)" />
