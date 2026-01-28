@@ -5,6 +5,7 @@ import { useChatMessages } from '../composables/useChatMessages';
 import { useStreamHandler } from '../composables/useStreamHandler';
 import { useImagePreview } from '../composables/useImagePreview';
 import { useSubagentView } from '../composables/useSubagentView';
+import { useCollapseStore } from '../stores/collapseStore';
 import { chatService } from '../services/chat.service';
 import ChatSidebar from '../components/ChatSidebar.vue';
 import ChatHeader from '../components/ChatHeader.vue';
@@ -17,6 +18,7 @@ import type { ChatHistory, EventItem, IntervalOption } from '@/types';
 const { state, canSend, showSaveButton } = useChatState();
 const { chatItems, groupedMessages, addChatItem, toggleToolCollapse, isCollapsed, toggleAllCollapse, clearMessages } = useChatMessages();
 const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems);
+const collapseStore = useCollapseStore();
 const {
   images: uploadedImages,
   viewerVisible,
@@ -453,7 +455,7 @@ onBeforeUnmount(() => {
           :is-starting="state.isStarting" :session="state.session" :streaming-id="state.streamingId"
           :auto-refresh-enabled="state.autoRefresh.enabled" :auto-refresh-interval="state.autoRefresh.interval"
           :interval-dropdown-open="state.autoRefresh.intervalDropdownOpen" :interval-options="intervalOptions"
-          :is-refreshing="state.isRefreshing" :all-collapsed="state.allCollapsed"
+          :is-refreshing="state.isRefreshing" :all-collapsed="collapseStore.allCollapsed"
           @toggle-dropdown="state.dropdownOpen = !state.dropdownOpen"
           @select-event="(name) => { state.selectedEvent = name; state.dropdownOpen = false; }"
           @delete-event="(name) => chatService.deleteEvent(name).then(() => loadEventsList())"
@@ -462,7 +464,7 @@ onBeforeUnmount(() => {
           @toggle-interval-dropdown="state.autoRefresh.intervalDropdownOpen = !state.autoRefresh.intervalDropdownOpen"
           @select-interval="(val) => { state.autoRefresh.interval = val; state.autoRefresh.intervalDropdownOpen = false; }"
           @manual-refresh="manualRefresh"
-          @toggle-all-collapse="() => { state.allCollapsed = !state.allCollapsed; toggleAllCollapse(state.allCollapsed); }"
+          @toggle-all-collapse="() => { collapseStore.toggleAllCollapse(); toggleAllCollapse(collapseStore.allCollapsed); }"
           @clear-chat="clearChat" />
 
         <!-- 对话内容区域 -->

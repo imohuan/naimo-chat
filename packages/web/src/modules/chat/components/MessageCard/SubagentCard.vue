@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed, watch } from 'vue';
+import { useCollapseStore } from '../../stores/collapseStore';
 import type { ChatMessage } from '@/types';
 
-defineProps<{
+const props = defineProps<{
   item: ChatMessage;
   isCollapsed: boolean;
   isSubagent?: boolean;
@@ -11,12 +13,27 @@ const emit = defineEmits<{
   'toggle-collapse': [];
   'open-subagent': [];
 }>();
+
+const collapseStore = useCollapseStore();
+
+// 确保项目已注册
+collapseStore.registerItem(props.item.id);
+
+// 使用 computed 来响应 store 的变化
+const actualIsCollapsed = computed(() => {
+  return collapseStore.isCollapsed(props.item.id);
+});
+
+// 监听 store 的全局折叠状态变化
+watch(() => collapseStore.allCollapsed, () => {
+  // 触发重新渲染
+});
 </script>
 
 <template>
   <div class="w-full">
     <div class="bg-white border rounded-lg shadow-sm overflow-hidden" :class="[
-      isCollapsed ? 'tool-collapsed' : '',
+      actualIsCollapsed ? 'tool-collapsed' : '',
       item.isError ? 'border-red-300 bg-red-50' : 'border-purple-200'
     ]">
       <div @click="emit('toggle-collapse')"
@@ -28,7 +45,7 @@ const emit = defineEmits<{
           <i class="fa-solid fa-robot shrink-0" :class="item.isError ? 'text-red-600' : 'text-purple-600'"></i>
           <span class="text-xs font-semibold shrink-0"
             :class="item.isError ? 'text-red-700' : 'text-purple-700'">Agent</span>
-          <span v-if="isCollapsed && item.input?.description" class="text-xs font-mono truncate max-w-md"
+          <span v-if="actualIsCollapsed && item.input?.description" class="text-xs font-mono truncate max-w-md"
             :class="item.isError ? 'text-red-600' : 'text-purple-600'">
             {{ item.input.description }}
           </span>
@@ -53,7 +70,7 @@ const emit = defineEmits<{
         </div>
       </div>
 
-      <div v-show="!isCollapsed">
+      <div v-show="!actualIsCollapsed">
         <div class="px-3 py-3 font-mono text-xs border-b"
           :class="item.isError ? 'bg-red-100 text-red-800 border-red-200' : 'bg-purple-50 text-purple-800 border-purple-200'">
           <div class="mb-2">

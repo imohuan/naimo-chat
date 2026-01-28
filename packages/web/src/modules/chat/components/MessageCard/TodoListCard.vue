@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed, watch } from 'vue';
+import { useCollapseStore } from '../../stores/collapseStore';
 import type { ChatMessage } from '@/types';
 
-defineProps<{
+const props = defineProps<{
   item: ChatMessage;
   isCollapsed: boolean;
   isSubagent?: boolean;
@@ -10,12 +12,27 @@ defineProps<{
 const emit = defineEmits<{
   'toggle-collapse': [];
 }>();
+
+const collapseStore = useCollapseStore();
+
+// 确保项目已注册
+collapseStore.registerItem(props.item.id);
+
+// 使用 computed 来响应 store 的变化
+const actualIsCollapsed = computed(() => {
+  return collapseStore.isCollapsed(props.item.id);
+});
+
+// 监听 store 的全局折叠状态变化
+watch(() => collapseStore.allCollapsed, () => {
+  // 触发重新渲染
+});
 </script>
 
 <template>
   <div class="w-full">
     <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden"
-      :class="{ 'tool-collapsed': isCollapsed }">
+      :class="{ 'tool-collapsed': actualIsCollapsed }">
       <div @click="emit('toggle-collapse')"
         class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition select-none">
         <div class="flex items-center gap-2 flex-1 min-w-0">
@@ -29,7 +46,7 @@ const emit = defineEmits<{
         </div>
       </div>
 
-      <div v-show="!isCollapsed">
+      <div v-show="!actualIsCollapsed">
         <div class="p-3 text-xs max-h-64 overflow-y-auto custom-scrollbar bg-white">
           <div v-for="todo in item.todos" :key="todo.id" class="mb-2 last:mb-0">
             <div class="flex items-center gap-2 p-2 rounded hover:bg-slate-50 transition">

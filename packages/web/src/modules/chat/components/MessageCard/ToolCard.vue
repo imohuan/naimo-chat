@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed, watch } from 'vue';
+import { useCollapseStore } from '../../stores/collapseStore';
 import type { ChatMessage } from '@/types';
 
-defineProps<{
+const props = defineProps<{
   item: ChatMessage;
   isCollapsed: boolean;
   isSubagent?: boolean;
@@ -10,12 +12,27 @@ defineProps<{
 const emit = defineEmits<{
   'toggle-collapse': [];
 }>();
+
+const collapseStore = useCollapseStore();
+
+// 确保项目已注册
+collapseStore.registerItem(props.item.id);
+
+// 使用 computed 来响应 store 的变化
+const actualIsCollapsed = computed(() => {
+  return collapseStore.isCollapsed(props.item.id);
+});
+
+// 监听 store 的全局折叠状态变化
+watch(() => collapseStore.allCollapsed, () => {
+  // 触发重新渲染
+});
 </script>
 
 <template>
   <div class="w-full">
     <div class="bg-white border rounded-lg shadow-sm overflow-hidden" :class="[
-      isCollapsed ? 'tool-collapsed' : '',
+      actualIsCollapsed ? 'tool-collapsed' : '',
       item.isError ? 'border-red-300 bg-red-50' : 'border-slate-200'
     ]">
       <div @click="emit('toggle-collapse')"
@@ -26,7 +43,7 @@ const emit = defineEmits<{
             :class="item.isError ? 'text-red-400' : 'text-slate-400'"></i>
           <span class="text-xs font-semibold shrink-0" :class="item.isError ? 'text-red-700' : 'text-slate-700'">{{
             item.name }}</span>
-          <span v-if="isCollapsed && item.name === 'Bash' && item.input?.command"
+          <span v-if="actualIsCollapsed && item.name === 'Bash' && item.input?.command"
             class="text-xs font-mono truncate max-w-md" :class="item.isError ? 'text-red-600' : 'text-slate-500'">
             {{ item.input.command }}
           </span>
@@ -34,7 +51,7 @@ const emit = defineEmits<{
             :class="item.isError ? 'text-red-500' : 'text-slate-400'">
             {{ item.input.path || item.input.file_path }}
           </span>
-          <span v-if="isCollapsed && item.name !== 'Bash' && item.input && Object.keys(item.input).length > 0"
+          <span v-if="actualIsCollapsed && item.name !== 'Bash' && item.input && Object.keys(item.input).length > 0"
             class="text-[10px] font-mono truncate max-w-md" :class="item.isError ? 'text-red-500' : 'text-slate-400'">
             {{ item.input }}
           </span>
@@ -52,7 +69,7 @@ const emit = defineEmits<{
         </div>
       </div>
 
-      <div v-show="!isCollapsed">
+      <div v-show="!actualIsCollapsed">
         <div class="px-3 font-mono text-xs border-b"
           :class="item.isError ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'">
           <div v-if="item.name === 'Bash'" class="py-3" :class="item.isError ? 'text-red-900' : 'text-slate-800'">{{

@@ -21,6 +21,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@vicons/material": "^0.13.0",
     "@vueuse/core": "^14.1.0",
+    "highlight.js": "^11.11.1",
     "lodash-es": "^4.17.22",
     "marked": "^17.0.1",
     "mitt": "^3.0.1",

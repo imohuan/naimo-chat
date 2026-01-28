@@ -1,10 +1,11 @@
 import { ref, computed, nextTick } from 'vue';
 import { marked } from 'marked';
+import { useCollapseStore } from '../stores/collapseStore';
 import type { ChatMessage, MessageGroup } from '@/types';
 
 export function useChatMessages() {
   const chatItems = ref<ChatMessage[]>([]);
-  const collapseStateMap = new Map<string, boolean>();
+  const collapseStore = useCollapseStore();
 
   const groupedMessages = computed<MessageGroup[]>(() => {
     const groups: MessageGroup[] = [];
@@ -46,29 +47,38 @@ export function useChatMessages() {
 
   const addChatItem = (item: Partial<ChatMessage>) => {
     const id = item.id || Math.random().toString(36).substr(2, 9);
-    chatItems.value.push({ ...item, id, time: formatTime(new Date()) } as ChatMessage);
+    const newItem = { ...item, id, time: formatTime(new Date()) } as ChatMessage;
+    chatItems.value.push(newItem);
+
+    // 如果是可折叠的项目，注册到 store
+    if (newItem.kind === 'tool' || newItem.kind === 'subagent' || newItem.kind === 'todo_list') {
+      collapseStore.registerItem(id);
+    }
   };
 
   const toggleToolCollapse = (itemId: string) => {
-    const currentState = collapseStateMap.get(itemId) || false;
-    collapseStateMap.set(itemId, !currentState);
+    collapseStore.toggleCollapse(itemId);
   };
 
   const isCollapsed = (itemId: string) => {
-    return collapseStateMap.get(itemId) || false;
+    return collapseStore.isCollapsed(itemId);
   };
 
   const toggleAllCollapse = (newState: boolean) => {
+    // 先确保所有可折叠项目都已注册
     chatItems.value.forEach(item => {
       if (item.kind === 'tool' || item.kind === 'subagent' || item.kind === 'todo_list') {
-        collapseStateMap.set(item.id, newState);
+        collapseStore.registerItem(item.id);
       }
     });
+
+    // 然后设置全部折叠状态
+    collapseStore.setAllCollapsed(newState);
   };
 
   const clearMessages = () => {
     chatItems.value = [];
-    collapseStateMap.clear();
+    collapseStore.clearAll();
   };
 
   return {
