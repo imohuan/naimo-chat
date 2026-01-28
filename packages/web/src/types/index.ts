@@ -51,6 +51,7 @@ export interface ChatHistory {
   messages?: ChatMessage[];
   createdAt?: string;
   modifiedAt?: string;
+  projectPath?: string;
 }
 
 export interface ModelOption {

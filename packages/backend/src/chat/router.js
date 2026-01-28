@@ -601,7 +601,18 @@ function registerChatRoutes(server) {
   app.get('/api/chat/projects', async (req, reply) => {
     try {
       const projects = await ConversationConverter.getProjectList(CLAUDE_PROJECTS_DIR);
-      return { projects };
+      const projectsWithPath = await Promise.all(
+        projects.map(async project => {
+          const sessions = project.sessions || [];
+          const sessionId = sessions.length > 0 ? sessions[0].id : null;
+          const projectPath = sessionId ? await getProjectPath(project.name, sessionId) : null;
+          return {
+            ...project,
+            projectPath
+          };
+        })
+      );
+      return { projects: projectsWithPath };
     } catch (error) {
       console.error('[项目:列表] 错误', error);
       reply.status(500).send({ error: '获取项目列表失败: ' + error.message });

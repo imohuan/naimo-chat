@@ -341,18 +341,19 @@ const loadProjects = async () => {
     const data = await chatService.loadProjects();
     if (data.projects && data.projects.length > 0) {
       chatHistory.value = [];
-      data.projects.forEach((project: { id: string; sessions?: Array<{ id: string; title?: string; createdAt?: string; modifiedAt?: string }> }) => {
+      data.projects.forEach((project: { id: string; projectPath: string, sessions?: Array<{ id: string; title?: string; createdAt?: string; modifiedAt?: string }> }) => {
         if (project.sessions && project.sessions.length > 0) {
           project.sessions.forEach((session) => {
             chatHistory.value.push({
               id: `${project.id}/${session.id}`,
               title: session.title || session.id,
+              projectPath: project.projectPath,
               isRemote: true,
               projectId: project.id,
               sessionId: session.id,
               messages: [],
               createdAt: session.createdAt,
-              modifiedAt: session.modifiedAt
+              modifiedAt: session.modifiedAt,
             });
           });
         }

@@ -145,7 +145,7 @@ const getIntervalLabel = (value: number) => {
       </button>
 
       <button @click="emit('clear-chat')"
-        class="text-slate-500 hover:text-red-500 transition flex items-center gap-1.5">
+        class="hidden text-slate-500 hover:text-red-500 transition flex items-center gap-1.5">
         <i class="fa-solid fa-trash"></i>
         清空对话
       </button>

@@ -54,8 +54,8 @@ export function useSubagentView() {
     allCollapsed: false
   })
 
-  // 子代理折叠状态 Map
-  const collapseStateMap = new Map<string, boolean>()
+  // 子代理折叠状态 Map - 使用 ref 包装以支持响应式
+  const collapseStateMap = ref(new Map<string, boolean>())
 
   // 计算属性
   const isActive = computed(() => state.value.active)
@@ -119,7 +119,7 @@ export function useSubagentView() {
     // 更新所有子代理消息中可折叠的项的折叠状态
     state.value.messages.forEach((item: any) => {
       if (item.kind === 'tool' || item.kind === 'subagent' || item.kind === 'todo_list') {
-        collapseStateMap.set(item.id, newCollapsedState)
+        collapseStateMap.value.set(item.id, newCollapsedState)
       }
     })
   }
@@ -130,7 +130,7 @@ export function useSubagentView() {
    * @returns 是否折叠
    */
   const isCollapsed = (itemId: string): boolean => {
-    return collapseStateMap.get(itemId) || false
+    return collapseStateMap.value.get(itemId) || false
   }
 
   /**
@@ -138,8 +138,11 @@ export function useSubagentView() {
    * @param itemId - 项 ID
    */
   const toggleCollapse = (itemId: string) => {
-    const currentState = collapseStateMap.get(itemId) || false
-    collapseStateMap.set(itemId, !currentState)
+    const currentState = collapseStateMap.value.get(itemId) || false
+    // 创建新的 Map 以触发响应式更新
+    const newMap = new Map(collapseStateMap.value)
+    newMap.set(itemId, !currentState)
+    collapseStateMap.value = newMap
   }
 
   return {
