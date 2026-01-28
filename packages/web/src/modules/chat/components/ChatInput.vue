@@ -26,6 +26,7 @@ const emit = defineEmits<{
   'file-select': [files: FileList];
   'paste': [event: ClipboardEvent];
   'remove-image': [imageId: string];
+  'preview-image': [src: string];
 }>();
 
 const chatInput = ref<HTMLTextAreaElement>();
@@ -72,7 +73,11 @@ const handleFileSelect = (e: Event) => {
         <!-- 图片预览区域 -->
         <div v-if="uploadedImages.length > 0" class="preview-area-input flex gap-2 flex-wrap mb-2">
           <div v-for="img in uploadedImages" :key="img.id" class="preview-wrapper-input relative">
-            <img :src="img.src" class="preview-item-input w-9 h-9 rounded-lg object-cover border border-slate-200" />
+            <img 
+              :src="img.src" 
+              class="preview-item-input w-9 h-9 rounded-lg object-cover border border-slate-200 cursor-pointer" 
+              @click="emit('preview-image', img.src)"
+            />
             <div @click="emit('remove-image', img.id)"
               class="preview-close-input absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white shadow-md flex items-center justify-center cursor-pointer opacity-0 hover:opacity-100 transition-opacity">
               <i class="fa-solid fa-xmark text-xs text-slate-600"></i>

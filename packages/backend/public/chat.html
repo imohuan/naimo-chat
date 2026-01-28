@@ -3157,6 +3157,8 @@
 
             if (data.conversation && data.conversation.length > 0) {
               chatItems.value = data.conversation;
+              console.log("ChatItems", chatItems.value);
+
               // 设置当前 session ID，以便继续对话
               state.session = sessionId;
               // 设置项目路径到 currentCwd

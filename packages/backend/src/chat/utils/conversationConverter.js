@@ -67,7 +67,7 @@ class ConversationConverter {
       const timestamp = this.formatTime(entry.timestamp);
 
       if (entry.type === 'user') {
-        const userMsg = this.convertUserMessage(entry, timestamp, uuidToMessageMap, toolCallMap);
+        const userMsg = this.convertUserMessage(entry, timestamp, uuidToMessageMap, toolCallMap, agentIdMap);
         if (userMsg) messages.push(userMsg);
       } else if (entry.type === 'assistant') {
         const assistantMsgs = this.convertAssistantMessage(entry, timestamp, toolCallMap, subagentsDir);
@@ -92,13 +92,13 @@ class ConversationConverter {
   /**
    * 转换用户消息
    */
-  convertUserMessage(entry, timestamp, uuidToMessageMap, toolCallMap) {
+  convertUserMessage(entry, timestamp, uuidToMessageMap, toolCallMap, agentIdMap) {
     const content = entry.message?.content;
     if (!content) return null;
 
     // 处理工具结果 - 合并到对应的工具调用中
     if (Array.isArray(content) && content.some(item => item.type === 'tool_result')) {
-      this.mergeToolResults(entry, content, uuidToMessageMap, toolCallMap);
+      this.mergeToolResults(entry, content, uuidToMessageMap, toolCallMap, agentIdMap);
       return null; // 工具结果不单独显示
     }
 
@@ -141,7 +141,7 @@ class ConversationConverter {
   /**
    * 合并工具结果到工具调用
    */
-  mergeToolResults(entry, content, uuidToMessageMap, toolCallMap) {
+  mergeToolResults(entry, content, uuidToMessageMap, toolCallMap, agentIdMap) {
     for (const item of content) {
       if (item.type === 'tool_result' && item.tool_use_id) {
         const toolMsg = toolCallMap.get(item.tool_use_id);
@@ -150,8 +150,14 @@ class ConversationConverter {
           toolMsg.isError = item.is_error || false;
 
           // 如果是子代理结果，标记 agentId
-          if (item.agentId) {
+          if (item?.agentId) {
             toolMsg.agentId = item.agentId;
+            agentIdMap.set(item.tool_use_id, item.agentId)
+          }
+
+          if (entry?.toolUseResult?.agentId) {
+            toolMsg.agentId = entry.toolUseResult.agentId
+            agentIdMap.set(item.tool_use_id, toolMsg.agentId)
           }
         }
       }

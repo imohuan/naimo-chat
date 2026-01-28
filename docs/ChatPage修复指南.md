@@ -3,15 +3,15 @@
 ## 📊 总体进度
 
 - ✅ **阶段 1**: 基础设施和工具函数 (2/2 完成)
-- ⏳ **阶段 2**: 消息渲染组件完善 (0/5)
-- ⏳ **阶段 3**: 图片功能 (0/2)
+- ✅ **阶段 2**: 消息渲染组件完善 (5/5 完成)
+- ✅ **阶段 3**: 图片功能 (2/2 完成)
 - ⏳ **阶段 4**: 子代理功能 (0/2)
 - ⏳ **阶段 5**: 流事件处理增强 (0/1)
 - ⏳ **阶段 6**: 样式完善 (0/2)
 - ⏳ **阶段 7**: 自动刷新功能 (0/1)
 - ⏳ **阶段 8**: 类型定义和优化 (0/2)
 
-**总进度**: 2/17 任务完成 (11.8%)
+**总进度**: 9/17 任务完成 (52.9%)
 
 ---
 
@@ -30,7 +30,7 @@
 ## 当前问题分析
 
 ### 1. 缺失的核心功能
-- ❌ MessageRenderer 组件不完整（缺少工具卡片、权限请求、子代理、TODO列表渲染）
+- ✅ ~~MessageRenderer 组件不完整（缺少工具卡片、权限请求、子代理、TODO列表渲染）~~ (已完成)
 - ✅ ~~缺少 ScrollButtons 组件~~ (已完成)
 - ❌ 缺少图片查看器（ImageViewer）
 - ❌ 缺少子代理视图功能
@@ -111,48 +111,75 @@
 
 ---
 
-### 阶段 2：消息渲染组件完善
+### 阶段 2：消息渲染组件完善 ✅
 
-#### Task 2.1: 完善 MessageRenderer - 用户消息
+#### Task 2.1: 完善 MessageRenderer - 用户消息 ✅
 **文件**: `packages/web/src/modules/chat/components/MessageRenderer.vue`
+
+**状态**: ✅ 已完成
 
 **目标**: 实现用户消息的完整渲染
 
 **功能**:
-- 用户头像
-- 消息气泡样式
-- 时间戳显示
-- Markdown 渲染支持
+- ✅ 用户头像
+- ✅ 消息气泡样式
+- ✅ 时间戳显示
+- ✅ Markdown 渲染支持
+
+**实现亮点**:
+- 使用蓝色渐变背景的用户头像
+- 右对齐的消息气泡布局
+- Prose 样式的 Markdown 渲染
+- 响应式设计，最大宽度 4xl
 
 **参考**: `chat.html` 第 3328-3337 行
 
 ---
 
-#### Task 2.2: 完善 MessageRenderer - 工具调用卡片
+#### Task 2.2: 完善 MessageRenderer - 工具调用卡片 ✅
 **文件**: `packages/web/src/modules/chat/components/MessageRenderer.vue`
+
+**状态**: ✅ 已完成
 
 **目标**: 实现工具调用（Bash、Write 等）的渲染
 
 **功能**:
-- 工具卡片折叠/展开
-- 输入参数显示
-- 执行结果显示
-- 错误状态显示
-- Diff 预览（Write 工具）
+- ✅ 工具卡片折叠/展开
+- ✅ 输入参数显示
+- ✅ 执行结果显示
+- ✅ 错误状态显示
+- ✅ Diff 预览（Write 工具）
+
+**实现亮点**:
+- 智能显示工具名称和参数预览
+- 错误状态使用红色主题
+- 成功状态显示绿色徽章
+- Diff 显示支持添加/删除行高亮
+- 可折叠的详细信息面板
+- 最大高度限制和自定义滚动条
 
 **参考**: `chat.html` 第 3348-3408 行
 
 ---
 
-#### Task 2.3: 完善 MessageRenderer - 权限请求卡片
+#### Task 2.3: 完善 MessageRenderer - 权限请求卡片 ✅
 **文件**: `packages/web/src/modules/chat/components/MessageRenderer.vue`
+
+**状态**: ✅ 已完成
 
 **目标**: 实现权限审批 UI
 
 **功能**:
-- 权限请求信息显示
-- 批准/拒绝按钮
-- 工具输入参数预览
+- ✅ 权限请求信息显示
+- ✅ 批准/拒绝按钮
+- ✅ 工具输入参数预览
+
+**实现亮点**:
+- 琥珀色主题突出权限请求
+- 盾牌图标增强视觉识别
+- JSON 格式化显示工具参数
+- 清晰的批准/拒绝按钮
+- 响应式布局和悬停效果
 
 **Emit 事件**:
 - `approve-permission`: 批准权限
@@ -162,16 +189,27 @@
 
 ---
 
-#### Task 2.4: 完善 MessageRenderer - 子代理卡片
+#### Task 2.4: 完善 MessageRenderer - 子代理卡片 ✅
 **文件**: `packages/web/src/modules/chat/components/MessageRenderer.vue`
+
+**状态**: ✅ 已完成
 
 **目标**: 实现子代理（Agent）的渲染
 
 **功能**:
-- 子代理信息显示
-- 折叠/展开功能
-- 打开子代理对话按钮
-- 子代理消息数量显示
+- ✅ 子代理信息显示
+- ✅ 折叠/展开功能
+- ✅ 打开子代理对话按钮
+- ✅ 子代理消息数量显示
+
+**实现亮点**:
+- 紫色主题区分子代理
+- 机器人图标标识
+- 显示描述、类型、提示信息
+- 子代理消息计数提示
+- 独立的"打开"按钮查看完整对话
+- 错误状态处理
+- 执行结果显示
 
 **Emit 事件**:
 - `open-subagent`: 打开子代理视图
@@ -180,15 +218,26 @@
 
 ---
 
-#### Task 2.5: 完善 MessageRenderer - TODO 列表卡片
+#### Task 2.5: 完善 MessageRenderer - TODO 列表卡片 ✅
 **文件**: `packages/web/src/modules/chat/components/MessageRenderer.vue`
+
+**状态**: ✅ 已完成
 
 **目标**: 实现 TODO 列表的渲染
 
 **功能**:
-- TODO 项状态显示（完成/进行中/待处理）
-- 状态图标和颜色
-- 活动文件显示
+- ✅ TODO 项状态显示（完成/进行中/待处理）
+- ✅ 状态图标和颜色
+- ✅ 活动文件显示
+
+**实现亮点**:
+- 彩色状态指示器（绿色=完成，蓝色=进行中，灰色=待处理）
+- 完成项显示删除线
+- 显示活动文件路径
+- 状态徽章（完成/进行中/待处理）
+- 悬停效果增强交互
+- 可折叠的任务列表
+- 任务数量统计
 
 **参考**: `chat.html` 第 3520-3560 行
 
@@ -444,3 +493,109 @@ const addMessage = (message) => {
 ```
 
 **下一步**: 开始阶段 2 - 消息渲染组件完善
+
+---
+
+### ✅ 阶段 2：消息渲染组件完善（已完成）
+
+- ✅ Task 2.1: 完善 MessageRenderer - 用户消息
+- ✅ Task 2.2: 完善 MessageRenderer - 工具调用卡片
+- ✅ Task 2.3: 完善 MessageRenderer - 权限请求卡片
+- ✅ Task 2.4: 完善 MessageRenderer - 子代理卡片
+- ✅ Task 2.5: 完善 MessageRenderer - TODO 列表卡片
+
+**完成时间**: 2026-01-28
+
+**文件清单**:
+1. `packages/web/src/modules/chat/components/MessageRenderer.vue` - 完整的消息渲染组件
+
+**功能特性**:
+
+1. **用户消息渲染**
+   - 蓝色渐变头像和消息气泡
+   - 右对齐布局
+   - Markdown 支持
+   - 时间戳显示
+
+2. **工具调用卡片**
+   - 支持 Bash、Write 等多种工具
+   - 折叠/展开功能
+   - 错误状态高亮（红色主题）
+   - 成功状态徽章（绿色）
+   - Diff 预览（添加/删除行高亮）
+   - 智能参数预览
+
+3. **权限请求卡片**
+   - 琥珀色主题突出显示
+   - 盾牌图标
+   - JSON 格式化参数显示
+   - 批准/拒绝按钮
+   - 清晰的操作提示
+
+4. **子代理卡片**
+   - 紫色主题区分
+   - 机器人图标
+   - 显示描述、类型、提示
+   - 子代理消息计数
+   - "打开"按钮查看完整对话
+   - 错误和结果状态显示
+
+5. **TODO 列表卡片**
+   - 彩色状态指示器
+   - 完成项删除线
+   - 活动文件显示
+   - 状态徽章
+   - 任务数量统计
+   - 折叠/展开功能
+
+**组件事件**:
+- `toggle-collapse`: 切换折叠状态
+- `approve-permission`: 批准权限请求
+- `deny-permission`: 拒绝权限请求
+- `open-subagent`: 打开子代理视图
+
+**样式特性**:
+- 响应式设计
+- 暗色模式支持
+- 平滑过渡动画
+- 自定义滚动条
+- Diff 高亮显示
+- 错误状态视觉反馈
+
+**使用示例**:
+
+```vue
+<script setup lang="ts">
+import MessageRenderer from '@/modules/chat/components/MessageRenderer.vue'
+
+const handleToggleCollapse = (item) => {
+  // 切换折叠状态
+}
+
+const handleApprovePermission = (item) => {
+  // 批准权限
+}
+
+const handleDenyPermission = (item) => {
+  // 拒绝权限
+}
+
+const handleOpenSubagent = (item) => {
+  // 打开子代理视图
+}
+</script>
+
+<template>
+  <MessageRenderer
+    :group="messageGroup"
+    :is-subagent="false"
+    :is-collapsed="isCollapsed"
+    @toggle-collapse="handleToggleCollapse"
+    @approve-permission="handleApprovePermission"
+    @deny-permission="handleDenyPermission"
+    @open-subagent="handleOpenSubagent"
+  />
+</template>
+```
+
+**下一步**: 开始阶段 3 - 图片功能

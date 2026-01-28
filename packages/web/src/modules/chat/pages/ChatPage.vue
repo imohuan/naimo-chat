@@ -3,16 +3,30 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useChatState } from '../composables/useChatState';
 import { useChatMessages } from '../composables/useChatMessages';
 import { useStreamHandler } from '../composables/useStreamHandler';
+import { useImagePreview } from '../composables/useImagePreview';
 import { chatService } from '../services/chat.service';
 import ChatSidebar from '../components/ChatSidebar.vue';
 import ChatHeader from '../components/ChatHeader.vue';
 import ChatInput from '../components/ChatInput.vue';
 import MessageRenderer from '../components/MessageRenderer.vue';
+import ImageViewer from '../components/ImageViewer.vue';
 import type { ChatHistory, EventItem, IntervalOption } from '@/types';
 
 const { state, canSend, showSaveButton } = useChatState();
 const { chatItems, groupedMessages, addChatItem, toggleToolCollapse, isCollapsed, toggleAllCollapse, clearMessages } = useChatMessages();
 const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems);
+const { 
+  images: uploadedImages, 
+  viewerVisible, 
+  viewerSrc, 
+  addImage, 
+  removeImage: removeImagePreview, 
+  clearImages,
+  openViewer,
+  closeViewer,
+  handleFileSelect: handleImageFileSelect,
+  handlePaste: handleImagePaste
+} = useImagePreview();
 
 const chatHistory = ref<ChatHistory[]>([]);
 const eventsList = ref<EventItem[]>([]);
@@ -48,7 +62,7 @@ const startSession = async () => {
 
   addChatItem({ role: 'user', kind: 'text', html: msg || '(附带图片)' });
   state.message = '';
-  state.uploadedImages = [];
+  clearImages(); // 使用 useImagePreview 的 clearImages
   state.isStarting = true;
 
   try {
@@ -278,25 +292,16 @@ const removeCwd = (index: number) => {
 };
 
 // 图片处理
-const handleFileSelect = (files: FileList) => {
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        state.uploadedImages.push({
-          id: Math.random().toString(36).substr(2, 9),
-          src: e.target?.result as string,
-          name: file.name
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  }
+const handleFileSelect = async (files: FileList) => {
+  await handleImageFileSelect({ target: { files, value: '' } } as any);
 };
 
 const removeImage = (imageId: string) => {
-  state.uploadedImages = state.uploadedImages.filter((img) => img.id !== imageId);
+  removeImagePreview(imageId);
+};
+
+const handlePaste = async (event: ClipboardEvent) => {
+  await handleImagePaste(event);
 };
 
 onMounted(() => {
@@ -365,12 +370,15 @@ onBeforeUnmount(() => {
       <ChatInput :message="state.message" :can-send="canSend" :streaming-id="state.streamingId"
         :is-starting="state.isStarting" :current-cwd="state.currentCwd" :cwd-list="state.cwdList"
         :cwd-dropdown-open="state.cwdDropdownOpen" :input-disabled="state.inputDisabled"
-        :project-path-missing="state.projectPathMissing" :uploaded-images="state.uploadedImages"
+        :project-path-missing="state.projectPathMissing" :uploaded-images="uploadedImages"
         @update:message="state.message = $event" @update:current-cwd="state.currentCwd = $event" @send="startSession"
         @abort="abortSession" @toggle-cwd-dropdown="state.cwdDropdownOpen = !state.cwdDropdownOpen"
-        @select-cwd="selectCwd" @remove-cwd="removeCwd" @file-select="handleFileSelect" @paste="() => { }"
-        @remove-image="removeImage" />
+        @select-cwd="selectCwd" @remove-cwd="removeCwd" @file-select="handleFileSelect" @paste="handlePaste"
+        @remove-image="removeImage" @preview-image="openViewer" />
     </main>
+
+    <!-- 图片查看器 -->
+    <ImageViewer :src="viewerSrc" :visible="viewerVisible" @close="closeViewer" />
   </div>
 </template>
 
