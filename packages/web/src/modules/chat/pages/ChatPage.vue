@@ -370,11 +370,20 @@ const loadProjects = async () => {
 };
 
 // 加载历史对话
-const loadHistoryConversation = async (historyItem: ChatHistory) => {
+const loadHistoryConversation = async (historyItem: ChatHistory, silent = false) => {
   if (historyItem.isRemote && historyItem.projectId && historyItem.sessionId) {
     try {
       const data = await chatService.loadSession(historyItem.projectId, historyItem.sessionId);
       if (data.conversation && data.conversation.length > 0) {
+        // 如果是静默刷新，比较内容是否有变化
+        if (silent) {
+          const hasChanged = JSON.stringify(chatItems.value) !== JSON.stringify(data.conversation);
+          if (!hasChanged) {
+            // 内容没有变化，不更新UI
+            return;
+          }
+        }
+
         chatItems.value = data.conversation;
         state.session = historyItem.sessionId;
         state.currentCwd = data.projectPath || '';
@@ -405,18 +414,72 @@ const deleteSession = async (sessionId: string) => {
 };
 
 // 自动刷新
-const manualRefresh = async () => {
+const manualRefresh = async (silent = false) => {
   if (state.isRefreshing || state.isStarting) return;
 
-  state.isRefreshing = true;
+  // 静默刷新时不显示刷新状态
+  if (!silent) {
+    state.isRefreshing = true;
+  }
+
   try {
+    // 刷新左侧历史列表
     await loadProjects();
+
+    // 如果当前有选中的会话，重新加载该会话内容（刷新右侧预览区域）
+    if (state.selectedHistoryId) {
+      const currentHistory = chatHistory.value.find(h => h.id === state.selectedHistoryId);
+      if (currentHistory) {
+        await loadHistoryConversation(currentHistory, silent);
+      }
+    }
   } catch (error) {
     console.error('刷新失败:', error);
   } finally {
-    state.isRefreshing = false;
+    if (!silent) {
+      state.isRefreshing = false;
+    }
   }
 };
+
+// 自动刷新定时器
+let autoRefreshTimer: number | null = null;
+
+// 启动自动刷新
+const startAutoRefresh = () => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+  }
+
+  if (state.autoRefresh.enabled) {
+    autoRefreshTimer = window.setInterval(() => {
+      manualRefresh(true); // 自动刷新时使用静默模式
+    }, state.autoRefresh.interval);
+  }
+};
+
+// 停止自动刷新
+const stopAutoRefresh = () => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+};
+
+// 监听自动刷新开关和间隔变化
+watch(() => state.autoRefresh.enabled, (enabled) => {
+  if (enabled) {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
+});
+
+watch(() => state.autoRefresh.interval, () => {
+  if (state.autoRefresh.enabled) {
+    startAutoRefresh(); // 重启定时器以应用新的间隔
+  }
+});
 
 // 工作目录管理
 const loadCwdList = () => {
@@ -493,6 +556,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopStream();
+  stopAutoRefresh(); // 清理自动刷新定时器
 
   // 移除滚动监听
   if (chatContainerRef.value) {
