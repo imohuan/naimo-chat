@@ -34,7 +34,7 @@ const loadEventsList = async () => {
     const data = await chatService.loadEvents();
     eventsList.value = data.events || [];
     if (eventsList.value.length > 0 && !state.selectedEvent) {
-      state.selectedEvent = eventsList.value[0].name;
+      state.selectedEvent = eventsList.value[0]!.name;
     }
   } catch (e) {
     console.error('Failed to load events list:', e);
