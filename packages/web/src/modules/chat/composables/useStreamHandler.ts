@@ -30,9 +30,11 @@ import type { ChatMessage } from '@/types';
 export function useStreamHandler(
   addChatItem: (item: Partial<ChatMessage>) => void,
   chatItems: { value: ChatMessage[] },
-  onStreamEnd?: () => void
+  onStreamEnd?: () => void,
+  state?: any
 ) {
   const eventSource = ref<EventSource | null>(null);
+  const isStreaming = ref(false);
 
   /**
    * 启动 SSE 流连接
@@ -44,7 +46,14 @@ export function useStreamHandler(
   const startStream = (id: string, url: string, onSessionId?: (sessionId: string) => void) => {
     if (eventSource.value) eventSource.value.close();
 
+    // 重置事件列表和会话状态
+    if (state) {
+      state.allEvents = [];
+      state.conversationEnded = false;
+    }
+
     eventSource.value = new EventSource(url);
+    isStreaming.value = true;
 
     eventSource.value.onopen = () => {
       console.log('SSE Connected:', url);
@@ -54,6 +63,12 @@ export function useStreamHandler(
       try {
         const data = JSON.parse(e.data);
         console.log("Stream Event:", data);
+
+        // 保存所有事件
+        if (state) {
+          state.allEvents.push(data);
+        }
+
         handleStreamEvent(data, onSessionId);
       } catch (err) {
         console.error("Parse Error:", err, "Raw data:", e.data);
@@ -74,6 +89,7 @@ export function useStreamHandler(
       console.log('[StreamHandler] Closing SSE connection');
       eventSource.value.close();
       eventSource.value = null;
+      isStreaming.value = false;
       // 调用流结束回调
       if (onStreamEnd) {
         onStreamEnd();
@@ -384,6 +400,12 @@ export function useStreamHandler(
     } else if (data.type === 'process_end') {
       console.log(`Process ended with code: ${data.code}`);
     }
+
+    // 标记会话结束
+    if (state) {
+      state.conversationEnded = true;
+    }
+
     stopStream();
   };
 
@@ -403,6 +425,7 @@ export function useStreamHandler(
   return {
     startStream,
     stopStream,
-    handleStreamEvent
+    handleStreamEvent,
+    isStreaming
   };
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useChatState } from '../composables/useChatState';
 import { useChatMessages } from '../composables/useChatMessages';
 import { useStreamHandler } from '../composables/useStreamHandler';
@@ -17,11 +17,11 @@ import type { ChatHistory, EventItem, IntervalOption, ChatMessage } from '@/type
 
 const { state, canSend, showSaveButton } = useChatState();
 const { chatItems, groupedMessages, addChatItem, toggleToolCollapse, isCollapsed, toggleAllCollapse, clearMessages } = useChatMessages();
-const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems, () => {
+const { startStream, stopStream, isStreaming } = useStreamHandler(addChatItem, chatItems, () => {
   // 流结束时清除 streamingId
   state.streamingId = '';
   state.isStarting = false;
-});
+}, state);
 const collapseStore = useCollapseStore();
 const {
   images: uploadedImages,
@@ -82,6 +82,50 @@ const subagentGroupedMessages = computed(() => {
 const chatHistory = ref<ChatHistory[]>([]);
 const eventsList = ref<EventItem[]>([]);
 
+// 滚动相关
+const chatContainerRef = ref<HTMLElement | null>(null);
+const subagentContainerRef = ref<HTMLElement | null>(null);
+const isNearBottom = ref(true); // 是否接近底部
+
+// 滚动到底部
+const scrollToBottom = (smooth = true) => {
+  const container = subagentViewActive.value ? subagentContainerRef.value : chatContainerRef.value;
+  if (container) {
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: smooth ? 'smooth' : 'auto'
+    });
+  }
+};
+
+// 检查是否接近底部
+const checkIfNearBottom = () => {
+  const container = subagentViewActive.value ? subagentContainerRef.value : chatContainerRef.value;
+  if (!container) return;
+
+  const { scrollTop, scrollHeight, clientHeight } = container;
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  isNearBottom.value = distanceFromBottom < 100; // 距离底部小于100px认为是接近底部
+};
+
+// 监听滚动事件
+const handleScroll = () => {
+  checkIfNearBottom();
+};
+
+// 监听消息变化，自动滚动
+watch(() => chatItems.value.length, () => {
+  if (isNearBottom.value) {
+    nextTick(() => scrollToBottom(true));
+  }
+}, { flush: 'post' });
+
+watch(() => subagentMessages.value.length, () => {
+  if (isNearBottom.value && subagentViewActive.value) {
+    nextTick(() => scrollToBottom(true));
+  }
+}, { flush: 'post' });
+
 const intervalOptions: IntervalOption[] = [
   { value: 500, label: '0.5秒' },
   { value: 1000, label: '1秒' },
@@ -115,6 +159,9 @@ const startSession = async () => {
   state.message = '';
   clearImages(); // 使用 useImagePreview 的 clearImages
   state.isStarting = true;
+
+  // 发送消息后立即滚动到底部
+  nextTick(() => scrollToBottom(true));
 
   try {
     const data = await chatService.startSession({
@@ -159,6 +206,9 @@ const sendTestRequest = async () => {
   const testMessage = `测试场景: ${state.selectedEvent}`;
   addChatItem({ role: 'user', kind: 'text', html: testMessage });
   state.isStarting = true;
+
+  // 发送消息后立即滚动到底部
+  nextTick(() => scrollToBottom(true));
 
   try {
     const data = await chatService.startSession({
@@ -247,6 +297,41 @@ const copySessionId = async () => {
     }, 2000);
   } catch (err) {
     console.error('复制失败:', err);
+  }
+};
+
+// 保存事件
+const openSaveModal = () => {
+  state.showSaveModal = true;
+};
+
+const closeSaveModal = () => {
+  state.showSaveModal = false;
+  state.saveEventName = '';
+};
+
+const saveEvents = async () => {
+  const name = state.saveEventName.trim();
+  if (!name) return;
+
+  state.isSaving = true;
+  try {
+    await chatService.saveEvents(name, state.allEvents);
+    state.status = `✓ 事件已保存: ${name}`;
+    closeSaveModal();
+    // 重新加载事件列表
+    await loadEventsList();
+    // 自动选中刚保存的事件
+    state.selectedEvent = name;
+    setTimeout(() => {
+      state.status = '';
+    }, 2000);
+  } catch (e: any) {
+    console.error('保存失败:', e);
+    state.status = `✗ 保存失败: ${e.message}`;
+    alert(`保存失败: ${e.message}`);
+  } finally {
+    state.isSaving = false;
   }
 };
 
@@ -387,10 +472,32 @@ onMounted(() => {
       loadHistoryConversation(chatHistory.value[0]);
     }
   });
+
+  // 获取容器引用并添加滚动监听
+  nextTick(() => {
+    chatContainerRef.value = document.getElementById('chat-container');
+    subagentContainerRef.value = document.getElementById('subagent-messages-container');
+
+    if (chatContainerRef.value) {
+      chatContainerRef.value.addEventListener('scroll', handleScroll);
+      checkIfNearBottom();
+    }
+    if (subagentContainerRef.value) {
+      subagentContainerRef.value.addEventListener('scroll', handleScroll);
+    }
+  });
 });
 
 onBeforeUnmount(() => {
   stopStream();
+
+  // 移除滚动监听
+  if (chatContainerRef.value) {
+    chatContainerRef.value.removeEventListener('scroll', handleScroll);
+  }
+  if (subagentContainerRef.value) {
+    subagentContainerRef.value.removeEventListener('scroll', handleScroll);
+  }
 });
 </script>
 
@@ -437,7 +544,7 @@ onBeforeUnmount(() => {
           <template v-if="subagentGroupedMessages.length > 0">
             <div v-for="(group, index) in subagentGroupedMessages" :key="group.id" class="mb-4">
               <MessageRenderer :group="group" :is-subagent="true"
-                :is-loading="state.streamingId && index === subagentGroupedMessages.length - 1 && group.role === 'assistant'"
+                :is-loading="isStreaming && index === subagentGroupedMessages.length - 1 && group.role === 'assistant'"
                 :is-collapsed="(itemId) => isSubagentCollapsed(itemId)"
                 @toggle-collapse="(item) => toggleSubagentCollapse(item.id)" @approve-permission="approvePermission"
                 @deny-permission="denyPermission" @open-subagent="openSubagent" />
@@ -490,9 +597,16 @@ onBeforeUnmount(() => {
           <template v-if="groupedMessages.length > 0">
             <div v-for="(group, index) in groupedMessages" :key="group.id" class="mb-4">
               <MessageRenderer :group="group" :is-subagent="false" :is-collapsed="isCollapsed"
-                :is-loading="state.streamingId && index === groupedMessages.length - 1 && group.role === 'assistant'"
+                :is-loading="isStreaming && index === groupedMessages.length - 1 && group.role === 'assistant'"
                 @toggle-collapse="(item) => toggleToolCollapse(item.id)" @approve-permission="approvePermission"
-                @deny-permission="denyPermission" @open-subagent="openSubagent" />
+                @deny-permission="denyPermission" @open-subagent="openSubagent">
+                <template #actions v-if="showSaveButton && index === groupedMessages.length - 1">
+                  <button @click="openSaveModal"
+                    class="save-icon-btn text-slate-400 hover:text-blue-600 transition-colors" title="保存对话事件">
+                    <i class="fa-solid fa-floppy-disk text-xs"></i>
+                  </button>
+                </template>
+              </MessageRenderer>
             </div>
           </template>
         </div>
@@ -514,6 +628,30 @@ onBeforeUnmount(() => {
 
     <!-- 图片查看器 -->
     <ImageViewer :src="viewerSrc" :visible="viewerVisible" @close="closeViewer" />
+
+    <!-- 保存事件 Modal -->
+    <div v-if="state.showSaveModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]"
+      @click.self="closeSaveModal">
+      <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <h3 class="text-xl font-bold text-slate-800 mb-4">保存对话事件</h3>
+        <p class="text-sm text-slate-600 mb-4">请输入事件名称，用于后续测试场景选择</p>
+        <input v-model="state.saveEventName" @keydown.enter="saveEvents" type="text" placeholder="例如: test-scenario-1"
+          class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+        <div class="flex gap-3 justify-end">
+          <button @click="closeSaveModal"
+            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">
+            取消
+          </button>
+          <button @click="saveEvents" :disabled="!state.saveEventName.trim()"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <i v-if="!state.isSaving" class="fa-solid fa-check"></i>
+            <span v-if="state.isSaving"
+              class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            {{ state.isSaving ? '保存中...' : '确认保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -536,5 +674,18 @@ onBeforeUnmount(() => {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.save-icon-btn {
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-icon-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
 }
 </style>
