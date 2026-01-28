@@ -1,19 +1,15 @@
-import { createRouter, createWebHashHistory } from "vue-router";
-import type { RouteRecordRaw } from "vue-router";
+import { createRouter, createWebHistory } from 'vue-router';
+import ChatPage from '@/modules/chat/pages/ChatPage.vue';
 
-const routes: RouteRecordRaw[] = [
-  {
-    path: "/",
-    redirect: "/icons",
-  },
-  {
-    path: "/icons",
-    name: "Icons",
-    component: () => import("@/modules/icons/pages/IconsPage.vue"),
-  },
-];
-
-export const router = createRouter({
-  history: createWebHashHistory(),
-  routes,
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      name: 'chat',
+      component: ChatPage
+    }
+  ]
 });
+
+export default router;
