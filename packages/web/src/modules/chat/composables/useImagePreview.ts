@@ -140,7 +140,7 @@ export function useImagePreview() {
     const files: File[] = []
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      if (item.type.includes('image')) {
+      if (item && item.type.includes('image')) {
         const file = item.getAsFile()
         if (file) {
           files.push(file)

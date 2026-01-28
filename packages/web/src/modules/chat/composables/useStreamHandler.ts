@@ -173,11 +173,18 @@ export function useStreamHandler(
 
           const targetIndex = chatItems.value.findIndex(i => i.tool_use_id === block.tool_use_id);
           if (targetIndex >= 0) {
-            chatItems.value[targetIndex] = {
-              ...chatItems.value[targetIndex],
-              result: resText,
-              isError: block.is_error
-            };
+            const item = chatItems.value[targetIndex];
+            if (item) {
+              chatItems.value[targetIndex] = {
+                ...item,
+                id: item.id || `tool-result-${Date.now()}`,
+                role: item.role || 'assistant',
+                kind: item.kind || 'tool',
+                time: item.time || new Date().toISOString(),
+                result: resText,
+                isError: block.is_error
+              };
+            }
           }
         }
       });
@@ -235,10 +242,12 @@ export function useStreamHandler(
       };
     } else {
       addChatItem({
+        id: `msg-${Date.now()}`,
         role: 'assistant',
         kind: 'text',
         rawText: text,
-        html: marked.parse(text) as string
+        html: marked.parse(text) as string,
+        time: new Date().toISOString()
       });
     }
   };
@@ -257,6 +266,7 @@ export function useStreamHandler(
   const handleToolUse = (toolData: any) => {
     if (toolData.name === 'Task') {
       addChatItem({
+        id: toolData.id || `tool-${Date.now()}`,
         role: 'assistant',
         kind: 'subagent',
         name: toolData.name,
@@ -265,31 +275,36 @@ export function useStreamHandler(
         tool_use_id: toolData.id,
         isError: false,
         subagentMessages: [],
-        agentId: null
+        agentId: null,
+        time: new Date().toISOString()
       });
       return;
     }
 
     if (toolData.name === 'TodoWrite' && toolData.input?.todos) {
       addChatItem({
+        id: toolData.id || `tool-${Date.now()}`,
         role: 'assistant',
         kind: 'todo_list',
         name: toolData.name,
         input: toolData.input,
         todos: toolData.input.todos,
-        tool_use_id: toolData.id
+        tool_use_id: toolData.id,
+        time: new Date().toISOString()
       });
       return;
     }
 
     const item: Partial<ChatMessage> = {
+      id: toolData.id || `tool-${Date.now()}`,
       role: 'assistant',
       kind: 'tool',
       name: toolData.name,
       input: toolData.input,
       result: '',
       tool_use_id: toolData.id,
-      isError: false
+      isError: false,
+      time: new Date().toISOString()
     };
 
     if (toolData.name === 'Write' && toolData.input?.content) {
@@ -307,11 +322,18 @@ export function useStreamHandler(
   const updateToolResult = (data: any) => {
     const targetIndex = chatItems.value.findIndex(i => i.tool_use_id === data.tool_use_id);
     if (targetIndex >= 0) {
-      chatItems.value[targetIndex] = {
-        ...chatItems.value[targetIndex],
-        result: data.result,
-        isError: data.is_error
-      };
+      const item = chatItems.value[targetIndex];
+      if (item) {
+        chatItems.value[targetIndex] = {
+          ...item,
+          id: item.id || `tool-result-${Date.now()}`,
+          role: item.role || 'assistant',
+          kind: item.kind || 'tool',
+          time: item.time || new Date().toISOString(),
+          result: data.result,
+          isError: data.is_error
+        };
+      }
     }
   };
 
@@ -331,25 +353,28 @@ export function useStreamHandler(
     if (subagentIndex >= 0) {
       const subagentItem = chatItems.value[subagentIndex];
 
-      // 初始化 subagentMessages 数组（如果不存在）
-      if (!subagentItem.subagentMessages) {
-        subagentItem.subagentMessages = [];
+      if (subagentItem) {
+        // 初始化 subagentMessages 数组（如果不存在）
+        if (!subagentItem.subagentMessages) {
+          subagentItem.subagentMessages = [];
+        }
+
+        // 添加子代理消息
+        const message: ChatMessage = {
+          id: data.message_id || `subagent-msg-${Date.now()}`,
+          role: data.role || 'assistant',
+          kind: data.kind || 'text',
+          time: new Date().toISOString(),
+          ...data.message
+        };
+
+        subagentItem.subagentMessages.push(message);
+
+        // 触发响应式更新
+        chatItems.value[subagentIndex] = {
+          ...subagentItem
+        };
       }
-
-      // 添加子代理消息
-      const message = {
-        id: data.message_id || `subagent-msg-${Date.now()}`,
-        role: data.role || 'assistant',
-        kind: data.kind || 'text',
-        ...data.message
-      };
-
-      subagentItem.subagentMessages.push(message);
-
-      // 触发响应式更新
-      chatItems.value[subagentIndex] = {
-        ...subagentItem
-      };
     }
   };
 
@@ -361,12 +386,14 @@ export function useStreamHandler(
   const handlePermissionRequest = (data: any) => {
     const req = data.permission || data;
     addChatItem({
+      id: req.id || `perm-${Date.now()}`,
       role: 'assistant',
       kind: 'permission_request',
       toolName: req.toolName,
       toolInput: req.toolInput,
       payload: req.payload,
-      requestId: req.id
+      requestId: req.id,
+      time: new Date().toISOString()
     });
   };
 
@@ -377,10 +404,12 @@ export function useStreamHandler(
    */
   const handleError = (data: any) => {
     addChatItem({
+      id: `error-${Date.now()}`,
       role: 'assistant',
       kind: 'text',
       rawText: `❌ 错误: ${data.stderr || data.error || 'unknown'}`,
-      html: marked.parse(`❌ 错误: ${data.stderr || data.error || 'unknown'}`) as string
+      html: marked.parse(`❌ 错误: ${data.stderr || data.error || 'unknown'}`) as string,
+      time: new Date().toISOString()
     });
   };
 
@@ -392,10 +421,12 @@ export function useStreamHandler(
   const handleEnd = (data: any) => {
     if (data.type === 'aborted') {
       addChatItem({
+        id: `end-${Date.now()}`,
         role: 'assistant',
         kind: 'text',
         rawText: `⚠️ ${data.message || '会话已被用户中断'}`,
-        html: marked.parse(`⚠️ ${data.message || '会话已被用户中断'}`) as string
+        html: marked.parse(`⚠️ ${data.message || '会话已被用户中断'}`) as string,
+        time: new Date().toISOString()
       });
     } else if (data.type === 'process_end') {
       console.log(`Process ended with code: ${data.code}`);

@@ -67,6 +67,11 @@ export interface IntervalOption {
   label: string;
 }
 
+export interface IconInfo {
+  name: string;
+  component: any;
+}
+
 // ============ Event Types ============
 
 export type Events = {

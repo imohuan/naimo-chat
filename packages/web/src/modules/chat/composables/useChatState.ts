@@ -95,7 +95,7 @@ export function useChatState() {
   });
 
   const canSend = computed(() => {
-    return (state.message.trim() || state.uploadedImages.length > 0) && !state.isStarting;
+    return ((state.message.trim().length > 0) || (state.uploadedImages.length > 0)) && !state.isStarting;
   });
 
   const showSaveButton = computed(() => {

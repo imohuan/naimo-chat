@@ -35,8 +35,10 @@ function colorLog(color, label, message) {
 // 获取路径
 const rootDir = path.resolve(__dirname, "..");
 const frontendDir = path.join(rootDir, "packages", "frontend");
+const webDir = path.join(rootDir, "packages", "web");
 const backendDir = path.join(rootDir, "packages", "backend");
 const frontendDistDir = path.join(frontendDir, "dist");
+const webDistDir = path.join(webDir, "dist");
 const backendPublicDir = path.join(backendDir, "internal-public");
 const backendDistDir = path.join(backendDir, "dist");
 const rootDistDir = path.join(rootDir, "dist");
@@ -133,11 +135,14 @@ function checkFrontendResources() {
   const hasFrontendDist =
     fs.existsSync(frontendDistDir) &&
     fs.readdirSync(frontendDistDir).length > 0;
+  const hasWebDist =
+    fs.existsSync(webDistDir) &&
+    fs.readdirSync(webDistDir).length > 0;
   const hasBackendPublic =
     fs.existsSync(backendPublicDir) &&
     fs.readdirSync(backendPublicDir).length > 0;
 
-  return hasFrontendDist || hasBackendPublic;
+  return hasFrontendDist || hasWebDist || hasBackendPublic;
 }
 
 // 显示交互式菜单并获取用户选择
@@ -176,7 +181,7 @@ function showMenu() {
 
 // 步骤 1: 打包前端
 async function buildFrontend() {
-  colorLog("bright", "STEP 1/4", "📦 打包前端 HTML...");
+  colorLog("bright", "STEP 1/5", "📦 打包前端 HTML...");
   console.log("─".repeat(60));
 
   try {
@@ -192,17 +197,43 @@ async function buildFrontend() {
       throw new Error(`前端构建失败，dist 目录不存在: ${frontendDistDir}`);
     }
 
-    colorLog("green", "STEP 1/4", "✅ 前端打包完成");
+    colorLog("green", "STEP 1/5", "✅ 前端打包完成");
     console.log("");
   } catch (error) {
-    colorLog("red", "STEP 1/4", `❌ 前端打包失败: ${error.message}`);
+    colorLog("red", "STEP 1/5", `❌ 前端打包失败: ${error.message}`);
+    throw error;
+  }
+}
+
+// 步骤 1.5: 打包 Web 页面
+async function buildWeb() {
+  colorLog("bright", "STEP 2/5", "📦 打包 Web 页面...");
+  console.log("─".repeat(60));
+
+  try {
+    // 检查 web 目录是否存在
+    if (!fs.existsSync(webDir)) {
+      throw new Error(`Web 目录不存在: ${webDir}`);
+    }
+
+    await execCommand("pnpm build", webDir, "构建 Web 页面");
+
+    // 验证 dist 目录是否生成
+    if (!fs.existsSync(webDistDir)) {
+      throw new Error(`Web 构建失败，dist 目录不存在: ${webDistDir}`);
+    }
+
+    colorLog("green", "STEP 2/5", "✅ Web 页面打包完成");
+    console.log("");
+  } catch (error) {
+    colorLog("red", "STEP 2/5", `❌ Web 页面打包失败: ${error.message}`);
     throw error;
   }
 }
 
 // 步骤 2: 复制资源到 backend/public
 async function copyToBackendPublic() {
-  colorLog("bright", "STEP 2/4", "📋 复制资源到 backend/public...");
+  colorLog("bright", "STEP 3/5", "📋 复制资源到 backend/public...");
   console.log("─".repeat(60));
 
   try {
@@ -223,17 +254,45 @@ async function copyToBackendPublic() {
     );
     await copyDirectory(frontendDistDir, backendPublicDir);
 
-    colorLog("green", "STEP 2/4", "✅ 资源复制完成");
+    // 复制 web dist 到 backend/public，并将 index.html 重命名为 chat.html
+    if (fs.existsSync(webDistDir)) {
+      colorLog(
+        "cyan",
+        "COPY",
+        `正在复制 ${webDistDir} -> ${backendPublicDir} (index.html -> chat.html)`
+      );
+
+      const entries = await fs.promises.readdir(webDistDir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const srcPath = path.join(webDistDir, entry.name);
+        let destPath = path.join(backendPublicDir, entry.name);
+
+        // 如果是 index.html，重命名为 chat.html
+        if (entry.name === 'index.html') {
+          destPath = path.join(backendPublicDir, 'chat.html');
+          colorLog("cyan", "RENAME", `index.html -> chat.html`);
+        }
+
+        if (entry.isDirectory()) {
+          await copyDirectory(srcPath, destPath);
+        } else {
+          await fs.promises.copyFile(srcPath, destPath);
+        }
+      }
+    }
+
+    colorLog("green", "STEP 3/5", "✅ 资源复制完成");
     console.log("");
   } catch (error) {
-    colorLog("red", "STEP 2/4", `❌ 资源复制失败: ${error.message}`);
+    colorLog("red", "STEP 3/5", `❌ 资源复制失败: ${error.message}`);
     throw error;
   }
 }
 
 // 步骤 3: 打包后端 exe
 async function buildBackend() {
-  colorLog("bright", "STEP 3/4", "🚀 打包后端 EXE...");
+  colorLog("bright", "STEP 4/5", "🚀 打包后端 EXE...");
   console.log("─".repeat(60));
 
   try {
@@ -253,17 +312,17 @@ async function buildBackend() {
       throw new Error(`后端构建失败，可执行文件不存在: ${exePath}`);
     }
 
-    colorLog("green", "STEP 3/4", "✅ 后端打包完成");
+    colorLog("green", "STEP 4/5", "✅ 后端打包完成");
     console.log("");
   } catch (error) {
-    colorLog("red", "STEP 3/4", `❌ 后端打包失败: ${error.message}`);
+    colorLog("red", "STEP 4/5", `❌ 后端打包失败: ${error.message}`);
     throw error;
   }
 }
 
 // 步骤 4: 复制 exe 到根目录 dist
 async function copyExeToRoot() {
-  colorLog("bright", "STEP 4/4", "📦 复制 EXE 到根目录 dist...");
+  colorLog("bright", "STEP 5/5", "📦 复制 EXE 到根目录 dist...");
   console.log("─".repeat(60));
 
   try {
@@ -284,7 +343,7 @@ async function copyExeToRoot() {
     colorLog("cyan", "COPY", `正在复制 ${sourceExePath} -> ${destExePath}`);
     await fs.promises.copyFile(sourceExePath, destExePath);
 
-    colorLog("green", "STEP 4/4", "✅ EXE 复制完成");
+    colorLog("green", "STEP 5/5", "✅ EXE 复制完成");
     console.log("");
 
     // 显示文件大小
@@ -297,7 +356,7 @@ async function copyExeToRoot() {
       `\n✨ 打包完成！可执行文件位于: ${destExePath}`
     );
   } catch (error) {
-    colorLog("red", "STEP 4/4", `❌ EXE 复制失败: ${error.message}`);
+    colorLog("red", "STEP 5/5", `❌ EXE 复制失败: ${error.message}`);
     throw error;
   }
 }
@@ -324,6 +383,7 @@ async function main() {
     // 根据用户选择决定是否编译前端
     if (shouldBuildFrontend) {
       await buildFrontend();
+      await buildWeb();
     } else {
       // 如果跳过前端编译，需要确保 frontendDistDir 存在
       // 如果 frontendDistDir 不存在但 backendPublicDir 存在，则从 backendPublicDir 复制回去

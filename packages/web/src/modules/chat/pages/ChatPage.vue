@@ -396,7 +396,7 @@ const deleteSession = async (sessionId: string) => {
   try {
     await chatService.deleteSession(sessionId);
     await loadProjects();
-    if (chatHistory.value.length > 0) {
+    if (chatHistory.value.length > 0 && chatHistory.value[0]) {
       await loadHistoryConversation(chatHistory.value[0]);
     }
   } catch (error) {
@@ -425,7 +425,10 @@ const loadCwdList = () => {
     if (saved) {
       state.cwdList = JSON.parse(saved);
       if (state.cwdList.length > 0) {
-        state.currentCwd = state.cwdList[state.cwdList.length - 1];
+        const lastCwd = state.cwdList[state.cwdList.length - 1];
+        if (lastCwd) {
+          state.currentCwd = lastCwd;
+        }
       }
     }
   } catch (e) {
@@ -468,7 +471,7 @@ onMounted(() => {
   loadEventsList();
   loadCwdList();
   loadProjects().then(() => {
-    if (chatHistory.value.length > 0) {
+    if (chatHistory.value.length > 0 && chatHistory.value[0]) {
       loadHistoryConversation(chatHistory.value[0]);
     }
   });
