@@ -1,32 +1,77 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useChatState } from '../composables/useChatState';
 import { useChatMessages } from '../composables/useChatMessages';
 import { useStreamHandler } from '../composables/useStreamHandler';
 import { useImagePreview } from '../composables/useImagePreview';
+import { useSubagentView } from '../composables/useSubagentView';
 import { chatService } from '../services/chat.service';
 import ChatSidebar from '../components/ChatSidebar.vue';
 import ChatHeader from '../components/ChatHeader.vue';
 import ChatInput from '../components/ChatInput.vue';
 import MessageRenderer from '../components/MessageRenderer.vue';
 import ImageViewer from '../components/ImageViewer.vue';
+import ScrollButtons from '../components/ScrollButtons.vue';
 import type { ChatHistory, EventItem, IntervalOption } from '@/types';
 
 const { state, canSend, showSaveButton } = useChatState();
 const { chatItems, groupedMessages, addChatItem, toggleToolCollapse, isCollapsed, toggleAllCollapse, clearMessages } = useChatMessages();
 const { startStream, stopStream } = useStreamHandler(addChatItem, chatItems);
-const { 
-  images: uploadedImages, 
-  viewerVisible, 
-  viewerSrc, 
-  addImage, 
-  removeImage: removeImagePreview, 
+const {
+  images: uploadedImages,
+  viewerVisible,
+  viewerSrc,
+  addImage,
+  removeImage: removeImagePreview,
   clearImages,
   openViewer,
   closeViewer,
   handleFileSelect: handleImageFileSelect,
   handlePaste: handleImagePaste
 } = useImagePreview();
+
+// 子代理视图
+const {
+  isActive: subagentViewActive,
+  messages: subagentMessages,
+  description: subagentDescription,
+  allCollapsed: subagentAllCollapsed,
+  messageCount: subagentMessageCount,
+  openSubagent,
+  closeSubagent,
+  toggleAllCollapse: toggleAllCollapseSubagent,
+  isCollapsed: isSubagentCollapsed,
+  toggleCollapse: toggleSubagentCollapse
+} = useSubagentView();
+
+// 子代理消息分组
+const subagentGroupedMessages = computed(() => {
+  const groups: any[] = [];
+  let currentGroup: any = null;
+
+  subagentMessages.value.forEach((item: any) => {
+    if (item.role === 'user') {
+      groups.push({
+        id: item.id,
+        role: 'user',
+        items: [item]
+      });
+      currentGroup = null;
+    } else if (item.role === 'assistant') {
+      if (!currentGroup || currentGroup.role !== 'assistant') {
+        currentGroup = {
+          id: item.id,
+          role: 'assistant',
+          items: []
+        };
+        groups.push(currentGroup);
+      }
+      currentGroup.items.push(item);
+    }
+  });
+
+  return groups;
+});
 
 const chatHistory = ref<ChatHistory[]>([]);
 const eventsList = ref<EventItem[]>([]);
@@ -128,7 +173,18 @@ const approvePermission = async (item: ChatMessage) => {
   try {
     if (!item.requestId) return;
     await chatService.approvePermission(item.requestId);
-    chatItems.value = chatItems.value.filter(i => i.id !== item.id);
+
+    // 根据当前视图选择对应的消息列表
+    if (subagentViewActive.value) {
+      // 从子代理消息中移除
+      const index = subagentMessages.value.findIndex((i: any) => i.id === item.id);
+      if (index !== -1) {
+        subagentMessages.value.splice(index, 1);
+      }
+    } else {
+      // 从主消息列表中移除
+      chatItems.value = chatItems.value.filter(i => i.id !== item.id);
+    }
   } catch (e) {
     console.error('Failed to approve permission:', e);
   }
@@ -138,7 +194,18 @@ const denyPermission = async (item: ChatMessage) => {
   try {
     if (!item.requestId) return;
     await chatService.denyPermission(item.requestId);
-    chatItems.value = chatItems.value.filter(i => i.id !== item.id);
+
+    // 根据当前视图选择对应的消息列表
+    if (subagentViewActive.value) {
+      // 从子代理消息中移除
+      const index = subagentMessages.value.findIndex((i: any) => i.id === item.id);
+      if (index !== -1) {
+        subagentMessages.value.splice(index, 1);
+      }
+    } else {
+      // 从主消息列表中移除
+      chatItems.value = chatItems.value.filter(i => i.id !== item.id);
+    }
   } catch (e) {
     console.error('Failed to deny permission:', e);
   }
@@ -327,54 +394,112 @@ onBeforeUnmount(() => {
 
     <!-- 主界面 -->
     <main class="flex-1 h-full relative flex flex-col overflow-hidden">
-      <!-- 顶部导航 -->
-      <ChatHeader :selected-event="state.selectedEvent" :dropdown-open="state.dropdownOpen" :events-list="eventsList"
-        :is-starting="state.isStarting" :session="state.session" :streaming-id="state.streamingId"
-        :auto-refresh-enabled="state.autoRefresh.enabled" :auto-refresh-interval="state.autoRefresh.interval"
-        :interval-dropdown-open="state.autoRefresh.intervalDropdownOpen" :interval-options="intervalOptions"
-        :is-refreshing="state.isRefreshing" :all-collapsed="state.allCollapsed"
-        @toggle-dropdown="state.dropdownOpen = !state.dropdownOpen"
-        @select-event="(name) => { state.selectedEvent = name; state.dropdownOpen = false; }"
-        @delete-event="(name) => chatService.deleteEvent(name).then(() => loadEventsList())"
-        @send-test="sendTestRequest" @copy-session="copySessionId"
-        @toggle-auto-refresh="state.autoRefresh.enabled = !state.autoRefresh.enabled"
-        @toggle-interval-dropdown="state.autoRefresh.intervalDropdownOpen = !state.autoRefresh.intervalDropdownOpen"
-        @select-interval="(val) => { state.autoRefresh.interval = val; state.autoRefresh.intervalDropdownOpen = false; }"
-        @manual-refresh="manualRefresh"
-        @toggle-all-collapse="() => { state.allCollapsed = !state.allCollapsed; toggleAllCollapse(state.allCollapsed); }"
-        @clear-chat="clearChat" />
-
-      <!-- 对话内容区域 -->
-      <div id="chat-container" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
-        <div v-if="chatItems.length === 0"
-          class="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
-          <div
-            class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-            <i class="fa-solid fa-wand-magic-sparkles text-3xl"></i>
+      <!-- 子代理视图覆盖层 -->
+      <div v-if="subagentViewActive" class="absolute inset-0 bg-white z-50 flex flex-col">
+        <!-- 子代理顶部导航 -->
+        <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button @click="closeSubagent"
+              class="w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+              <i class="fa-solid fa-arrow-left text-slate-700"></i>
+            </button>
+            <div>
+              <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-robot text-purple-600"></i>
+                子代理对话
+              </h2>
+              <p class="text-xs text-slate-500">{{ subagentDescription }}</p>
+            </div>
           </div>
-          <h2 class="text-2xl font-bold text-slate-800 mb-2">今天能帮您做点什么？</h2>
-          <p class="text-slate-500">我可以帮您编写代码、分析数据或回答问题。请在下方输入您的需求。</p>
+          <div class="flex items-center gap-4 text-sm">
+            <button @click="toggleAllCollapseSubagent"
+              class="text-slate-500 hover:text-purple-500 transition flex items-center gap-1.5" title="全部折叠/展开">
+              <i class="fa-solid" :class="subagentAllCollapsed ? 'fa-angles-down' : 'fa-angles-up'"></i>
+              {{ subagentAllCollapsed ? '全部展开' : '全部折叠' }}
+            </button>
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+              <i class="fa-solid fa-layer-group"></i>
+              <span>{{ subagentMessageCount }} 条消息</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- 子代理对话内容 -->
+        <div id="subagent-messages-container" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4 bg-slate-50">
+          <template v-if="subagentGroupedMessages.length > 0">
+            <div v-for="group in subagentGroupedMessages" :key="group.id" class="mb-4">
+              <MessageRenderer :group="group" :is-subagent="true"
+                :is-collapsed="(itemId) => isSubagentCollapsed(itemId)"
+                @toggle-collapse="(item) => toggleSubagentCollapse(item.id)" @approve-permission="approvePermission"
+                @deny-permission="denyPermission" @open-subagent="openSubagent" />
+            </div>
+          </template>
+          <div v-else class="h-full flex items-center justify-center text-slate-400">
+            <div class="text-center">
+              <i class="fa-solid fa-inbox text-4xl mb-3"></i>
+              <p>暂无子代理消息</p>
+            </div>
+          </div>
         </div>
 
-        <!-- 分组渲染消息 -->
-        <template v-if="groupedMessages.length > 0">
-          <div v-for="group in groupedMessages" :key="group.id" class="mb-4">
-            <MessageRenderer :group="group" :is-subagent="false" :is-collapsed="isCollapsed"
-              @toggle-collapse="(item) => toggleToolCollapse(item.id)" @approve-permission="approvePermission"
-              @deny-permission="denyPermission" @open-subagent="() => { }" />
-          </div>
-        </template>
+        <!-- 滚动按钮组件 -->
+        <ScrollButtons container-id="subagent-messages-container" />
       </div>
 
-      <!-- 输入区域 -->
-      <ChatInput :message="state.message" :can-send="canSend" :streaming-id="state.streamingId"
-        :is-starting="state.isStarting" :current-cwd="state.currentCwd" :cwd-list="state.cwdList"
-        :cwd-dropdown-open="state.cwdDropdownOpen" :input-disabled="state.inputDisabled"
-        :project-path-missing="state.projectPathMissing" :uploaded-images="uploadedImages"
-        @update:message="state.message = $event" @update:current-cwd="state.currentCwd = $event" @send="startSession"
-        @abort="abortSession" @toggle-cwd-dropdown="state.cwdDropdownOpen = !state.cwdDropdownOpen"
-        @select-cwd="selectCwd" @remove-cwd="removeCwd" @file-select="handleFileSelect" @paste="handlePaste"
-        @remove-image="removeImage" @preview-image="openViewer" />
+      <!-- 主对话视图 -->
+      <div class="w-full h-full flex flex-col overflow-hidden" v-show="!subagentViewActive">
+        <!-- 顶部导航 -->
+        <ChatHeader :selected-event="state.selectedEvent" :dropdown-open="state.dropdownOpen" :events-list="eventsList"
+          :is-starting="state.isStarting" :session="state.session" :streaming-id="state.streamingId"
+          :auto-refresh-enabled="state.autoRefresh.enabled" :auto-refresh-interval="state.autoRefresh.interval"
+          :interval-dropdown-open="state.autoRefresh.intervalDropdownOpen" :interval-options="intervalOptions"
+          :is-refreshing="state.isRefreshing" :all-collapsed="state.allCollapsed"
+          @toggle-dropdown="state.dropdownOpen = !state.dropdownOpen"
+          @select-event="(name) => { state.selectedEvent = name; state.dropdownOpen = false; }"
+          @delete-event="(name) => chatService.deleteEvent(name).then(() => loadEventsList())"
+          @send-test="sendTestRequest" @copy-session="copySessionId"
+          @toggle-auto-refresh="state.autoRefresh.enabled = !state.autoRefresh.enabled"
+          @toggle-interval-dropdown="state.autoRefresh.intervalDropdownOpen = !state.autoRefresh.intervalDropdownOpen"
+          @select-interval="(val) => { state.autoRefresh.interval = val; state.autoRefresh.intervalDropdownOpen = false; }"
+          @manual-refresh="manualRefresh"
+          @toggle-all-collapse="() => { state.allCollapsed = !state.allCollapsed; toggleAllCollapse(state.allCollapsed); }"
+          @clear-chat="clearChat" />
+
+        <!-- 对话内容区域 -->
+        <div id="chat-container" class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
+          <div v-if="chatItems.length === 0"
+            class="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+            <div
+              class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+              <i class="fa-solid fa-wand-magic-sparkles text-3xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">今天能帮您做点什么？</h2>
+            <p class="text-slate-500">我可以帮您编写代码、分析数据或回答问题。请在下方输入您的需求。</p>
+          </div>
+
+          <!-- 分组渲染消息 -->
+          <template v-if="groupedMessages.length > 0">
+            <div v-for="group in groupedMessages" :key="group.id" class="mb-4">
+              <MessageRenderer :group="group" :is-subagent="false" :is-collapsed="isCollapsed"
+                @toggle-collapse="(item) => toggleToolCollapse(item.id)" @approve-permission="approvePermission"
+                @deny-permission="denyPermission" @open-subagent="openSubagent" />
+            </div>
+          </template>
+        </div>
+
+        <!-- 输入区域 -->
+        <ChatInput :message="state.message" :can-send="canSend" :streaming-id="state.streamingId"
+          :is-starting="state.isStarting" :current-cwd="state.currentCwd" :cwd-list="state.cwdList"
+          :cwd-dropdown-open="state.cwdDropdownOpen" :input-disabled="state.inputDisabled"
+          :project-path-missing="state.projectPathMissing" :uploaded-images="uploadedImages"
+          @update:message="state.message = $event" @update:current-cwd="state.currentCwd = $event" @send="startSession"
+          @abort="abortSession" @toggle-cwd-dropdown="state.cwdDropdownOpen = !state.cwdDropdownOpen"
+          @select-cwd="selectCwd" @remove-cwd="removeCwd" @file-select="handleFileSelect" @paste="handlePaste"
+          @remove-image="removeImage" @preview-image="openViewer" />
+
+        <!-- 滚动按钮组件 -->
+        <ScrollButtons container-id="chat-container" />
+      </div>
     </main>
 
     <!-- 图片查看器 -->

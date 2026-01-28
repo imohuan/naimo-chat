@@ -73,11 +73,9 @@ const handleFileSelect = (e: Event) => {
         <!-- 图片预览区域 -->
         <div v-if="uploadedImages.length > 0" class="preview-area-input flex gap-2 flex-wrap mb-2">
           <div v-for="img in uploadedImages" :key="img.id" class="preview-wrapper-input relative">
-            <img 
-              :src="img.src" 
-              class="preview-item-input w-9 h-9 rounded-lg object-cover border border-slate-200 cursor-pointer" 
-              @click="emit('preview-image', img.src)"
-            />
+            <img :src="img.src"
+              class="preview-item-input w-9 h-9 rounded-lg object-cover border border-slate-200 cursor-pointer"
+              @click="emit('preview-image', img.src)" />
             <div @click="emit('remove-image', img.id)"
               class="preview-close-input absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white shadow-md flex items-center justify-center cursor-pointer opacity-0 hover:opacity-100 transition-opacity">
               <i class="fa-solid fa-xmark text-xs text-slate-600"></i>
@@ -156,154 +154,19 @@ const handleFileSelect = (e: Event) => {
 </template>
 
 <style scoped>
-.input-container-gemini {
-  display: flex;
-  flex-direction: column;
-  background: #f8f9fa;
-  border: 1px solid #e8eaed;
-  border-radius: 12px;
-  padding: 12px 14px 10px 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s;
-}
+/* 
+ * ChatInput 组件样式
+ * 大部分样式已移至全局样式文件: @/modules/chat/styles/chat.css
+ * 这里只保留组件特定的样式覆盖
+ */
 
-.input-container-gemini:focus-within {
-  background: #ffffff;
-  border-color: #d2d5da;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.cwd-selector-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.cwd-input-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
-  background: transparent;
-  transition: 0.2s;
-  overflow: hidden;
-}
-
-.cwd-input-container:hover {
-  border-color: #bdc1c6;
-  background: #f8f9fa;
-}
-
-.cwd-icon {
-  padding-left: 10px;
-  color: #5f6368;
-  font-size: 14px;
-}
-
-.cwd-input {
-  width: 200px;
-  padding: 4px 28px 4px 8px;
-  border: none;
-  background: transparent;
-  color: #202124;
-  font-size: 13px;
-  outline: none;
-}
-
-.cwd-dropdown-icon {
-  position: absolute;
-  right: 8px;
-  cursor: pointer;
-  color: #5f6368;
-  transition: transform 0.2s;
-}
-
-.cwd-info-icon {
-  position: absolute;
-  right: 8px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #5c5c5c;
-  font-size: 14px;
-  cursor: help;
-}
-
-.cwd-dropdown {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  padding: 6px 0;
-  min-width: 300px;
-  max-height: 300px;
-  overflow-y: auto;
-  z-index: 1000;
-}
-
-.cwd-dropdown-empty {
-  padding: 20px;
-  text-align: center;
-  color: #5f6368;
-  font-size: 13px;
-}
-
-.cwd-option {
-  padding: 10px 14px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: 0.2s;
-}
-
-.cwd-option:hover {
-  background: #f8f9fa;
-}
-
-.cwd-option.selected {
-  background: #e8f0fe;
-}
-
-.cwd-option-content {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #202124;
-}
-
-.cwd-option-icon {
-  color: #5f6368;
-  font-size: 13px;
-}
-
-.cwd-remove-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: #5f6368;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.2s;
-}
-
-.cwd-remove-btn:hover {
-  background: #f1f3f4;
-  color: #d93025;
-}
-
+/* 确保图片预览关闭按钮在悬停时显示 */
 .preview-wrapper-input:hover .preview-close-input {
   opacity: 1;
+}
+
+/* CWD 下拉菜单显示控制 */
+.cwd-dropdown {
+  display: block;
 }
 </style>

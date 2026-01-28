@@ -74,17 +74,9 @@ onKeyStroke('Escape', () => {
 <template>
   <Teleport to="body">
     <Transition name="fade">
-      <div
-        v-if="visible"
-        class="image-viewer"
-        @wheel="handleWheel"
-      >
+      <div v-if="visible" class="image-viewer" @wheel="handleWheel">
         <!-- Close button -->
-        <button
-          class="viewer-close"
-          @click="close"
-          aria-label="关闭图片查看器"
-        >
+        <button class="viewer-close" @click="close" aria-label="关闭图片查看器">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -92,25 +84,13 @@ onKeyStroke('Escape', () => {
         </button>
 
         <!-- Image wrapper -->
-        <div
-          ref="imageWrapper"
-          class="viewer-image-wrapper"
-          :style="transformStyle"
-        >
-          <img
-            :src="src"
-            alt="预览图片"
-            class="viewer-image"
-          >
+        <div ref="imageWrapper" class="viewer-image-wrapper" :style="transformStyle">
+          <img :src="src" alt="预览图片" class="viewer-image">
         </div>
 
         <!-- Zoom controls -->
         <div class="viewer-controls">
-          <button
-            class="viewer-btn"
-            @click="zoomOut"
-            aria-label="缩小"
-          >
+          <button class="viewer-btn" @click="zoomOut" aria-label="缩小">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -122,11 +102,7 @@ onKeyStroke('Escape', () => {
             {{ zoomPercentage }}%
           </div>
 
-          <button
-            class="viewer-btn"
-            @click="zoomIn"
-            aria-label="放大"
-          >
+          <button class="viewer-btn" @click="zoomIn" aria-label="放大">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -135,11 +111,7 @@ onKeyStroke('Escape', () => {
             </svg>
           </button>
 
-          <button
-            class="viewer-btn"
-            @click="resetZoom"
-            aria-label="重置缩放"
-          >
+          <button class="viewer-btn" @click="resetZoom" aria-label="重置缩放">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M1 4v6h6M23 20v-6h-6"></path>
               <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
@@ -152,105 +124,18 @@ onKeyStroke('Escape', () => {
 </template>
 
 <style scoped>
-/* Image Viewer - Full Screen */
-.image-viewer {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-}
+/* 
+ * ImageViewer 组件样式
+ * 基础样式在全局样式文件: @/modules/chat/styles/chat.css
+ * 这里只保留组件特定的样式
+ */
 
+/* 图片包装器的变换过渡 */
 .viewer-image-wrapper {
-  max-width: 90%;
-  max-height: 90%;
-  cursor: grab;
-  user-select: none;
   transition: transform 0.1s ease-out;
 }
 
-.viewer-image-wrapper:active {
-  cursor: grabbing;
-}
-
-.viewer-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  pointer-events: none;
-  user-select: none;
-}
-
-.viewer-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: transparent;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 100000;
-  border: none;
-  transition: background 0.2s;
-}
-
-.viewer-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.viewer-controls {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 12px;
-  padding: 8px 20px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.viewer-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: transparent;
-  color: #202124;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border: none;
-  transition: background 0.2s;
-}
-
-.viewer-btn:hover {
-  background: #e8eaed;
-}
-
-.viewer-zoom-level {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 60px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #202124;
-}
-
-/* Fade transition */
+/* 淡入淡出过渡 */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;

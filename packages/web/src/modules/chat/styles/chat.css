@@ -1,0 +1,921 @@
+/**
+ * Chat Module Global Styles
+ * 聊天模块全局样式
+ * 
+ * 包含：
+ * - 自定义滚动条样式
+ * - Gemini 风格输入容器
+ * - 工具卡片样式
+ * - Diff 显示样式
+ * - 图片查看器样式
+ * - Markdown 渲染样式
+ * - 动画效果
+ */
+
+/* ========================================
+   自定义滚动条样式
+   ======================================== */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+  border: 2px solid #f1f5f9;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 消息列表专用滚动条样式 */
+#chat-container::-webkit-scrollbar,
+.subagent-messages-container::-webkit-scrollbar {
+  width: 10px;
+}
+
+#chat-container::-webkit-scrollbar-track,
+.subagent-messages-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+#chat-container::-webkit-scrollbar-thumb,
+.subagent-messages-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+  border: 2px solid #f1f5f9;
+}
+
+#chat-container::-webkit-scrollbar-thumb:hover,
+.subagent-messages-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ========================================
+   消息动画
+   ======================================== */
+
+.message-enter-active,
+.message-leave-active {
+  transition: all 0.3s ease;
+}
+
+.message-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* ========================================
+   工具卡片样式
+   ======================================== */
+
+.tool-card {
+  border-left: 3px solid #3b82f6;
+}
+
+.tool-collapse-btn {
+  transition: transform 0.2s ease;
+}
+
+.tool-collapsed .tool-collapse-btn {
+  transform: rotate(-90deg);
+}
+
+/* ========================================
+   Diff 显示样式
+   ======================================== */
+
+.diff-added {
+  background-color: #f0fdf4;
+  border-left: 3px solid #22c55e;
+}
+
+.diff-removed {
+  background-color: #fef2f2;
+  border-left: 3px solid #ef4444;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ========================================
+   Gemini 风格输入容器
+   ======================================== */
+
+.input-container-gemini {
+  display: flex;
+  flex-direction: column;
+  background: #f8f9fa;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 12px 14px 10px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+}
+
+.input-container-gemini:focus-within {
+  background: #ffffff;
+  border-color: #d2d5da;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* 图片预览区域 */
+.preview-area-input {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.preview-area-input:empty {
+  display: none;
+}
+
+.preview-wrapper-input {
+  position: relative;
+  display: inline-block;
+}
+
+.preview-item-input {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  display: block;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.preview-close-input {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.preview-wrapper-input:hover .preview-close-input {
+  opacity: 1;
+}
+
+/* 按钮行 */
+.button-row-input {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.add-btn-input {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  color: #5f6368;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: 0.2s;
+  flex-shrink: 0;
+  border: none;
+}
+
+.add-btn-input:hover {
+  background: #e8eaed;
+}
+
+.left-buttons-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.right-buttons-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ========================================
+   CWD 选择器样式
+   ======================================== */
+
+.cwd-selector-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cwd-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: transparent;
+  transition: 0.2s;
+  overflow: hidden;
+}
+
+.cwd-input-container:hover {
+  border-color: #bdc1c6;
+  background: #f8f9fa;
+}
+
+.cwd-input-container:focus-within {
+  background: #ffffff;
+  border-color: #d2d5da;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.cwd-input-container.disabled {
+  background: #f1f5f9;
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.cwd-input-container.disabled:hover {
+  background: #f1f5f9;
+  border-color: #dadce0;
+}
+
+.cwd-icon {
+  padding-left: 10px;
+  color: #5f6368;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.cwd-input {
+  width: 200px;
+  padding: 4px 28px 4px 8px;
+  border: none;
+  background: transparent;
+  color: #202124;
+  font-size: 13px;
+  outline: none;
+}
+
+.cwd-input:disabled {
+  cursor: not-allowed;
+  color: #5f6368;
+}
+
+.cwd-dropdown-icon {
+  position: absolute;
+  right: 8px;
+  cursor: pointer;
+  color: #5f6368;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.cwd-dropdown-icon:hover {
+  color: #202124;
+}
+
+.cwd-info-icon {
+  position: absolute;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c5c5c;
+  font-size: 14px;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.cwd-info-icon:hover {
+  color: #2a2a2a;
+}
+
+.cwd-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 6px 0;
+  min-width: 300px;
+  max-width: 500px;
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+  z-index: 1000;
+}
+
+.cwd-dropdown.active {
+  display: block;
+}
+
+.cwd-dropdown-empty {
+  padding: 20px;
+  text-align: center;
+  color: #5f6368;
+  font-size: 13px;
+}
+
+.cwd-option {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: 0.2s;
+}
+
+.cwd-option:hover {
+  background: #f8f9fa;
+}
+
+.cwd-option.selected {
+  background: #e8f0fe;
+}
+
+.cwd-option-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #202124;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cwd-option-icon {
+  color: #5f6368;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.cwd-remove-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+  flex-shrink: 0;
+}
+
+.cwd-remove-btn:hover {
+  background: #f1f3f4;
+  color: #d93025;
+}
+
+/* ========================================
+   助手消息样式
+   ======================================== */
+
+.assistant-group {
+  display: flex;
+  gap: 1rem;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+}
+
+.assistant-group-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-text {
+  color: #1e293b;
+  line-height: 1.6;
+}
+
+/* ========================================
+   Markdown 样式
+   ======================================== */
+
+.assistant-text p {
+  margin: 0.5rem 0;
+}
+
+.assistant-text ul,
+.assistant-text ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+
+.assistant-text ul {
+  list-style-type: disc;
+}
+
+.assistant-text ol {
+  list-style-type: decimal;
+}
+
+.assistant-text li {
+  margin: 0.25rem 0;
+  padding-left: 0.25rem;
+}
+
+.assistant-text li::marker {
+  color: #64748b;
+}
+
+.assistant-text h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin: 1.5rem 0 1rem 0;
+  line-height: 1.2;
+}
+
+.assistant-text h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.75rem 0;
+  line-height: 1.3;
+}
+
+.assistant-text h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem 0;
+  line-height: 1.4;
+}
+
+.assistant-text h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0.875rem 0 0.5rem 0;
+  line-height: 1.4;
+}
+
+.assistant-text h5 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem 0;
+  line-height: 1.5;
+}
+
+.assistant-text h6 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem 0;
+  line-height: 1.5;
+}
+
+.assistant-text blockquote {
+  border-left: 4px solid #cbd5e1;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #64748b;
+  font-style: italic;
+}
+
+.assistant-text hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.5rem 0;
+}
+
+.assistant-text a {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.assistant-text a:hover {
+  color: #2563eb;
+}
+
+.assistant-text strong {
+  font-weight: 600;
+}
+
+.assistant-text em {
+  font-style: italic;
+}
+
+.assistant-text code {
+  background: #e2e8f0;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.assistant-text pre {
+  background: #f1f5f9;
+  color: #1e293b;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  margin: 1rem 0;
+}
+
+.assistant-text pre code {
+  background: transparent;
+  padding: 0;
+  color: #1e293b;
+  font-size: 0.875rem;
+}
+
+.assistant-text table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.assistant-text table th,
+.assistant-text table td {
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.assistant-text table th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.assistant-text table tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+/* 移除 space-y 造成的间隔 */
+.space-y-3 > * + * {
+  margin-top: 0 !important;
+}
+
+.space-y-3 > .w-full + .w-full {
+  margin-top: 0.75rem !important;
+}
+
+/* ========================================
+   图片查看器样式
+   ======================================== */
+
+.image-viewer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 99999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.image-viewer.active {
+  display: flex;
+}
+
+.viewer-image-wrapper {
+  max-width: 90%;
+  max-height: 90%;
+  cursor: grab;
+  user-select: none;
+}
+
+.viewer-image-wrapper:active {
+  cursor: grabbing;
+}
+
+.viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viewer-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: transparent;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100000;
+}
+
+.viewer-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.viewer-controls {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.viewer-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  color: #202124;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+}
+
+.viewer-btn:hover {
+  background: #e8eaed;
+}
+
+.viewer-zoom-level {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #202124;
+}
+
+/* ========================================
+   动画效果
+   ======================================== */
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   模态框样式
+   ======================================== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fade-in 0.2s ease-out;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: slide-up 0.2s ease-out;
+}
+
+/* ========================================
+   自定义下拉框样式
+   ======================================== */
+
+.custom-dropdown {
+  position: relative;
+  width: 180px;
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  overflow: hidden;
+  height: 38px;
+}
+
+.dropdown-header:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.dropdown-header.disabled {
+  background: #f1f5f9;
+  opacity: 0.6;
+}
+
+.dropdown-trigger {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+}
+
+.dropdown-trigger.disabled {
+  cursor: not-allowed;
+}
+
+.dropdown-trigger-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+.dropdown-chevron {
+  transition: transform 0.2s;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+.dropdown-chevron.open {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 50;
+  animation: dropdown-fade-in 0.15s ease-out;
+}
+
+.dropdown-item-wrapper {
+  display: flex;
+  align-items: center;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.dropdown-item-wrapper:hover {
+  background: #f1f5f9;
+}
+
+.dropdown-item-wrapper.selected {
+  background: #eff6ff;
+}
+
+.dropdown-item-wrapper.selected .dropdown-item {
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.dropdown-item {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #334155;
+  min-width: 0;
+}
+
+.dropdown-delete-btn {
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  transition: color 0.15s;
+  flex-shrink: 0;
+  opacity: 0;
+  font-size: 0.75rem;
+}
+
+.dropdown-item-wrapper:hover .dropdown-delete-btn {
+  opacity: 1;
+}
+
+.dropdown-delete-btn:hover {
+  color: #ef4444;
+}
+
+/* ========================================
+   其他工具样式
+   ======================================== */
+
+.save-events-btn {
+  position: sticky;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.save-icon-btn {
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-icon-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.auto-refresh-panel {
+  transition: all 0.2s ease;
+}
